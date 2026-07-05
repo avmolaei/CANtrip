@@ -100,10 +100,34 @@ std::string PeakBackend::describeStatus(TPCANStatus status) const {
 
 std::vector<CanChannelInfo> PeakBackend::enumerateChannels() const {
     std::vector<CanChannelInfo> result;
+
+    // Preferred path: PCAN_ATTACHED_CHANNELS enumerates every channel the
+    // driver actually knows about (USB, LAN, virtual, whatever) with a real
+    // device name, instead of us guessing which fixed handle values to
+    // probe. Only fall back to manual probing if this isn't supported
+    // (older PCAN-Basic builds).
+    DWORD count = 0;
+    TPCANStatus status = pGetValue_(PCAN_NONEBUS, PCAN_ATTACHED_CHANNELS_COUNT, &count, sizeof(count));
+    if (status == PCAN_ERROR_OK && count > 0) {
+        std::vector<TPCANChannelInformation> infos(count);
+        status = pGetValue_(PCAN_NONEBUS, PCAN_ATTACHED_CHANNELS, infos.data(),
+                             static_cast<DWORD>(infos.size() * sizeof(TPCANChannelInformation)));
+        if (status == PCAN_ERROR_OK) {
+            for (const auto& info : infos) {
+                if (info.channel_condition == PCAN_CHANNEL_UNAVAILABLE) continue;
+                std::string name(info.device_name, strnlen(info.device_name, sizeof(info.device_name)));
+                result.push_back(CanChannelInfo{
+                    static_cast<uint64_t>(info.channel_handle), name,
+                    info.channel_condition == PCAN_CHANNEL_AVAILABLE});
+            }
+            return result;
+        }
+    }
+
     for (TPCANHandle h : kProbeHandles) {
         DWORD condition = PCAN_CHANNEL_UNAVAILABLE;
-        TPCANStatus status = pGetValue_(h, PCAN_CHANNEL_CONDITION, &condition, sizeof(condition));
-        if (status != PCAN_ERROR_OK) continue;
+        TPCANStatus probeStatus = pGetValue_(h, PCAN_CHANNEL_CONDITION, &condition, sizeof(condition));
+        if (probeStatus != PCAN_ERROR_OK) continue;
         if (condition == PCAN_CHANNEL_UNAVAILABLE) continue;
         result.push_back(CanChannelInfo{
             static_cast<uint64_t>(h), handleName(h), condition == PCAN_CHANNEL_AVAILABLE});
@@ -185,7 +209,11 @@ bool PeakBackend::readClassic(TPCANHandle channel, CanFrame* out, std::string* e
 
 bool PeakBackend::readFd(TPCANHandle channel, CanFrame* out, std::string* error) const {
     TPCANMsgFD msg{};
-    TPCANTimestamp ts{};
+    // CAN_ReadFD's timestamp out-param is a TPCANTimestampFD (a plain
+    // UINT64 tick count), NOT a TPCANTimestamp struct - passing the wrong
+    // one here previously "worked" only because both happen to be 8 bytes,
+    // silently reinterpreting the tick count as {millis,overflow,micros}.
+    TPCANTimestampFD ts = 0;
     TPCANStatus status = pReadFD_(channel, &msg, &ts);
     if (status == PCAN_ERROR_QRCVEMPTY) {
         return false;
@@ -202,8 +230,7 @@ bool PeakBackend::readFd(TPCANHandle channel, CanFrame* out, std::string* error)
     out->esi = msg.MSGTYPE & PCAN_MESSAGE_ESI;
     out->dlc = msg.DLC;
     std::memcpy(out->data, msg.DATA, sizeof(out->data));
-    out->timestampUs = static_cast<uint64_t>(ts.millis) * 1000ull + ts.micros
-        + (static_cast<uint64_t>(ts.millis_overflow) << 32) * 1000ull;
+    out->timestampUs = static_cast<uint64_t>(ts); // already a flat microsecond tick count
     return true;
 }
 

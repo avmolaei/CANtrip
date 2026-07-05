@@ -4,13 +4,18 @@
 // constants, and functions CANtrip actually calls (initialize, read,
 // write, uninitialize, channel enumeration, CAN-FD variants).
 //
-// IMPORTANT: replace this file with the official PCANBasic.h shipped in
-// the PCAN-Basic SDK (installed alongside the PCAN-Basic driver package
-// from https://www.peak-system.com/PCAN-Basic.239.0.html) before relying
-// on this for real hardware bring-up. Constant values below (baud rates,
-// parameter IDs, channel handles) are transcribed from PEAK's public API
-// documentation and are believed correct for PCAN-Basic 4.x, but the
-// vendor header is the source of truth.
+// Cross-checked against a verified, actively-maintained mirror of PEAK's
+// real PCANBasic.h (author Keneth Wagner, last change 2024-09-24:
+// https://github.com/uv-software/PCANBasic-Wrapper) and against a real
+// installed PCAN-Basic 5.1 driver on Windows. An earlier version of this
+// file was hand-transcribed from documentation rather than copied from a
+// real SDK header and had several wrong parameter-ID constants (e.g.
+// PCAN_CHANNEL_CONDITION, PCAN_ATTACHED_CHANNELS*) plus, worse, forced
+// `#pragma pack(1)` on structs the real DLL expects at natural alignment -
+// silently writing past the end of TPCANMsg/TPCANMsgFD/TPCANChannelInformation
+// buffers on every real CAN_Read/CAN_ReadFD/PCAN_ATTACHED_CHANNELS call.
+// Fixed here; still worth diffing against PEAK's actual shipped header
+// (from the PCAN-Basic SDK download) if anything here is ever suspect.
 #pragma once
 
 #include <windows.h>
@@ -25,6 +30,7 @@ typedef BYTE TPCANMessageType;
 typedef BYTE TPCANType;
 typedef WORD TPCANMode;
 typedef DWORD TPCANBaudrate;
+typedef UINT64 TPCANTimestampFD;
 
 // --- Channel handles ---
 #define PCAN_NONEBUS      0x00U
@@ -54,7 +60,7 @@ typedef DWORD TPCANBaudrate;
 #define PCAN_BAUD_250K    0x011CU
 #define PCAN_BAUD_125K    0x031CU
 #define PCAN_BAUD_100K    0x432FU
-#define PCAN_BAUD_95K     0x532FU
+#define PCAN_BAUD_95K     0xC34EU
 #define PCAN_BAUD_83K     0x852BU
 #define PCAN_BAUD_50K     0x472FU
 #define PCAN_BAUD_47K     0x1414U
@@ -75,14 +81,14 @@ typedef DWORD TPCANBaudrate;
 #define PCAN_MESSAGE_STATUS    0x80U
 
 // --- Parameters for CAN_GetValue / CAN_SetValue ---
-#define PCAN_CHANNEL_CONDITION      0x07U
-#define PCAN_CHANNEL_IDENTIFYING    0x08U
-#define PCAN_CHANNEL_FEATURES       0x09U
-#define PCAN_BITRATE_ADAPTING       0x0AU
-#define PCAN_BITRATE_INFO           0x0BU
-#define PCAN_BITRATE_INFO_FD        0x0CU
-#define PCAN_ATTACHED_CHANNELS_COUNT 0x2FU
-#define PCAN_ATTACHED_CHANNELS       0x30U
+#define PCAN_CHANNEL_CONDITION      0x0DU
+#define PCAN_CHANNEL_IDENTIFYING    0x15U
+#define PCAN_CHANNEL_FEATURES       0x16U
+#define PCAN_BITRATE_ADAPTING       0x17U
+#define PCAN_BITRATE_INFO           0x18U
+#define PCAN_BITRATE_INFO_FD        0x19U
+#define PCAN_ATTACHED_CHANNELS_COUNT 0x2AU
+#define PCAN_ATTACHED_CHANNELS       0x2BU
 
 // PCAN_CHANNEL_CONDITION values
 #define PCAN_CHANNEL_UNAVAILABLE  0x00U
@@ -116,11 +122,18 @@ typedef DWORD TPCANBaudrate;
 #define PCAN_ERROR_ILLDATA     0x20000U
 #define PCAN_ERROR_BUSPASSIVE  0x40000U
 #define PCAN_ERROR_ILLMODE     0x80000U
+#define PCAN_ERROR_CAUTION     0x2000000U
+#define PCAN_ERROR_INITIALIZE  0x4000000U
+#define PCAN_ERROR_ILLOPERATION 0x8000000U
 
 #define MAX_LENGTH_HARDWARE_NAME 33
 #define MAX_LENGTH_VERSION_STRING 256
 
-#pragma pack(push, 1)
+// No #pragma pack here, deliberately: the real DLL's structs use natural
+// alignment (verified against PEAK's actual header, which has no pack
+// pragma either). Forcing byte-packing here made these structs 2-14 bytes
+// smaller than what CAN_Read/CAN_ReadFD/PCAN_ATTACHED_CHANNELS actually
+// write into them - a real, silent out-of-bounds write on every call.
 
 typedef struct {
     DWORD ID;
@@ -152,13 +165,16 @@ typedef struct {
     DWORD channel_condition;
 } TPCANChannelInformation;
 
-#pragma pack(pop)
-
 typedef TPCANStatus (__stdcall *CAN_Initialize_t)(TPCANHandle, TPCANBaudrate, TPCANType, DWORD, WORD);
 typedef TPCANStatus (__stdcall *CAN_InitializeFD_t)(TPCANHandle, LPSTR);
 typedef TPCANStatus (__stdcall *CAN_Uninitialize_t)(TPCANHandle);
 typedef TPCANStatus (__stdcall *CAN_Read_t)(TPCANHandle, TPCANMsg*, TPCANTimestamp*);
-typedef TPCANStatus (__stdcall *CAN_ReadFD_t)(TPCANHandle, TPCANMsgFD*, TPCANTimestamp*);
+// CAN_ReadFD/CAN_WriteFD take a TPCANTimestampFD* (a plain UINT64 tick
+// count), NOT a TPCANTimestamp* - a distinct, smaller-looking type that's
+// easy to conflate with the classic one since they're both "the timestamp
+// parameter." Verified against PEAK's real header, which defines them as
+// separate types for exactly this reason.
+typedef TPCANStatus (__stdcall *CAN_ReadFD_t)(TPCANHandle, TPCANMsgFD*, TPCANTimestampFD*);
 typedef TPCANStatus (__stdcall *CAN_Write_t)(TPCANHandle, TPCANMsg*);
 typedef TPCANStatus (__stdcall *CAN_WriteFD_t)(TPCANHandle, TPCANMsgFD*);
 typedef TPCANStatus (__stdcall *CAN_GetValue_t)(TPCANHandle, TPCANParameter, void*, DWORD);
