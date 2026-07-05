@@ -1,5 +1,7 @@
 # CANtrip
 
+![CANtrip](app/resources/cantrip_source.png)
+
 An open-source, free alternative to Vector CANalyzer for viewing CAN /
 CAN-FD bus traffic on Windows, decoding it against DBC files, and (in a
 later phase) graphing signals and sending/gatewaying messages.
@@ -53,8 +55,9 @@ vendor SDK directly.
   `PCANBasic.dll`. Supports classic CAN and CAN FD.
 - [`common/VectorBackend.h/.cpp`](common/VectorBackend.cpp) wraps Vector
   Informatik's `vxlapi64.dll` (XL Driver Library), verified against a real
-  VN1640A. Supports classic CAN and CAN FD (FD uses fixed default bit
-  timing for now - configurable sample point is planned).
+  VN1640A. Supports classic CAN and CAN FD, with bit timing computed by
+  [`common/CanBitTiming.h/.cpp`](common/CanBitTiming.cpp) (see the CAN
+  Controller dialog on the Hardware ribbon tab).
 - [`common/CanBackendRegistry.cpp`](common/CanBackendRegistry.cpp) is the
   single place that lists every backend CANtrip knows about.
 - Adding support for another vendor (Kvaser's CANlib, ETAS's BOA, etc.)
@@ -116,24 +119,35 @@ building from source - grab the zip, extract it anywhere, and skip straight
 to step 2 below (it already bundles `pcan2pcap.exe`, `cantrip.exe`, and every
 DLL both need).
 
+CANtrip's window is a ribbon, Office-style: each tab across the top shows a
+different group of controls.
+
 1. Install the extcap (see above) - CANtrip's app doesn't talk to hardware
    directly, it always goes through `tshark`, so `pcan2pcap.exe` has to be
    somewhere Wireshark/tshark can find it.
 2. Launch `build\app\Debug\cantrip.exe` (or `cantrip.exe` from a Release
    zip).
-3. Pick a channel from the dropdown. No CAN hardware or vendor driver
-   installed yet? Pick **"CANtrip synthetic test source (no hardware
-   needed)"** - it's always listed and fakes traffic so you can try
-   everything below without owning a single wire.
-4. Set the bitrate (and tick "CAN FD" + its data bitrate if relevant - not
-   applicable to the synthetic source, which is classic-only for now).
-5. Click **Import DBC...** and load [`test/sample.dbc`](test/sample.dbc) -
-   a small DBC whose four message IDs (`0x100`, `0x200`, `0x300`, `0x7E8`)
-   deliberately match what the synthetic test source transmits, so you get
-   fully decoded signals with zero hardware.
-6. Click **Start Capture**. Frames stream into the table as they arrive;
-   click the arrow next to a row to unfold it into its decoded signals
-   (name, physical value, unit) via dbcppp.
+3. On the **Hardware** tab, pick a channel from the "Network Hardware"
+   dropdown. No CAN hardware or vendor driver installed yet? Pick
+   **"CANtrip synthetic test source (no hardware needed)"** - it's always
+   listed and fakes traffic so you can try everything below without owning
+   a single wire.
+4. Still on **Hardware**, click **CAN Controller...** to set the bitrate -
+   classic `CAN` mode by default, or `ISO CAN FD`/`Expert CAN FD` for FD
+   (not applicable to the synthetic source, which is classic-only for now).
+   ISO mode computes real BRP/TSEG1/TSEG2/SJW register values live from a
+   target bitrate and sample point; Expert mode lets you type those raw
+   values directly.
+5. On the **Analysis & Measurement** tab, click **Import DBC...** and load
+   [`test/sample.dbc`](test/sample.dbc) - a small DBC whose four message IDs
+   (`0x100`, `0x200`, `0x300`, `0x7E8`) deliberately match what the
+   synthetic test source transmits, so you get fully decoded signals with
+   zero hardware.
+6. On the **Home** tab, click **Start**. Frames stream into the table as
+   they arrive; click the arrow next to a row to unfold it into its decoded
+   signals (name, physical value, unit) via dbcppp. Switch between
+   "Waterfall" (newest first) and "Periodic" (one row per ID) display from
+   the same tab; click **Stop** to end the capture.
 
 ## License
 

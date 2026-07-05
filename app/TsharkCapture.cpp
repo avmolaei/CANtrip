@@ -78,9 +78,14 @@ void TsharkCapture::start(const Config& config) {
         // literal lowercase string "true" - "TRUE" is silently ignored.
         setOpt("fd", "true");
         setOpt("databitrate", QString::number(config.dataBitrateBps));
-    }
-    if (!config.expertInitString.isEmpty()) {
-        setOpt("expertstring", config.expertInitString);
+        setOpt("nombrp", QString::number(config.nomBrp));
+        setOpt("nomtseg1", QString::number(config.nomTseg1));
+        setOpt("nomtseg2", QString::number(config.nomTseg2));
+        setOpt("nomsjw", QString::number(config.nomSjw));
+        setOpt("databrp", QString::number(config.dataBrp));
+        setOpt("datatseg1", QString::number(config.dataTseg1));
+        setOpt("datatseg2", QString::number(config.dataTseg2));
+        setOpt("datasjw", QString::number(config.dataSjw));
     }
 
     process_.start(config.tsharkPath, args);

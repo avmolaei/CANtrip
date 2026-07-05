@@ -109,12 +109,13 @@ void printExtcapDlts(const std::string& /*interfaceId*/) {
 }
 
 void printExtcapConfig(const std::string& /*interfaceId*/) {
-    // "Usual" bitrate presets as a selector; "Expert" raw FD init string as
-    // a free-text field. The Qt app talks to pcan2pcap the same way
-    // (invoking with --bitrate/--fd/--data-bitrate/--expert-string), this
-    // config listing is what makes the tool also usable stand-alone from
-    // within Wireshark's own capture-options dialog. The expert string's
-    // exact format is backend-specific (see CanBitrateConfig::expertInitString).
+    // "Usual" bitrate presets as a selector; FD bit-timing (tick values, not
+    // a free-text expert string) as plain integer fields. The Qt app talks
+    // to pcan2pcap the same way (invoking with --bitrate/--fd/--data-bitrate/
+    // --nom-*/--data-*), this config listing is what makes the tool also
+    // usable stand-alone from within Wireshark's own capture-options dialog.
+    // Values come from CANtrip's bit-timing calculator (see CanBitTiming.h);
+    // manually-entered "expert" values work the same way from either side.
     std::printf("arg {number=0}{call=--bitrate}{display=Bitrate}{type=selector}"
                 "{tooltip=Classic CAN nominal bitrate}\n");
     std::printf("value {arg=0}{value=125000}{display=125 kbit/s}{default=false}\n");
@@ -129,12 +130,24 @@ void printExtcapConfig(const std::string& /*interfaceId*/) {
     std::printf("value {arg=2}{value=2000000}{display=2 Mbit/s}{default=true}\n");
     std::printf("value {arg=2}{value=5000000}{display=5 Mbit/s}{default=false}\n");
 
-    std::printf("arg {number=3}{call=--expert-string}{display=Expert FD init string}{type=string}"
-                "{tooltip=Raw backend-specific FD init string; overrides bitrate/data-bitrate "
-                "when non-empty. For the PEAK backend, example: f_clock_mhz=80,nom_brp=2,"
-                "nom_tseg1=63,nom_tseg2=16,nom_sjw=16,data_brp=2,data_tseg1=15,data_tseg2=4,data_sjw=4}\n");
+    std::printf("arg {number=3}{call=--nom-brp}{display=Nominal BRP}{type=integer}{default=2}"
+                "{tooltip=FD nominal phase bitrate prescaler}\n");
+    std::printf("arg {number=4}{call=--nom-tseg1}{display=Nominal TSEG1}{type=integer}{default=63}"
+                "{tooltip=FD nominal phase time segment 1}\n");
+    std::printf("arg {number=5}{call=--nom-tseg2}{display=Nominal TSEG2}{type=integer}{default=16}"
+                "{tooltip=FD nominal phase time segment 2}\n");
+    std::printf("arg {number=6}{call=--nom-sjw}{display=Nominal SJW}{type=integer}{default=16}"
+                "{tooltip=FD nominal phase sync jump width}\n");
+    std::printf("arg {number=7}{call=--data-brp}{display=Data BRP}{type=integer}{default=2}"
+                "{tooltip=FD data phase bitrate prescaler}\n");
+    std::printf("arg {number=8}{call=--data-tseg1}{display=Data TSEG1}{type=integer}{default=15}"
+                "{tooltip=FD data phase time segment 1}\n");
+    std::printf("arg {number=9}{call=--data-tseg2}{display=Data TSEG2}{type=integer}{default=4}"
+                "{tooltip=FD data phase time segment 2}\n");
+    std::printf("arg {number=10}{call=--data-sjw}{display=Data SJW}{type=integer}{default=4}"
+                "{tooltip=FD data phase sync jump width}\n");
 
-    std::printf("arg {number=4}{call=--test-mode}{display=Synthetic test source}{type=boolflag}"
+    std::printf("arg {number=11}{call=--test-mode}{display=Synthetic test source}{type=boolflag}"
                 "{default=false}{tooltip=Generate fake frames instead of reading real hardware}\n");
 }
 
@@ -306,13 +319,22 @@ int runCapture(const std::vector<std::string>& args, const std::string& interfac
         }
     }
 
+    auto getUint = [&](const char* name, const char* def) {
+        return static_cast<uint32_t>(std::strtol(getOption(args, name, def).c_str(), nullptr, 10));
+    };
+
     CanBitrateConfig config;
     config.fd = hasFlag(args, "--fd");
-    config.nominalBitrateBps = static_cast<uint32_t>(
-        std::strtol(getOption(args, "--bitrate", "500000").c_str(), nullptr, 10));
-    config.dataBitrateBps = static_cast<uint32_t>(
-        std::strtol(getOption(args, "--data-bitrate", "2000000").c_str(), nullptr, 10));
-    config.expertInitString = getOption(args, "--expert-string");
+    config.nominalBitrateBps = getUint("--bitrate", "500000");
+    config.dataBitrateBps = getUint("--data-bitrate", "2000000");
+    config.nominalTiming.brp = getUint("--nom-brp", "2");
+    config.nominalTiming.tseg1 = getUint("--nom-tseg1", "63");
+    config.nominalTiming.tseg2 = getUint("--nom-tseg2", "16");
+    config.nominalTiming.sjw = getUint("--nom-sjw", "16");
+    config.dataTiming.brp = getUint("--data-brp", "2");
+    config.dataTiming.tseg1 = getUint("--data-tseg1", "15");
+    config.dataTiming.tseg2 = getUint("--data-tseg2", "4");
+    config.dataTiming.sjw = getUint("--data-sjw", "4");
 
     uint64_t channelId = 0;
     std::unique_ptr<ICanBackend> backend = resolveInterface(interfaceId, &channelId);

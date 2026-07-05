@@ -6,6 +6,8 @@ add_executable(cantrip
     main.cpp
     MainWindow.h
     MainWindow.cpp
+    CanControllerDialog.h
+    CanControllerDialog.cpp
     StatusLed.h
     StatusLed.cpp
     TsharkCapture.h

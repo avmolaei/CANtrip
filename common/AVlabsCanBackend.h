@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+#include "CanBitTiming.h"
+
 namespace cantrip {
 
 // Backend-agnostic frame representation, used for both reads and writes
@@ -48,15 +50,17 @@ struct CanChannelInfo {
 };
 
 // Bitrate/timing configuration common enough to express across vendors.
-// `expertInitString` is an escape hatch for vendor-specific raw timing
-// strings (e.g. PCAN-Basic's CAN_InitializeFD "f_clock_mhz=..." format)
-// since exact bit-timing register layouts are not standardized across
-// vendors; when non-empty it overrides nominal/dataBitrateBps for FD init.
+// `nominalTiming`/`dataTiming` (BRP/TSEG1/TSEG2/SJW) are used only when
+// `fd` is true - every vendor's FD init ultimately needs these same four
+// numbers per phase, whether it takes them as a formatted string (PCAN-Basic)
+// or as struct fields (Vector XL), so callers compute them once (see
+// CanBitTiming.h) rather than each backend reinventing bit-timing math.
 struct CanBitrateConfig {
     uint32_t nominalBitrateBps = 500000;
     uint32_t dataBitrateBps = 2000000; // used only when fd == true
     bool fd = false;
-    std::string expertInitString;
+    CanTimingValues nominalTiming;
+    CanTimingValues dataTiming;
 };
 
 // One CAN hardware vendor's SDK, wrapped behind a vendor-neutral interface.

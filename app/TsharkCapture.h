@@ -44,7 +44,11 @@ public:
         uint32_t nominalBitrateBps = 500000;
         uint32_t dataBitrateBps = 2000000;
         bool fd = false;
-        QString expertInitString;
+        // Bit-timing tick values, used only when fd is true (see
+        // CanBitTiming.h - computed once in the app, then threaded through
+        // this CLI to pcan2pcap.exe, a separate process).
+        uint32_t nomBrp = 0, nomTseg1 = 0, nomTseg2 = 0, nomSjw = 0;
+        uint32_t dataBrp = 0, dataTseg1 = 0, dataTseg2 = 0, dataSjw = 0;
     };
 
     // Starts `tshark -i <interfaceId> -T ek`, forwarding config via

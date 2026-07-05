@@ -56,6 +56,24 @@ TPCANBaudrate nearestClassicBaud(uint32_t bps) {
     return PCAN_BAUD_1M;
 }
 
+// PCAN-Basic's CAN_InitializeFD takes bit timing as a formatted string
+// rather than struct fields (unlike Vector's XL API) - build it from the
+// same structured CanTimingValues every backend now receives, assuming an
+// 80 MHz reference clock (matches the FD default this codebase has used
+// since the Vector backend was added).
+std::string buildFdInitString(const CanBitrateConfig& config) {
+    const CanTimingValues& nom = config.nominalTiming;
+    const CanTimingValues& data = config.dataTiming;
+    return "f_clock_mhz=80,nom_brp=" + std::to_string(nom.brp) +
+           ",nom_tseg1=" + std::to_string(nom.tseg1) +
+           ",nom_tseg2=" + std::to_string(nom.tseg2) +
+           ",nom_sjw=" + std::to_string(nom.sjw) +
+           ",data_brp=" + std::to_string(data.brp) +
+           ",data_tseg1=" + std::to_string(data.tseg1) +
+           ",data_tseg2=" + std::to_string(data.tseg2) +
+           ",data_sjw=" + std::to_string(data.sjw);
+}
+
 } // namespace
 
 PeakBackend::PeakBackend(HMODULE module) : module_(module) {}
@@ -138,9 +156,7 @@ std::vector<CanChannelInfo> PeakBackend::enumerateChannels() const {
 bool PeakBackend::initialize(uint64_t channelId, const CanBitrateConfig& config, std::string* error) {
     auto handle = static_cast<TPCANHandle>(channelId);
     bool ok = config.fd
-        ? initializeFd(handle, !config.expertInitString.empty() ? config.expertInitString
-              : ("f_clock_mhz=80,nom_brp=2,nom_tseg1=63,nom_tseg2=16,nom_sjw=16,"
-                 "data_brp=2,data_tseg1=15,data_tseg2=4,data_sjw=4"), error)
+        ? initializeFd(handle, buildFdInitString(config), error)
         : initializeClassic(handle, nearestClassicBaud(config.nominalBitrateBps), error);
     if (ok) fdByChannel_[handle] = config.fd;
     return ok;

@@ -4,6 +4,8 @@
 add_library(cantrip_common STATIC
     AVlabsCanBackend.h
     CanBackendRegistry.cpp
+    CanBitTiming.h
+    CanBitTiming.cpp
     PeakBackend.h
     PeakBackend.cpp
     VectorBackend.h
