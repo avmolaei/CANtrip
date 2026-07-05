@@ -8,6 +8,7 @@ add_executable(cantrip
     MainWindow.cpp
     TsharkCapture.h
     TsharkCapture.cpp
+    resources/cantrip.rc
 )
 
 target_link_libraries(cantrip PRIVATE Qt6::Widgets cantrip_common dbcppp)
