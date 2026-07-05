@@ -12,7 +12,7 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CANtripCompilerOptions)
 
-option(CANTRIP_BUILD_APP "Build the CANtrip Qt desktop app (requires Qt6)" OFF)
+option(CANTRIP_BUILD_APP "Build the CANtrip Qt desktop app (requires Qt6)" ON)
 
 # dbcppp only needs to parse .dbc files for us - skip its KCD (XML) support,
 # CLI tool, and test/example targets so we don't drag in libxml2/cxxopts.
