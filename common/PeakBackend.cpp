@@ -1,6 +1,7 @@
-#include "PcanApi.h"
+#include "PeakBackend.h"
 
 #include <array>
+#include <cstdlib>
 #include <cstring>
 
 namespace cantrip {
@@ -8,8 +9,8 @@ namespace cantrip {
 namespace {
 
 // Channels PCAN_ATTACHED_CHANNELS can report on; we probe these handles
-// directly with PCAN_CHANNEL_CONDITION as a fallback for PCAN-Basic
-// builds too old to support PCAN_ATTACHED_CHANNELS.
+// directly with PCAN_CHANNEL_CONDITION as a fallback for PCAN-Basic builds
+// too old to support PCAN_ATTACHED_CHANNELS.
 constexpr std::array<TPCANHandle, 8> kProbeHandles = {
     PCAN_USBBUS1, PCAN_USBBUS2, PCAN_USBBUS3, PCAN_USBBUS4,
     PCAN_USBBUS5, PCAN_USBBUS6, PCAN_USBBUS7, PCAN_USBBUS8,
@@ -35,41 +36,61 @@ bool bindProc(HMODULE mod, const char* name, FnPtr* out) {
     return *out != nullptr;
 }
 
+// PCAN-Basic classic init only accepts one of a fixed set of predefined
+// baud rates, not an arbitrary bps value; map to the nearest one at or
+// below the requested rate.
+TPCANBaudrate nearestClassicBaud(uint32_t bps) {
+    if (bps <= 5000) return PCAN_BAUD_5K;
+    if (bps <= 10000) return PCAN_BAUD_10K;
+    if (bps <= 20000) return PCAN_BAUD_20K;
+    if (bps <= 33000) return PCAN_BAUD_33K;
+    if (bps <= 47000) return PCAN_BAUD_47K;
+    if (bps <= 50000) return PCAN_BAUD_50K;
+    if (bps <= 83000) return PCAN_BAUD_83K;
+    if (bps <= 95000) return PCAN_BAUD_95K;
+    if (bps <= 100000) return PCAN_BAUD_100K;
+    if (bps <= 125000) return PCAN_BAUD_125K;
+    if (bps <= 250000) return PCAN_BAUD_250K;
+    if (bps <= 500000) return PCAN_BAUD_500K;
+    if (bps <= 800000) return PCAN_BAUD_800K;
+    return PCAN_BAUD_1M;
+}
+
 } // namespace
 
-PcanApi::PcanApi(HMODULE module) : module_(module) {}
+PeakBackend::PeakBackend(HMODULE module) : module_(module) {}
 
-std::optional<PcanApi> PcanApi::load(std::string* error) {
+std::unique_ptr<PeakBackend> PeakBackend::load(std::string* error) {
     HMODULE mod = LoadLibraryA("PCANBasic.dll");
     if (!mod) {
         if (error) *error = "PCANBasic.dll not found. Install the PEAK-System "
                              "PCAN-Basic driver package.";
-        return std::nullopt;
+        return nullptr;
     }
 
-    PcanApi api(mod);
+    auto backend = std::unique_ptr<PeakBackend>(new PeakBackend(mod));
     bool ok = true;
-    ok &= bindProc(mod, "CAN_Initialize", &api.pInitialize_);
-    ok &= bindProc(mod, "CAN_InitializeFD", &api.pInitializeFD_);
-    ok &= bindProc(mod, "CAN_Uninitialize", &api.pUninitialize_);
-    ok &= bindProc(mod, "CAN_Read", &api.pRead_);
-    ok &= bindProc(mod, "CAN_ReadFD", &api.pReadFD_);
-    ok &= bindProc(mod, "CAN_Write", &api.pWrite_);
-    ok &= bindProc(mod, "CAN_WriteFD", &api.pWriteFD_);
-    ok &= bindProc(mod, "CAN_GetValue", &api.pGetValue_);
-    ok &= bindProc(mod, "CAN_SetValue", &api.pSetValue_);
-    ok &= bindProc(mod, "CAN_GetErrorText", &api.pGetErrorText_);
+    ok &= bindProc(mod, "CAN_Initialize", &backend->pInitialize_);
+    ok &= bindProc(mod, "CAN_InitializeFD", &backend->pInitializeFD_);
+    ok &= bindProc(mod, "CAN_Uninitialize", &backend->pUninitialize_);
+    ok &= bindProc(mod, "CAN_Read", &backend->pRead_);
+    ok &= bindProc(mod, "CAN_ReadFD", &backend->pReadFD_);
+    ok &= bindProc(mod, "CAN_Write", &backend->pWrite_);
+    ok &= bindProc(mod, "CAN_WriteFD", &backend->pWriteFD_);
+    ok &= bindProc(mod, "CAN_GetValue", &backend->pGetValue_);
+    ok &= bindProc(mod, "CAN_SetValue", &backend->pSetValue_);
+    ok &= bindProc(mod, "CAN_GetErrorText", &backend->pGetErrorText_);
 
     if (!ok) {
         if (error) *error = "PCANBasic.dll found but missing expected exports; "
                              "wrong DLL version?";
         FreeLibrary(mod);
-        return std::nullopt;
+        return nullptr;
     }
-    return api;
+    return backend;
 }
 
-std::string PcanApi::describeStatus(TPCANStatus status) const {
+std::string PeakBackend::describeStatus(TPCANStatus status) const {
     char buf[256] = {};
     if (pGetErrorText_ && pGetErrorText_(status, 0, buf) == PCAN_ERROR_OK) {
         return std::string(buf);
@@ -77,19 +98,49 @@ std::string PcanApi::describeStatus(TPCANStatus status) const {
     return "PCAN error 0x" + std::to_string(status);
 }
 
-std::vector<PcanChannel> PcanApi::enumerateChannels() const {
-    std::vector<PcanChannel> result;
+std::vector<CanChannelInfo> PeakBackend::enumerateChannels() const {
+    std::vector<CanChannelInfo> result;
     for (TPCANHandle h : kProbeHandles) {
         DWORD condition = PCAN_CHANNEL_UNAVAILABLE;
         TPCANStatus status = pGetValue_(h, PCAN_CHANNEL_CONDITION, &condition, sizeof(condition));
         if (status != PCAN_ERROR_OK) continue;
         if (condition == PCAN_CHANNEL_UNAVAILABLE) continue;
-        result.push_back(PcanChannel{h, handleName(h), condition == PCAN_CHANNEL_AVAILABLE});
+        result.push_back(CanChannelInfo{
+            static_cast<uint64_t>(h), handleName(h), condition == PCAN_CHANNEL_AVAILABLE});
     }
     return result;
 }
 
-bool PcanApi::initializeClassic(TPCANHandle channel, TPCANBaudrate baud, std::string* error) const {
+bool PeakBackend::initialize(uint64_t channelId, const CanBitrateConfig& config, std::string* error) {
+    auto handle = static_cast<TPCANHandle>(channelId);
+    bool ok = config.fd
+        ? initializeFd(handle, !config.expertInitString.empty() ? config.expertInitString
+              : ("f_clock_mhz=80,nom_brp=2,nom_tseg1=63,nom_tseg2=16,nom_sjw=16,"
+                 "data_brp=2,data_tseg1=15,data_tseg2=4,data_sjw=4"), error)
+        : initializeClassic(handle, nearestClassicBaud(config.nominalBitrateBps), error);
+    if (ok) fdByChannel_[handle] = config.fd;
+    return ok;
+}
+
+void PeakBackend::uninitialize(uint64_t channelId) {
+    auto handle = static_cast<TPCANHandle>(channelId);
+    pUninitialize_(handle);
+    fdByChannel_.erase(handle);
+}
+
+bool PeakBackend::readFrame(uint64_t channelId, CanFrame* out, std::string* error) {
+    auto handle = static_cast<TPCANHandle>(channelId);
+    bool fd = fdByChannel_.count(handle) ? fdByChannel_[handle] : false;
+    return fd ? readFd(handle, out, error) : readClassic(handle, out, error);
+}
+
+bool PeakBackend::writeFrame(uint64_t channelId, const CanFrame& frame, std::string* error) {
+    auto handle = static_cast<TPCANHandle>(channelId);
+    bool fd = fdByChannel_.count(handle) ? fdByChannel_[handle] : false;
+    return fd ? writeFd(handle, frame, error) : writeClassic(handle, frame, error);
+}
+
+bool PeakBackend::initializeClassic(TPCANHandle channel, TPCANBaudrate baud, std::string* error) const {
     TPCANStatus status = pInitialize_(channel, baud, /*HWTYPE*/0, /*IOPort*/0, /*Interrupt*/0);
     if (status != PCAN_ERROR_OK) {
         if (error) *error = describeStatus(status);
@@ -98,7 +149,7 @@ bool PcanApi::initializeClassic(TPCANHandle channel, TPCANBaudrate baud, std::st
     return true;
 }
 
-bool PcanApi::initializeFd(TPCANHandle channel, const std::string& bitrateString, std::string* error) const {
+bool PeakBackend::initializeFd(TPCANHandle channel, const std::string& bitrateString, std::string* error) const {
     std::string mutableCopy = bitrateString;
     TPCANStatus status = pInitializeFD_(channel, mutableCopy.data());
     if (status != PCAN_ERROR_OK) {
@@ -108,11 +159,7 @@ bool PcanApi::initializeFd(TPCANHandle channel, const std::string& bitrateString
     return true;
 }
 
-void PcanApi::uninitialize(TPCANHandle channel) const {
-    pUninitialize_(channel);
-}
-
-bool PcanApi::readClassic(TPCANHandle channel, PcanFrame* out, std::string* error) const {
+bool PeakBackend::readClassic(TPCANHandle channel, CanFrame* out, std::string* error) const {
     TPCANMsg msg{};
     TPCANTimestamp ts{};
     TPCANStatus status = pRead_(channel, &msg, &ts);
@@ -136,7 +183,7 @@ bool PcanApi::readClassic(TPCANHandle channel, PcanFrame* out, std::string* erro
     return true;
 }
 
-bool PcanApi::readFd(TPCANHandle channel, PcanFrame* out, std::string* error) const {
+bool PeakBackend::readFd(TPCANHandle channel, CanFrame* out, std::string* error) const {
     TPCANMsgFD msg{};
     TPCANTimestamp ts{};
     TPCANStatus status = pReadFD_(channel, &msg, &ts);
@@ -160,7 +207,7 @@ bool PcanApi::readFd(TPCANHandle channel, PcanFrame* out, std::string* error) co
     return true;
 }
 
-bool PcanApi::writeClassic(TPCANHandle channel, const PcanFrame& frame, std::string* error) const {
+bool PeakBackend::writeClassic(TPCANHandle channel, const CanFrame& frame, std::string* error) const {
     TPCANMsg msg{};
     msg.ID = frame.id;
     msg.MSGTYPE = (frame.extended ? PCAN_MESSAGE_EXTENDED : PCAN_MESSAGE_STANDARD)
@@ -175,7 +222,7 @@ bool PcanApi::writeClassic(TPCANHandle channel, const PcanFrame& frame, std::str
     return true;
 }
 
-bool PcanApi::writeFd(TPCANHandle channel, const PcanFrame& frame, std::string* error) const {
+bool PeakBackend::writeFd(TPCANHandle channel, const CanFrame& frame, std::string* error) const {
     TPCANMsgFD msg{};
     msg.ID = frame.id;
     msg.MSGTYPE = (frame.extended ? PCAN_MESSAGE_EXTENDED : PCAN_MESSAGE_STANDARD)
