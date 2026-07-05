@@ -25,6 +25,15 @@ struct CanFrame {
     uint8_t dlc = 0;       // data length code (0-8 classic, 0-15 FD)
     uint8_t data[64] = {};
     uint64_t timestampUs = 0; // microseconds since the channel was initialized
+
+    // When true, this isn't a data frame: `id` is instead a SocketCAN
+    // error-class bitmask (CAN_ERR_* from linux/can/error.h) and `data`
+    // holds the associated error detail bytes (data[2] = protocol violation
+    // type - stuff/form/bit/ACK/etc). This mirrors the real SocketCAN error
+    // frame ABI exactly (verified against a real Wireshark decode) so
+    // pcan2pcap can serialize it as a normal `struct can_frame` and get
+    // Wireshark's own error-class dissection for free, same as data frames.
+    bool error = false;
 };
 
 // A channel exposed by a backend. `channelId` is opaque outside the backend

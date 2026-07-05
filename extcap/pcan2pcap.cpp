@@ -148,15 +148,25 @@ uint32_t hostToNetwork32(uint32_t v) {
 
 constexpr uint32_t kCanEffFlag = 0x80000000u;
 constexpr uint32_t kCanRtrFlag = 0x40000000u;
+constexpr uint32_t kCanErrFlag = 0x20000000u;
 constexpr uint32_t kCanSffMask = 0x000007FFu;
 constexpr uint32_t kCanEffMask = 0x1FFFFFFFu;
+constexpr uint32_t kCanErrMask = 0x1FFFFFFFu;
 
 // Serializes one frame into the SocketCAN on-wire layout (network byte
 // order), returning the byte length (16 for classic, 72 for FD).
 size_t serializeFrame(const CanFrame& f, uint8_t* buf) {
-    uint32_t canId = (f.extended ? (f.id & kCanEffMask) : (f.id & kCanSffMask));
-    if (f.extended) canId |= kCanEffFlag;
-    if (f.rtr) canId |= kCanRtrFlag;
+    uint32_t canId;
+    if (f.error) {
+        // Error frames don't have a normal address - `f.id` is already an
+        // error-class bitmask (CAN_ERR_* from linux/can/error.h), so it's
+        // used as-is rather than treated as an 11/29-bit identifier.
+        canId = kCanErrFlag | (f.id & kCanErrMask);
+    } else {
+        canId = (f.extended ? (f.id & kCanEffMask) : (f.id & kCanSffMask));
+        if (f.extended) canId |= kCanEffFlag;
+        if (f.rtr) canId |= kCanRtrFlag;
+    }
     uint32_t canIdNet = hostToNetwork32(canId);
     std::memcpy(buf, &canIdNet, 4);
 
@@ -204,6 +214,32 @@ CanFrame makeSyntheticFrame(uint64_t& tUs, uint32_t& counter) {
     return f;
 }
 
+// CAN_ERR_PROT (bit 3 of the error class) and its data[2] protocol-violation
+// sub-flags, straight from linux/can/error.h - this is a long-stable public
+// kernel uAPI (also what Wireshark's own dissector decodes), not a vendor
+// format, so unlike a proprietary DLL struct it's safe to hardcode from
+// memory. Verified regardless: a hand-crafted frame using these exact bit
+// values decoded as "can_can_err_prot_type_stuff" etc. under a real tshark.
+constexpr uint32_t kCanErrProt = 0x00000008u;
+constexpr uint8_t kErrProtBit = 0x01;
+constexpr uint8_t kErrProtForm = 0x02;
+constexpr uint8_t kErrProtStuff = 0x04;
+constexpr uint8_t kErrProtOverload = 0x20;
+
+// Cycles through a few protocol-violation error frames so the synthetic
+// source can demonstrate CANtrip's bus-error display without needing real
+// hardware to actually misbehave on the bus.
+CanFrame makeSyntheticErrorFrame(uint64_t& tUs, uint32_t errorIndex) {
+    static const uint8_t protTypes[] = {kErrProtBit, kErrProtForm, kErrProtStuff, kErrProtOverload};
+    CanFrame f;
+    f.error = true;
+    f.id = kCanErrProt;
+    f.dlc = 8;
+    f.data[2] = protTypes[errorIndex % 4];
+    f.timestampUs = tUs;
+    return f;
+}
+
 // Finds which backend+channel an extcap interface ID refers to by
 // re-enumerating every available backend and matching the same
 // backend-namespaced ID scheme used in printExtcapInterfaces(). Returns the
@@ -245,6 +281,12 @@ int runCapture(const std::vector<std::string>& args, const std::string& interfac
         uint32_t counter = 0;
         while (true) {
             writeRecord(fifo, makeSyntheticFrame(tUs, counter));
+            // Every 8th tick, also inject a synthetic bus error frame so
+            // CANtrip's error display can be exercised without needing real
+            // hardware to actually fault on the bus.
+            if (counter % 8 == 0) {
+                writeRecord(fifo, makeSyntheticErrorFrame(tUs, counter / 8));
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }

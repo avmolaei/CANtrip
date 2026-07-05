@@ -1,0 +1,23 @@
+VERSION ""
+
+NS_ :
+
+BS_:
+
+BU_: ECU1
+
+BO_ 256 EngineData: 8 ECU1
+ SG_ EngineSpeed : 0|16@1+ (0.125,0) [0|8031.875] "rpm" Vector__XXX
+ SG_ EngineTemp : 16|8@1+ (1,-40) [-40|215] "degC" Vector__XXX
+
+BO_ 512 VehicleSpeed: 8 ECU1
+ SG_ VehicleSpeed : 0|16@1+ (0.01,0) [0|655.35] "km/h" Vector__XXX
+ SG_ Odometer : 16|32@1+ (1,0) [0|4294967295] "m" Vector__XXX
+
+BO_ 768 BrakeStatus: 8 ECU1
+ SG_ BrakePressure : 0|16@1+ (1,0) [0|65535] "kPa" Vector__XXX
+ SG_ BrakeSwitch : 16|1@1+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 2024 OBDResponse: 8 ECU1
+ SG_ ResponseByte0 : 0|8@1+ (1,0) [0|255] "" Vector__XXX
+ SG_ ResponseByte1 : 8|8@1+ (1,0) [0|255] "" Vector__XXX
