@@ -24,6 +24,13 @@ struct DecodedCanFrame {
     bool esi = false;
     uint8_t dlc = 0;
     QByteArray data;
+
+    // True for a SocketCAN error frame rather than a data frame - when set,
+    // only `timestamp` and `errorDescription` are meaningful; id/dlc/data
+    // don't represent a real CAN identifier or payload (see
+    // AVlabsCanBackend.h's CanFrame::error for the wire-level convention).
+    bool error = false;
+    QString errorDescription;
 };
 
 class TsharkCapture : public QObject {

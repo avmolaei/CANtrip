@@ -98,6 +98,33 @@ tshark -D
 
 You should see a `pcan2pcap` interface listed.
 
+## Running CANtrip
+
+Prebuilt binaries are also published under
+[Releases](https://github.com/avmolaei/CANtrip/releases) if you'd rather skip
+building from source - grab the zip, extract it anywhere, and skip straight
+to step 2 below (it already bundles `pcan2pcap.exe`, `cantrip.exe`, and every
+DLL both need).
+
+1. Install the extcap (see above) - CANtrip's app doesn't talk to hardware
+   directly, it always goes through `tshark`, so `pcan2pcap.exe` has to be
+   somewhere Wireshark/tshark can find it.
+2. Launch `build\app\Debug\cantrip.exe` (or `cantrip.exe` from a Release
+   zip).
+3. Pick a channel from the dropdown. No CAN hardware or vendor driver
+   installed yet? Pick **"CANtrip synthetic test source (no hardware
+   needed)"** - it's always listed and fakes traffic so you can try
+   everything below without owning a single wire.
+4. Set the bitrate (and tick "CAN FD" + its data bitrate if relevant - not
+   applicable to the synthetic source, which is classic-only for now).
+5. Click **Import DBC...** and load [`test/sample.dbc`](test/sample.dbc) -
+   a small DBC whose four message IDs (`0x100`, `0x200`, `0x300`, `0x7E8`)
+   deliberately match what the synthetic test source transmits, so you get
+   fully decoded signals with zero hardware.
+6. Click **Start Capture**. Frames stream into the table as they arrive;
+   click the arrow next to a row to unfold it into its decoded signals
+   (name, physical value, unit) via dbcppp.
+
 ## License
 
 GPL-3.0. See [LICENSE](LICENSE). CANtrip statically/dynamically links

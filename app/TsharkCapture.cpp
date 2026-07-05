@@ -19,6 +19,31 @@ QByteArray parseColonHex(const QString& hex) {
     return out;
 }
 
+// Field names straight from Wireshark's own SocketCAN error-frame decode -
+// verified against a real tshark (a hand-crafted error frame with
+// CAN_ERR_PROT | CAN_ERR_PROT_STUFF set decoded to exactly these field
+// names, e.g. "can_can_err_prot_type_stuff": true).
+QString describeBusError(const QJsonObject& can) {
+    QStringList parts;
+    if (can.value("can_can_err_prot_type_bit").toBool()) parts << "Bit Error";
+    if (can.value("can_can_err_prot_type_form").toBool()) parts << "Form Error";
+    if (can.value("can_can_err_prot_type_stuff").toBool()) parts << "Stuff Error";
+    if (can.value("can_can_err_prot_type_bit0").toBool()) parts << "Bit0 Error";
+    if (can.value("can_can_err_prot_type_bit1").toBool()) parts << "Bit1 Error";
+    if (can.value("can_can_err_prot_type_overload").toBool()) parts << "Overload";
+    if (can.value("can_can_err_prot_type_active").toBool()) parts << "Active Error State";
+    if (can.value("can_can_err_prot_type_tx").toBool()) parts << "While Transmitting";
+    if (can.value("can_can_err_lostarb").toBool()) parts << "Lost Arbitration";
+    if (can.value("can_can_err_ctrl").toBool()) parts << "Controller Error";
+    if (can.value("can_can_err_trx").toBool()) parts << "Transceiver Error";
+    if (can.value("can_can_err_ack").toBool()) parts << "No ACK";
+    if (can.value("can_can_err_busoff").toBool()) parts << "Bus Off";
+    if (can.value("can_can_err_buserror").toBool()) parts << "Bus Error";
+    if (can.value("can_can_err_restarted").toBool()) parts << "Controller Restarted";
+    if (can.value("can_can_err_tx_timeout").toBool()) parts << "TX Timeout";
+    return parts.isEmpty() ? QStringLiteral("Unspecified Error") : parts.join(", ");
+}
+
 } // namespace
 
 TsharkCapture::TsharkCapture(QObject* parent) : QObject(parent) {
@@ -112,6 +137,20 @@ void TsharkCapture::processLine(const QByteArray& line) {
     if (can.isEmpty()) return;
 
     DecodedCanFrame frame;
+
+    // Error frames (always classic-length, never under "canfd") carry no
+    // real CAN ID/DLC/payload - can_can_flags_err is Wireshark's own flag
+    // for "this is a SocketCAN error frame", so branch off before touching
+    // any of the normal id/dlc/data fields, which are absent or meaningless
+    // here (e.g. there's no can_can_id field at all on an error frame).
+    if (can.value("can_can_flags_err").toBool()) {
+        frame.error = true;
+        frame.errorDescription = describeBusError(can);
+        frame.timestamp = layers.value("frame").toObject().value("frame_frame_time_relative").toString();
+        emit frameReceived(frame);
+        return;
+    }
+
     frame.fd = fd;
     frame.id = can.value("can_can_id").toString().toUInt();
     frame.dlc = static_cast<uint8_t>(can.value("can_can_len").toString().toUInt());
