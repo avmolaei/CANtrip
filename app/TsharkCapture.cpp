@@ -57,7 +57,13 @@ void TsharkCapture::start(const Config& config) {
     pendingStdout_.clear();
 
     QStringList args;
-    args << "-i" << config.interfaceId << "-T" << "ek";
+    // -l: flush tshark's stdout after every packet. Without it, tshark
+    // buffers its EK JSON output since it's writing to a pipe rather than a
+    // terminal, so packets arrive in bursts instead of as they're captured -
+    // this showed up as wildly inconsistent measured periods in Periodic
+    // mode (0.2-0.7s instead of the synthetic source's actual steady 0.4s
+    // per ID) even though the underlying capture timing was fine.
+    args << "-i" << config.interfaceId << "-T" << "ek" << "-l";
 
     // Preference key = the extcap's --call-name with the leading dashes and
     // every internal dash stripped (confirmed against a real tshark: our
