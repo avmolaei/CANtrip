@@ -1,0 +1,2 @@
+add_executable(pcan2pcap pcan2pcap.cpp)
+target_link_libraries(pcan2pcap PRIVATE cantrip_common)

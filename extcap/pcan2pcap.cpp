@@ -1,4 +1,9 @@
-// pcan2pcap - Wireshark extcap bridge for PEAK PCAN-Basic hardware.
+// pcan2pcap - Wireshark extcap bridge for CANtrip's CAN hardware backends.
+//
+// Despite the filename (kept for continuity with the PEAK-only prototype),
+// this bridges *any* ICanBackend CANtrip has probed as available - see
+// ../common/CanBackend.h for the vendor-neutral interface and
+// ../common/CanBackendRegistry.cpp for the list of backends it tries.
 //
 // Implements the four extcap CLI contracts Wireshark/tshark invoke:
 //   --extcap-interfaces           list capture interfaces
@@ -23,22 +28,30 @@
 #include <chrono>
 #include <thread>
 
-#include "../common/PcanApi.h"
+#include "../common/AVlabsCanBackend.h"
 
 namespace {
 
-using cantrip::PcanApi;
-using cantrip::PcanChannel;
-using cantrip::PcanFrame;
+using cantrip::CanBitrateConfig;
+using cantrip::CanChannelInfo;
+using cantrip::CanFrame;
+using cantrip::ICanBackend;
 
 constexpr uint16_t kLinktypeCanSocketcan = 227;
-constexpr const char* kTestInterfaceId = "pcan_test";
+constexpr const char* kTestInterfaceId = "cantrip_test";
 
 std::string toLowerId(const std::string& name) {
     // "PCAN_USBBUS1" -> "pcan_usbbus1"
     std::string out = name;
     for (char& c : out) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
     return out;
+}
+
+// Interfaces are namespaced by backend so identically-named channels from
+// two different vendors (unlikely, but not impossible) can't collide, e.g.
+// "peak_pcan_usbbus1".
+std::string interfaceIdFor(const ICanBackend& backend, const CanChannelInfo& channel) {
+    return backend.id() + "_" + toLowerId(channel.name);
 }
 
 std::vector<std::string> collectArgs(int argc, char** argv) {
@@ -60,18 +73,18 @@ std::string getOption(const std::vector<std::string>& args, const std::string& n
 }
 
 void printExtcapInterfaces() {
-    std::printf("extcap {version=1.0}{help=https://github.com/}{display=CANtrip PCAN bridge}\n");
+    std::printf("extcap {version=1.0}{help=https://github.com/}{display=CANtrip CAN bridge}\n");
 
-    std::string err;
-    auto api = PcanApi::load(&err);
-    if (api) {
-        for (const PcanChannel& ch : api->enumerateChannels()) {
-            std::string id = toLowerId(ch.name);
-            std::printf("interface {value=%s}{display=PCAN %s}\n", id.c_str(), ch.name.c_str());
+    for (auto& backend : cantrip::probeAvailableBackends()) {
+        for (const CanChannelInfo& ch : backend->enumerateChannels()) {
+            std::string id = interfaceIdFor(*backend, ch);
+            std::printf("interface {value=%s}{display=%s %s}\n",
+                        id.c_str(), backend->displayName().c_str(), ch.name.c_str());
         }
     }
     // Always offer the synthetic test interface so the pipeline can be
-    // verified end-to-end without PCAN hardware or drivers installed.
+    // verified end-to-end without any CAN hardware or vendor drivers
+    // installed.
     std::printf("interface {value=%s}{display=CANtrip synthetic test source (no hardware needed)}\n",
                  kTestInterfaceId);
 }
@@ -81,11 +94,12 @@ void printExtcapDlts(const std::string& /*interfaceId*/) {
 }
 
 void printExtcapConfig(const std::string& /*interfaceId*/) {
-    // "Usual" bitrate presets as a selector; "Expert" raw FD init string
-    // as a free-text field. The Qt app talks to pcan2pcap the same way
+    // "Usual" bitrate presets as a selector; "Expert" raw FD init string as
+    // a free-text field. The Qt app talks to pcan2pcap the same way
     // (invoking with --bitrate/--fd/--data-bitrate/--expert-string), this
     // config listing is what makes the tool also usable stand-alone from
-    // within Wireshark's own capture-options dialog.
+    // within Wireshark's own capture-options dialog. The expert string's
+    // exact format is backend-specific (see CanBitrateConfig::expertInitString).
     std::printf("arg {number=0}{call=--bitrate}{display=Bitrate}{type=selector}"
                 "{tooltip=Classic CAN nominal bitrate}\n");
     std::printf("value {arg=0}{value=125000}{display=125 kbit/s}{default=false}\n");
@@ -101,9 +115,9 @@ void printExtcapConfig(const std::string& /*interfaceId*/) {
     std::printf("value {arg=2}{value=5000000}{display=5 Mbit/s}{default=false}\n");
 
     std::printf("arg {number=3}{call=--expert-string}{display=Expert FD init string}{type=string}"
-                "{tooltip=Raw PCAN-Basic CAN_InitializeFD string; overrides bitrate/data-bitrate "
-                "when non-empty. Example: f_clock_mhz=80,nom_brp=2,nom_tseg1=63,nom_tseg2=16,"
-                "nom_sjw=16,data_brp=2,data_tseg1=15,data_tseg2=4,data_sjw=4}\n");
+                "{tooltip=Raw backend-specific FD init string; overrides bitrate/data-bitrate "
+                "when non-empty. For the PEAK backend, example: f_clock_mhz=80,nom_brp=2,"
+                "nom_tseg1=63,nom_tseg2=16,nom_sjw=16,data_brp=2,data_tseg1=15,data_tseg2=4,data_sjw=4}\n");
 
     std::printf("arg {number=4}{call=--test-mode}{display=Synthetic test source}{type=boolflag}"
                 "{default=false}{tooltip=Generate fake frames instead of reading real hardware}\n");
@@ -139,7 +153,7 @@ constexpr uint32_t kCanEffMask = 0x1FFFFFFFu;
 
 // Serializes one frame into the SocketCAN on-wire layout (network byte
 // order), returning the byte length (16 for classic, 72 for FD).
-size_t serializeFrame(const PcanFrame& f, uint8_t* buf) {
+size_t serializeFrame(const CanFrame& f, uint8_t* buf) {
     uint32_t canId = (f.extended ? (f.id & kCanEffMask) : (f.id & kCanSffMask));
     if (f.extended) canId |= kCanEffFlag;
     if (f.rtr) canId |= kCanRtrFlag;
@@ -162,7 +176,7 @@ size_t serializeFrame(const PcanFrame& f, uint8_t* buf) {
     return 72;
 }
 
-void writeRecord(FILE* out, const PcanFrame& f) {
+void writeRecord(FILE* out, const CanFrame& f) {
     uint8_t payload[72];
     size_t len = serializeFrame(f, payload);
 
@@ -177,9 +191,9 @@ void writeRecord(FILE* out, const PcanFrame& f) {
     std::fflush(out);
 }
 
-PcanFrame makeSyntheticFrame(uint64_t& tUs, uint32_t& counter) {
+CanFrame makeSyntheticFrame(uint64_t& tUs, uint32_t& counter) {
     static const uint32_t ids[] = {0x100, 0x200, 0x300, 0x7E8};
-    PcanFrame f;
+    CanFrame f;
     f.id = ids[counter % 4];
     f.extended = false;
     f.dlc = 8;
@@ -190,6 +204,23 @@ PcanFrame makeSyntheticFrame(uint64_t& tUs, uint32_t& counter) {
     return f;
 }
 
+// Finds which backend+channel an extcap interface ID refers to by
+// re-enumerating every available backend and matching the same
+// backend-namespaced ID scheme used in printExtcapInterfaces(). Returns the
+// owning backend (so it stays alive for the capture loop) and sets
+// *channelId; backend is null if not found.
+std::unique_ptr<ICanBackend> resolveInterface(const std::string& interfaceId, uint64_t* channelId) {
+    for (auto& backend : cantrip::probeAvailableBackends()) {
+        for (const CanChannelInfo& ch : backend->enumerateChannels()) {
+            if (interfaceIdFor(*backend, ch) == interfaceId) {
+                *channelId = ch.channelId;
+                return std::move(backend);
+            }
+        }
+    }
+    return nullptr;
+}
+
 int runCapture(const std::vector<std::string>& args, const std::string& interfaceId) {
     std::string fifoPath = getOption(args, "--fifo");
     if (fifoPath.empty()) {
@@ -198,10 +229,6 @@ int runCapture(const std::vector<std::string>& args, const std::string& interfac
     }
 
     bool testMode = hasFlag(args, "--test-mode") || interfaceId == kTestInterfaceId;
-    bool fd = hasFlag(args, "--fd");
-    std::string bitrateStr = getOption(args, "--bitrate", "500000");
-    std::string dataBitrateStr = getOption(args, "--data-bitrate", "2000000");
-    std::string expertString = getOption(args, "--expert-string");
 
     FILE* fifo = std::fopen(fifoPath.c_str(), "wb");
     if (!fifo) {
@@ -222,50 +249,32 @@ int runCapture(const std::vector<std::string>& args, const std::string& interfac
         }
     }
 
-    std::string err;
-    auto api = PcanApi::load(&err);
-    if (!api) {
-        std::fprintf(stderr, "pcan2pcap: %s\n", err.c_str());
-        std::fclose(fifo);
-        return 1;
-    }
+    CanBitrateConfig config;
+    config.fd = hasFlag(args, "--fd");
+    config.nominalBitrateBps = static_cast<uint32_t>(
+        std::strtol(getOption(args, "--bitrate", "500000").c_str(), nullptr, 10));
+    config.dataBitrateBps = static_cast<uint32_t>(
+        std::strtol(getOption(args, "--data-bitrate", "2000000").c_str(), nullptr, 10));
+    config.expertInitString = getOption(args, "--expert-string");
 
-    // Map interfaceId (e.g. "pcan_usbbus1") back to a TPCANHandle by
-    // re-enumerating and matching the lowercase name.
-    TPCANHandle handle = 0;
-    for (const PcanChannel& ch : api->enumerateChannels()) {
-        if (toLowerId(ch.name) == interfaceId) { handle = ch.handle; break; }
-    }
-    if (handle == 0) {
+    uint64_t channelId = 0;
+    std::unique_ptr<ICanBackend> backend = resolveInterface(interfaceId, &channelId);
+    if (!backend) {
         std::fprintf(stderr, "pcan2pcap: unknown or unavailable interface '%s'\n", interfaceId.c_str());
         std::fclose(fifo);
         return 1;
     }
 
-    bool ok;
-    if (fd) {
-        std::string initStr = !expertString.empty() ? expertString
-            : ("f_clock_mhz=80,nom_brp=2,nom_tseg1=63,nom_tseg2=16,nom_sjw=16,"
-               "data_brp=2,data_tseg1=15,data_tseg2=4,data_sjw=4");
-        ok = api->initializeFd(handle, initStr, &err);
-    } else {
-        TPCANBaudrate baud = PCAN_BAUD_500K;
-        long bps = std::strtol(bitrateStr.c_str(), nullptr, 10);
-        if (bps <= 125000) baud = PCAN_BAUD_125K;
-        else if (bps <= 250000) baud = PCAN_BAUD_250K;
-        else if (bps <= 500000) baud = PCAN_BAUD_500K;
-        else baud = PCAN_BAUD_1M;
-        ok = api->initializeClassic(handle, baud, &err);
-    }
-    if (!ok) {
-        std::fprintf(stderr, "pcan2pcap: CAN_Initialize failed: %s\n", err.c_str());
+    std::string err;
+    if (!backend->initialize(channelId, config, &err)) {
+        std::fprintf(stderr, "pcan2pcap: initialize failed: %s\n", err.c_str());
         std::fclose(fifo);
         return 1;
     }
 
     while (true) {
-        PcanFrame frame;
-        bool got = fd ? api->readFd(handle, &frame, &err) : api->readClassic(handle, &frame, &err);
+        CanFrame frame;
+        bool got = backend->readFrame(channelId, &frame, &err);
         if (got) {
             writeRecord(fifo, frame);
         } else if (!err.empty()) {
@@ -300,7 +309,7 @@ int main(int argc, char** argv) {
     }
 
     std::fprintf(stderr,
-        "pcan2pcap: Wireshark extcap bridge for PEAK PCAN-Basic hardware.\n"
+        "pcan2pcap: Wireshark extcap bridge for CANtrip's CAN hardware backends.\n"
         "This program is meant to be invoked by Wireshark/tshark/dumpcap,\n"
         "not run directly. See --extcap-interfaces.\n");
     return 1;
