@@ -53,9 +53,8 @@ vendor SDK directly.
   `PCANBasic.dll`. Supports classic CAN and CAN FD.
 - [`common/VectorBackend.h/.cpp`](common/VectorBackend.cpp) wraps Vector
   Informatik's `vxlapi64.dll` (XL Driver Library), verified against a real
-  VN1640A. Classic CAN only for now - CAN FD support (Vector's separate
-  `xlCanFdSetConfiguration`/`XLcanRxEvent` API surface) isn't implemented
-  yet.
+  VN1640A. Supports classic CAN and CAN FD (FD uses fixed default bit
+  timing for now - configurable sample point is planned).
 - [`common/CanBackendRegistry.cpp`](common/CanBackendRegistry.cpp) is the
   single place that lists every backend CANtrip knows about.
 - Adding support for another vendor (Kvaser's CANlib, ETAS's BOA, etc.)

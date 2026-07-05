@@ -1,11 +1,12 @@
 // AVlabs CAN backend implementation for Vector Informatik CAN hardware
-// (VN-series interfaces), using the classic XL Driver Library API. See
+// (VN-series interfaces), using the XL Driver Library API. See
 // AVlabsCanBackend.h for the vendor-neutral interface and PeakBackend for
 // the reference backend.
 //
-// CAN FD is NOT yet supported here (classic CAN only) - Vector's FD API
-// (xlCanFdSetConfiguration, XLcanRxEvent) is a separate, larger surface not
-// yet vendored/verified. initialize() rejects CanBitrateConfig::fd requests.
+// Supports both classic CAN (xlReceive/xlCanTransmit, the older event API)
+// and CAN FD (xlCanReceive/xlCanTransmitEx, a separate newer event API with
+// a different event struct - Vector didn't extend the classic one since its
+// 32-byte payload can't hold FD's up to 64 data bytes).
 #pragma once
 
 #include <unordered_map>
@@ -39,6 +40,10 @@ public:
 private:
     explicit VectorBackend(HMODULE module);
     std::string describeStatus(XLstatus status) const;
+    bool readClassic(XLportHandle port, CanFrame* out, std::string* error) const;
+    bool readFd(XLportHandle port, CanFrame* out, std::string* error) const;
+    bool writeClassic(XLportHandle port, XLaccess accessMask, const CanFrame& frame, std::string* error) const;
+    bool writeFd(XLportHandle port, XLaccess accessMask, const CanFrame& frame, std::string* error) const;
 
     HMODULE module_ = nullptr;
     xlOpenDriver_t pOpenDriver_ = nullptr;
@@ -52,12 +57,20 @@ private:
     xlReceive_t pReceive_ = nullptr;
     xlCanTransmit_t pCanTransmit_ = nullptr;
     xlGetErrorString_t pGetErrorString_ = nullptr;
+    xlCanFdSetConfiguration_t pCanFdSetConfiguration_ = nullptr;
+    xlCanReceive_t pCanReceive_ = nullptr;
+    xlCanTransmitEx_t pCanTransmitEx_ = nullptr;
 
     // Each initialized channel gets its own xlOpenPort() call scoped to just
     // that channel's access mask, since CANtrip's ICanBackend interface
     // manages channels independently - Vector's own model would let one
     // port span several channels at once, but we don't need that here.
     std::unordered_map<XLaccess, XLportHandle> portByChannel_;
+    // Tracks whether each channel was opened in FD mode, since Vector
+    // requires calling xlReceive/xlCanTransmit vs xlCanReceive/
+    // xlCanTransmitEx accordingly - readFrame/writeFrame don't carry that
+    // distinction themselves, so it's cached from initialize() by channel.
+    std::unordered_map<XLaccess, bool> fdByChannel_;
 };
 
 } // namespace cantrip

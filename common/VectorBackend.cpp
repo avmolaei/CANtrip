@@ -60,6 +60,9 @@ std::unique_ptr<VectorBackend> VectorBackend::load(std::string* error) {
     ok &= bindProc(mod, "xlReceive", &backend->pReceive_);
     ok &= bindProc(mod, "xlCanTransmit", &backend->pCanTransmit_);
     ok &= bindProc(mod, "xlGetErrorString", &backend->pGetErrorString_);
+    ok &= bindProc(mod, "xlCanFdSetConfiguration", &backend->pCanFdSetConfiguration_);
+    ok &= bindProc(mod, "xlCanReceive", &backend->pCanReceive_);
+    ok &= bindProc(mod, "xlCanTransmitEx", &backend->pCanTransmitEx_);
 
     if (!ok) {
         if (error) *error = "vxlapi64.dll found but missing expected exports; "
@@ -106,24 +109,49 @@ std::vector<CanChannelInfo> VectorBackend::enumerateChannels() const {
 }
 
 bool VectorBackend::initialize(uint64_t channelId, const CanBitrateConfig& config, std::string* error) {
-    if (config.fd) {
-        if (error) *error = "CAN FD is not yet supported by the Vector backend (classic CAN only).";
-        return false;
-    }
-
     auto accessMask = static_cast<XLaccess>(channelId);
     char appName[XL_MAX_APPNAME] = "CANtrip";
     XLportHandle portHandle = XL_INVALID_PORTHANDLE;
     XLaccess permissionMask = accessMask;
 
+    // FD-capable ports must be opened negotiating interface version V4, not
+    // the V3 used for classic - confirmed against python-can's real Vector
+    // backend (verified source, see VectorBackend.h). Without this,
+    // xlCanReceive fails on every call with XL_ERR_INVALID_ACCESS even
+    // though xlOpenPort/xlCanFdSetConfiguration/xlActivateChannel all
+    // report success - a genuinely undocumented-in-the-header requirement
+    // this project hit for real, not a hypothetical.
+    const unsigned int interfaceVersion = config.fd ? XL_INTERFACE_VERSION_V4 : XL_INTERFACE_VERSION;
     XLstatus status = pOpenPort_(&portHandle, appName, accessMask, &permissionMask,
-                                  8192, XL_INTERFACE_VERSION, XL_BUS_TYPE_CAN);
+                                  8192, interfaceVersion, XL_BUS_TYPE_CAN);
     if (status != XL_SUCCESS) {
         if (error) *error = describeStatus(status);
         return false;
     }
 
-    status = pCanSetChannelBitrate_(portHandle, accessMask, config.nominalBitrateBps);
+    if (config.fd) {
+        // Bit-timing tick values (sjw/tseg1/tseg2), not bps - the header
+        // gives no documented base clock for these, so rather than guess,
+        // these match python-can's real, actively-maintained Vector
+        // backend defaults (sjw=2, tseg1=6, tseg2=3 for both phases,
+        // assumed 80MHz clock -> 70% sample point). Configurable sample
+        // point/expert timing is planned for the bus-settings UI rework;
+        // until then every FD channel gets this fixed, verified-real
+        // default rather than an invented one.
+        XLcanFdConf fdConf{};
+        fdConf.arbitrationBitRate = config.nominalBitrateBps;
+        fdConf.sjwAbr = 2;
+        fdConf.tseg1Abr = 6;
+        fdConf.tseg2Abr = 3;
+        fdConf.dataBitRate = config.dataBitrateBps;
+        fdConf.sjwDbr = 2;
+        fdConf.tseg1Dbr = 6;
+        fdConf.tseg2Dbr = 3;
+
+        status = pCanFdSetConfiguration_(portHandle, accessMask, &fdConf);
+    } else {
+        status = pCanSetChannelBitrate_(portHandle, accessMask, config.nominalBitrateBps);
+    }
     if (status != XL_SUCCESS) {
         if (error) *error = describeStatus(status);
         pClosePort_(portHandle);
@@ -138,6 +166,7 @@ bool VectorBackend::initialize(uint64_t channelId, const CanBitrateConfig& confi
     }
 
     portByChannel_[accessMask] = portHandle;
+    fdByChannel_[accessMask] = config.fd;
     return true;
 }
 
@@ -148,6 +177,7 @@ void VectorBackend::uninitialize(uint64_t channelId) {
     pDeactivateChannel_(it->second, accessMask);
     pClosePort_(it->second);
     portByChannel_.erase(it);
+    fdByChannel_.erase(accessMask);
 }
 
 bool VectorBackend::readFrame(uint64_t channelId, CanFrame* out, std::string* error) {
@@ -157,10 +187,25 @@ bool VectorBackend::readFrame(uint64_t channelId, CanFrame* out, std::string* er
         if (error) *error = "channel not initialized";
         return false;
     }
+    bool fd = fdByChannel_.count(accessMask) ? fdByChannel_[accessMask] : false;
+    return fd ? readFd(it->second, out, error) : readClassic(it->second, out, error);
+}
 
+bool VectorBackend::writeFrame(uint64_t channelId, const CanFrame& frame, std::string* error) {
+    auto accessMask = static_cast<XLaccess>(channelId);
+    auto it = portByChannel_.find(accessMask);
+    if (it == portByChannel_.end()) {
+        if (error) *error = "channel not initialized";
+        return false;
+    }
+    bool fd = fdByChannel_.count(accessMask) ? fdByChannel_[accessMask] : false;
+    return fd ? writeFd(it->second, accessMask, frame, error) : writeClassic(it->second, accessMask, frame, error);
+}
+
+bool VectorBackend::readClassic(XLportHandle port, CanFrame* out, std::string* error) const {
     XLevent event{};
     unsigned int eventCount = 1;
-    XLstatus status = pReceive_(it->second, &eventCount, &event);
+    XLstatus status = pReceive_(port, &eventCount, &event);
     if (status == XL_ERR_QUEUE_IS_EMPTY || eventCount == 0) {
         return false; // no frame available right now, not an error
     }
@@ -187,14 +232,35 @@ bool VectorBackend::readFrame(uint64_t channelId, CanFrame* out, std::string* er
     return true;
 }
 
-bool VectorBackend::writeFrame(uint64_t channelId, const CanFrame& frame, std::string* error) {
-    auto accessMask = static_cast<XLaccess>(channelId);
-    auto it = portByChannel_.find(accessMask);
-    if (it == portByChannel_.end()) {
-        if (error) *error = "channel not initialized";
+bool VectorBackend::readFd(XLportHandle port, CanFrame* out, std::string* error) const {
+    XLcanRxEvent event{};
+    XLstatus status = pCanReceive_(port, &event);
+    if (status == XL_ERR_QUEUE_IS_EMPTY) {
+        return false; // no frame available right now, not an error
+    }
+    if (status != XL_SUCCESS) {
+        if (error) *error = describeStatus(status);
         return false;
     }
+    if (event.tag != XL_CAN_EV_TAG_RX_OK) {
+        return false; // chip-state/error/other non-data event; nothing to decode
+    }
 
+    const XL_CAN_EV_RX_MSG& msg = event.tagData.canRxOkMsg;
+    out->extended = (msg.canId & XL_CAN_EXT_MSG_ID) != 0;
+    out->id = msg.canId & ~XL_CAN_EXT_MSG_ID;
+    out->rtr = (msg.msgFlags & XL_CAN_RXMSG_FLAG_RTR) != 0;
+    out->fd = (msg.msgFlags & XL_CAN_RXMSG_FLAG_EDL) != 0;
+    out->brs = (msg.msgFlags & XL_CAN_RXMSG_FLAG_BRS) != 0;
+    out->esi = (msg.msgFlags & XL_CAN_RXMSG_FLAG_ESI) != 0;
+    out->dlc = msg.dlc;
+    std::memcpy(out->data, msg.data, sizeof(msg.data));
+    // timeStampSync is nanoseconds; CanFrame wants microseconds.
+    out->timestampUs = event.timeStampSync / 1000ull;
+    return true;
+}
+
+bool VectorBackend::writeClassic(XLportHandle port, XLaccess accessMask, const CanFrame& frame, std::string* error) const {
     XLevent event{};
     event.tag = XL_TRANSMIT_MSG;
     event.tagData.msg.id = frame.extended ? (frame.id | XL_CAN_EXT_MSG_ID) : frame.id;
@@ -203,7 +269,26 @@ bool VectorBackend::writeFrame(uint64_t channelId, const CanFrame& frame, std::s
     std::memcpy(event.tagData.msg.data, frame.data, sizeof(event.tagData.msg.data));
 
     unsigned int eventCount = 1;
-    XLstatus status = pCanTransmit_(it->second, accessMask, &eventCount, &event);
+    XLstatus status = pCanTransmit_(port, accessMask, &eventCount, &event);
+    if (status != XL_SUCCESS) {
+        if (error) *error = describeStatus(status);
+        return false;
+    }
+    return true;
+}
+
+bool VectorBackend::writeFd(XLportHandle port, XLaccess accessMask, const CanFrame& frame, std::string* error) const {
+    XLcanTxEvent event{};
+    event.tag = XL_CAN_EV_TAG_TX_MSG;
+    event.tagData.canMsg.canId = frame.extended ? (frame.id | XL_CAN_EXT_MSG_ID) : frame.id;
+    event.tagData.canMsg.msgFlags = XL_CAN_TXMSG_FLAG_EDL
+        | (frame.brs ? XL_CAN_TXMSG_FLAG_BRS : 0)
+        | (frame.rtr ? XL_CAN_TXMSG_FLAG_RTR : 0);
+    event.tagData.canMsg.dlc = frame.dlc;
+    std::memcpy(event.tagData.canMsg.data, frame.data, sizeof(event.tagData.canMsg.data));
+
+    unsigned int sentCount = 0;
+    XLstatus status = pCanTransmitEx_(port, accessMask, 1, &sentCount, &event);
     if (status != XL_SUCCESS) {
         if (error) *error = describeStatus(status);
         return false;

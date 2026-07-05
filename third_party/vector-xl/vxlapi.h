@@ -41,6 +41,7 @@ typedef char* XLstringType;
 #define XL_ACTIVATE_NONE 0
 #define XL_ACTIVATE_RESET_CLOCK 8
 #define XL_INTERFACE_VERSION_V3 3
+#define XL_INTERFACE_VERSION_V4 4
 #define XL_INTERFACE_VERSION XL_INTERFACE_VERSION_V3
 
 // ---- Config limits ----
@@ -196,6 +197,144 @@ typedef struct s_xl_driver_config {
 } XL_DRIVER_CONFIG;
 typedef XL_DRIVER_CONFIG XLdriverConfig;
 
+// ---- Verbatim from vxlapi.h: XLcanFdConf (bit timing for CAN FD) ----
+// All-`unsigned int` fields, so pack(1) vs natural alignment makes no
+// actual difference here, but kept in the same pack(1) region as the real
+// header for consistency.
+typedef struct {
+    unsigned int arbitrationBitRate;
+    unsigned int sjwAbr;
+    unsigned int tseg1Abr;
+    unsigned int tseg2Abr;
+    unsigned int dataBitRate;
+    unsigned int sjwDbr;
+    unsigned int tseg1Dbr;
+    unsigned int tseg2Dbr;
+    unsigned int reserved[2];
+} XLcanFdConf;
+
+#include <poppack.h>
+
+// ---- Verbatim from vxlapi.h: CAN FD tx/rx event definitions ----
+// The real header packs these at 8-byte alignment (pshpack8), NOT the
+// pack(1) used for the classic XLevent/XL_CHANNEL_CONFIG structs above -
+// a different packing pragma for a different part of the same file, so
+// this is reproduced exactly rather than assumed to match the rest.
+#include <pshpack8.h>
+
+#define XL_CAN_MAX_DATA_LEN 64
+#define XL_CANFD_RX_EVENT_HEADER_SIZE 32
+#define XL_CANFD_MAX_EVENT_SIZE 128
+
+// Real byte count from a CAN FD DLC code (0-15) - DLCs 9-15 map to
+// non-linear lengths (12/16/20/24/32/48/64), not 9-15 bytes.
+#define CANFD_GET_NUM_DATABYTES(dlc, edl, rtr) \
+    ((rtr) ? 0 : (dlc) < 9 ? (dlc) : !(edl) ? 8 : (dlc) == 9 ? 12 : (dlc) == 10 ? 16 : (dlc) == 11 ? 20 : (dlc) == 12 ? 24 : (dlc) == 13 ? 32 : (dlc) == 14 ? 48 : 64)
+
+#define XL_CAN_TXMSG_FLAG_EDL 0x0001
+#define XL_CAN_TXMSG_FLAG_BRS 0x0002
+#define XL_CAN_TXMSG_FLAG_RTR 0x0010
+
+#define XL_CAN_RXMSG_FLAG_EDL 0x0001
+#define XL_CAN_RXMSG_FLAG_BRS 0x0002
+#define XL_CAN_RXMSG_FLAG_ESI 0x0004
+#define XL_CAN_RXMSG_FLAG_RTR 0x0010
+
+#define XL_CAN_EV_TAG_RX_OK ((unsigned short)0x0400)
+#define XL_CAN_EV_TAG_RX_ERROR ((unsigned short)0x0401)
+#define XL_CAN_EV_TAG_TX_ERROR ((unsigned short)0x0402)
+#define XL_CAN_EV_TAG_TX_REQUEST ((unsigned short)0x0403)
+#define XL_CAN_EV_TAG_TX_OK ((unsigned short)0x0404)
+#define XL_CAN_EV_TAG_CHIP_STATE ((unsigned short)0x0409)
+#define XL_CAN_EV_TAG_TX_MSG ((unsigned short)0x0440)
+
+typedef struct {
+    unsigned int canId;
+    unsigned int msgFlags;
+    unsigned char dlc;
+    unsigned char reserved[7];
+    unsigned char data[XL_CAN_MAX_DATA_LEN];
+} XL_CAN_TX_MSG;
+
+typedef struct {
+    unsigned short tag;
+    unsigned short transId;
+    unsigned char channelIndex;
+    unsigned char reserved[3];
+    union {
+        XL_CAN_TX_MSG canMsg;
+    } tagData;
+} XLcanTxEvent;
+
+// used with XL_CAN_EV_TAG_RX_OK, XL_CAN_EV_TAG_TX_OK
+typedef struct {
+    unsigned int canId;
+    unsigned int msgFlags;
+    unsigned int crc;
+    unsigned char reserved1[12];
+    unsigned short totalBitCnt;
+    unsigned char dlc;
+    unsigned char reserved[5];
+    unsigned char data[XL_CAN_MAX_DATA_LEN];
+} XL_CAN_EV_RX_MSG;
+
+typedef struct {
+    unsigned int canId;
+    unsigned int msgFlags;
+    unsigned char dlc;
+    unsigned char reserved1;
+    unsigned short reserved;
+    unsigned char data[XL_CAN_MAX_DATA_LEN];
+} XL_CAN_EV_TX_REQUEST;
+
+typedef struct {
+    unsigned char busStatus;
+    unsigned char txErrorCounter;
+    unsigned char rxErrorCounter;
+    unsigned char reserved;
+    unsigned int reserved0;
+} XL_CAN_EV_CHIP_STATE;
+
+#define XL_CAN_ERRC_BIT_ERROR 1
+#define XL_CAN_ERRC_FORM_ERROR 2
+#define XL_CAN_ERRC_STUFF_ERROR 3
+#define XL_CAN_ERRC_OTHER_ERROR 4
+#define XL_CAN_ERRC_CRC_ERROR 5
+#define XL_CAN_ERRC_ACK_ERROR 6
+#define XL_CAN_ERRC_NACK_ERROR 7
+#define XL_CAN_ERRC_OVLD_ERROR 8
+#define XL_CAN_ERRC_EXCPT_ERROR 9
+
+typedef struct {
+    unsigned char errorCode;
+    unsigned char reserved[95];
+} XL_CAN_EV_ERROR;
+
+#define XL_CAN_QUEUE_OVERFLOW 0x100
+
+// General RX event. The real union also has a canSyncPulse member; omitted
+// here since raw[96] already fixes the union's size correctly (CANtrip
+// never reads sync pulse events) - see XLbusParams above for the same
+// "only vendor the members we use, but every size must still match" rule.
+typedef struct {
+    unsigned int size;
+    unsigned short tag;
+    unsigned short channelIndex;
+    unsigned int userHandle;
+    unsigned short flagsChip;
+    unsigned short reserved0;
+    XLuint64 reserved1;
+    XLuint64 timeStampSync;
+    union {
+        unsigned char raw[XL_CANFD_MAX_EVENT_SIZE - XL_CANFD_RX_EVENT_HEADER_SIZE];
+        XL_CAN_EV_RX_MSG canRxOkMsg;
+        XL_CAN_EV_RX_MSG canTxOkMsg;
+        XL_CAN_EV_TX_REQUEST canTxRequest;
+        XL_CAN_EV_ERROR canError;
+        XL_CAN_EV_CHIP_STATE canChipState;
+    } tagData;
+} XLcanRxEvent;
+
 #include <poppack.h>
 
 // ---- Function pointer typedefs for dynamic loading ----
@@ -210,5 +349,8 @@ typedef XLstatus(__stdcall* xlCanSetChannelBitrate_t)(XLportHandle, XLaccess, un
 typedef XLstatus(__stdcall* xlReceive_t)(XLportHandle, unsigned int*, XLevent*);
 typedef XLstatus(__stdcall* xlCanTransmit_t)(XLportHandle, XLaccess, unsigned int*, void*);
 typedef XLstringType(__stdcall* xlGetErrorString_t)(XLstatus);
+typedef XLstatus(__stdcall* xlCanFdSetConfiguration_t)(XLportHandle, XLaccess, XLcanFdConf*);
+typedef XLstatus(__stdcall* xlCanReceive_t)(XLportHandle, XLcanRxEvent*);
+typedef XLstatus(__stdcall* xlCanTransmitEx_t)(XLportHandle, XLaccess, unsigned int, unsigned int*, XLcanTxEvent*);
 
 } // extern "C"
