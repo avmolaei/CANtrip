@@ -12,7 +12,7 @@ Instead it reuses Wireshark's own capture pipeline:
 ```
 CANtrip (Qt app) --launches--> tshark -T ek --reads from--> extcap: pcan2pcap
                                                                     |
-                                                              ICanBackend
+                                                          AVlabs CAN backend
                                                              /      |      \
                                                         PeakBackend  (Vector, Kvaser,
                                                             |         ETAS, ... later)
