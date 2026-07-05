@@ -130,23 +130,22 @@ bool VectorBackend::initialize(uint64_t channelId, const CanBitrateConfig& confi
     }
 
     if (config.fd) {
-        // Bit-timing tick values (sjw/tseg1/tseg2), not bps - the header
-        // gives no documented base clock for these, so rather than guess,
-        // these match python-can's real, actively-maintained Vector
-        // backend defaults (sjw=2, tseg1=6, tseg2=3 for both phases,
-        // assumed 80MHz clock -> 70% sample point). Configurable sample
-        // point/expert timing is planned for the bus-settings UI rework;
-        // until then every FD channel gets this fixed, verified-real
-        // default rather than an invented one.
+        // XLcanFdConf takes bit-timing tick values (sjw/tseg1/tseg2), not a
+        // prescaler - unlike PCAN-Basic's init string, Vector's struct has
+        // no BRP field, so config.nominalTiming.brp/dataTiming.brp are
+        // unused here; the driver derives its own prescaler from bitrate +
+        // (1+tseg1+tseg2). Timing is computed by CanBitTiming (see
+        // AVlabsCanBackend.h) rather than the fixed defaults this backend
+        // used before real bit-timing support existed.
         XLcanFdConf fdConf{};
         fdConf.arbitrationBitRate = config.nominalBitrateBps;
-        fdConf.sjwAbr = 2;
-        fdConf.tseg1Abr = 6;
-        fdConf.tseg2Abr = 3;
+        fdConf.sjwAbr = config.nominalTiming.sjw;
+        fdConf.tseg1Abr = config.nominalTiming.tseg1;
+        fdConf.tseg2Abr = config.nominalTiming.tseg2;
         fdConf.dataBitRate = config.dataBitrateBps;
-        fdConf.sjwDbr = 2;
-        fdConf.tseg1Dbr = 6;
-        fdConf.tseg2Dbr = 3;
+        fdConf.sjwDbr = config.dataTiming.sjw;
+        fdConf.tseg1Dbr = config.dataTiming.tseg1;
+        fdConf.tseg2Dbr = config.dataTiming.tseg2;
 
         status = pCanFdSetConfiguration_(portHandle, accessMask, &fdConf);
     } else {

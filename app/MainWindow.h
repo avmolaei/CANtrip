@@ -5,18 +5,20 @@
 #include <unordered_map>
 #include <vector>
 
-#include <QCheckBox>
 #include <QComboBox>
 #include <QHash>
 #include <QLabel>
-#include <QLineEdit>
 #include <QMainWindow>
 #include <QPushButton>
+#include <QRadioButton>
+#include <QStackedWidget>
+#include <QTabWidget>
 #include <QTimer>
 #include <QTreeWidget>
 
 #include <dbcppp/Network.h>
 
+#include "../common/AVlabsCanBackend.h"
 #include "StatusLed.h"
 #include "TsharkCapture.h"
 
@@ -30,12 +32,15 @@ public:
 private slots:
     void refreshChannels();
     void importDbc();
-    void toggleCapture();
+    void openCanController();
+    void startCapture();
+    void stopCapture();
     void onFrameReceived(const DecodedCanFrame& frame);
     void onCaptureError(const QString& message);
     void onCaptureStopped();
     void onDisplayModeChanged();
     void checkStaleRows();
+    void showAboutDialog();
 
 private:
     struct ChannelEntry {
@@ -57,7 +62,13 @@ private:
 
     enum class DisplayMode { Waterfall, Periodic };
 
-    void updateFdControlsEnabled();
+    QWidget* buildHomeTab();
+    QWidget* buildHardwareTab();
+    QWidget* buildAnalysisTab();
+    QWidget* buildStimulationTab();
+    QWidget* buildLoggingTab();
+    QWidget* buildAboutTab();
+
     static QString findTsharkExe();
     static uint64_t frameKey(const DecodedCanFrame& frame);
     void resetDisplay();
@@ -67,17 +78,26 @@ private:
     void addErrorRow(const DecodedCanFrame& frame);
     void handlePeriodicErrorFrame(const DecodedCanFrame& frame);
 
+    QTabWidget* ribbon_;
+
+    // Home tab
+    QPushButton* startButton_;
+    QPushButton* stopButton_;
+    QRadioButton* waterfallRadio_;
+    QRadioButton* periodicRadio_;
+
+    // Hardware tab
     QComboBox* channelCombo_;
     QPushButton* refreshButton_;
-    QComboBox* bitrateCombo_;
-    QCheckBox* fdCheckBox_;
-    QComboBox* dataBitrateCombo_;
-    QLineEdit* expertStringEdit_;
+    QPushButton* canControllerButton_;
+
+    // Analysis & Measurement tab
     QPushButton* importDbcButton_;
     QLabel* dbcStatusLabel_;
-    QPushButton* startStopButton_;
-    QComboBox* displayModeCombo_;
+
+    QStackedWidget* contentStack_;
     QTreeWidget* frameTree_;
+
     StatusLed* statusLed_;
     QLabel* statusLabel_;
 
@@ -85,6 +105,10 @@ private:
     std::unique_ptr<dbcppp::INetwork> dbcNetwork_;
     TsharkCapture capture_;
     int frameCount_ = 0;
+
+    // Populated by the CAN Controller dialog; applied the next time a
+    // capture is started (not live-reconfigured while one is running).
+    CanBitrateConfig busConfig_;
 
     DisplayMode displayMode_ = DisplayMode::Waterfall;
     std::unordered_map<uint64_t, PeriodicRowState> periodicRows_;

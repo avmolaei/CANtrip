@@ -8,18 +8,21 @@
 #include <QBrush>
 #include <QColor>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QMessageBox>
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QStringList>
 #include <QtAlgorithms>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
 
-#include "../common/AVlabsCanBackend.h"
+#include "CanControllerDialog.h"
 
 namespace cantrip {
 
@@ -103,51 +106,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle("CANtrip");
     resize(1000, 600);
 
-    auto* central = new QWidget(this);
-    auto* rootLayout = new QVBoxLayout(central);
+    ribbon_ = new QTabWidget(this);
+    ribbon_->setMaximumHeight(110);
+    ribbon_->addTab(buildHomeTab(), "Home");
+    ribbon_->addTab(buildHardwareTab(), "Hardware");
+    ribbon_->addTab(buildAnalysisTab(), "Analysis && Measurement");
+    ribbon_->addTab(buildStimulationTab(), "Stimulation");
+    ribbon_->addTab(buildLoggingTab(), "Logging");
+    ribbon_->addTab(buildAboutTab(), "About...");
 
-    auto* controlsLayout = new QHBoxLayout();
-    channelCombo_ = new QComboBox(central);
-    channelCombo_->setMinimumWidth(260);
-    refreshButton_ = new QPushButton("Refresh", central);
-
-    bitrateCombo_ = new QComboBox(central);
-    bitrateCombo_->addItem("125 kbit/s", 125000);
-    bitrateCombo_->addItem("250 kbit/s", 250000);
-    bitrateCombo_->addItem("500 kbit/s", 500000);
-    bitrateCombo_->setCurrentIndex(2);
-    bitrateCombo_->addItem("1 Mbit/s", 1000000);
-
-    fdCheckBox_ = new QCheckBox("CAN FD", central);
-
-    dataBitrateCombo_ = new QComboBox(central);
-    dataBitrateCombo_->addItem("2 Mbit/s", 2000000);
-    dataBitrateCombo_->addItem("5 Mbit/s", 5000000);
-
-    expertStringEdit_ = new QLineEdit(central);
-    expertStringEdit_->setPlaceholderText("Expert FD init string (optional, backend-specific)");
-
-    importDbcButton_ = new QPushButton("Import DBC...", central);
-    dbcStatusLabel_ = new QLabel("No DBC loaded", central);
-
-    displayModeCombo_ = new QComboBox(central);
-    displayModeCombo_->addItem("Waterfall (newest first)", static_cast<int>(DisplayMode::Waterfall));
-    displayModeCombo_->addItem("Periodic (per-ID)", static_cast<int>(DisplayMode::Periodic));
-
-    startStopButton_ = new QPushButton("Start Capture", central);
-
-    controlsLayout->addWidget(channelCombo_);
-    controlsLayout->addWidget(refreshButton_);
-    controlsLayout->addWidget(bitrateCombo_);
-    controlsLayout->addWidget(fdCheckBox_);
-    controlsLayout->addWidget(dataBitrateCombo_);
-    controlsLayout->addWidget(expertStringEdit_, /*stretch=*/1);
-    controlsLayout->addWidget(importDbcButton_);
-    controlsLayout->addWidget(dbcStatusLabel_);
-    controlsLayout->addWidget(displayModeCombo_);
-    controlsLayout->addWidget(startStopButton_);
-
-    frameTree_ = new QTreeWidget(central);
+    frameTree_ = new QTreeWidget(this);
     frameTree_->setColumnCount(7);
     frameTree_->setHeaderLabels({"Time", "ID", "Flags", "DLC", "Data", "Message/Signal", "Value"});
     frameTree_->setColumnWidth(0, 90);
@@ -163,8 +131,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     frameTree_->setSortingEnabled(true);
     frameTree_->sortByColumn(0, Qt::DescendingOrder);
 
-    rootLayout->addLayout(controlsLayout);
-    rootLayout->addWidget(frameTree_, /*stretch=*/1);
+    contentStack_ = new QStackedWidget(this);
+    contentStack_->addWidget(frameTree_);
+
+    auto* central = new QWidget(this);
+    auto* rootLayout = new QVBoxLayout(central);
+    rootLayout->addWidget(ribbon_);
+    rootLayout->addWidget(contentStack_, /*stretch=*/1);
     setCentralWidget(central);
 
     // Plain addWidget (not addPermanentWidget) so both sit flush at the
@@ -177,13 +150,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     statusBar()->addWidget(statusLed_);
     statusBar()->addWidget(statusLabel_, /*stretch=*/1);
 
-    updateFdControlsEnabled();
-
-    connect(refreshButton_, &QPushButton::clicked, this, &MainWindow::refreshChannels);
-    connect(fdCheckBox_, &QCheckBox::toggled, this, &MainWindow::updateFdControlsEnabled);
-    connect(importDbcButton_, &QPushButton::clicked, this, &MainWindow::importDbc);
-    connect(startStopButton_, &QPushButton::clicked, this, &MainWindow::toggleCapture);
-    connect(displayModeCombo_, &QComboBox::currentIndexChanged, this, &MainWindow::onDisplayModeChanged);
     connect(&capture_, &TsharkCapture::frameReceived, this, &MainWindow::onFrameReceived);
     connect(&capture_, &TsharkCapture::errorOccurred, this, &MainWindow::onCaptureError);
     connect(&capture_, &TsharkCapture::stopped, this, &MainWindow::onCaptureStopped);
@@ -194,10 +160,148 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     refreshChannels();
 }
 
-void MainWindow::updateFdControlsEnabled() {
-    const bool fd = fdCheckBox_->isChecked();
-    dataBitrateCombo_->setEnabled(fd);
-    expertStringEdit_->setEnabled(fd);
+QWidget* MainWindow::buildHomeTab() {
+    auto* page = new QWidget(ribbon_);
+    auto* layout = new QHBoxLayout(page);
+
+    auto* captureGroup = new QGroupBox("Capture", page);
+    auto* captureLayout = new QHBoxLayout(captureGroup);
+    startButton_ = new QPushButton("Start", captureGroup);
+    stopButton_ = new QPushButton("Stop", captureGroup);
+    stopButton_->setEnabled(false);
+    captureLayout->addWidget(startButton_);
+    captureLayout->addWidget(stopButton_);
+
+    auto* displayGroup = new QGroupBox("Display", page);
+    auto* displayLayout = new QVBoxLayout(displayGroup);
+    waterfallRadio_ = new QRadioButton("Waterfall", displayGroup);
+    periodicRadio_ = new QRadioButton("Periodic", displayGroup);
+    waterfallRadio_->setChecked(true);
+    displayLayout->addWidget(waterfallRadio_);
+    displayLayout->addWidget(periodicRadio_);
+
+    layout->addWidget(captureGroup);
+    layout->addWidget(displayGroup);
+    layout->addStretch(1);
+
+    connect(startButton_, &QPushButton::clicked, this, &MainWindow::startCapture);
+    connect(stopButton_, &QPushButton::clicked, this, &MainWindow::stopCapture);
+    connect(waterfallRadio_, &QRadioButton::toggled, this, &MainWindow::onDisplayModeChanged);
+    connect(periodicRadio_, &QRadioButton::toggled, this, &MainWindow::onDisplayModeChanged);
+
+    return page;
+}
+
+QWidget* MainWindow::buildHardwareTab() {
+    auto* page = new QWidget(ribbon_);
+    auto* layout = new QHBoxLayout(page);
+
+    auto* hwGroup = new QGroupBox("Network Hardware", page);
+    auto* hwLayout = new QHBoxLayout(hwGroup);
+    channelCombo_ = new QComboBox(hwGroup);
+    channelCombo_->setMinimumWidth(260);
+    refreshButton_ = new QPushButton("Refresh", hwGroup);
+    hwLayout->addWidget(channelCombo_);
+    hwLayout->addWidget(refreshButton_);
+
+    auto* controllerGroup = new QGroupBox("Bus Configuration", page);
+    auto* controllerLayout = new QHBoxLayout(controllerGroup);
+    canControllerButton_ = new QPushButton("CAN Controller...", controllerGroup);
+    controllerLayout->addWidget(canControllerButton_);
+
+    layout->addWidget(hwGroup);
+    layout->addWidget(controllerGroup);
+    layout->addStretch(1);
+
+    connect(refreshButton_, &QPushButton::clicked, this, &MainWindow::refreshChannels);
+    connect(canControllerButton_, &QPushButton::clicked, this, &MainWindow::openCanController);
+
+    return page;
+}
+
+QWidget* MainWindow::buildAnalysisTab() {
+    auto* page = new QWidget(ribbon_);
+    auto* layout = new QHBoxLayout(page);
+
+    auto* dbGroup = new QGroupBox("CAN Database", page);
+    auto* dbLayout = new QHBoxLayout(dbGroup);
+    importDbcButton_ = new QPushButton("Import DBC...", dbGroup);
+    dbLayout->addWidget(importDbcButton_);
+
+    dbcStatusLabel_ = new QLabel("No DBC loaded...", page);
+    dbcStatusLabel_->setStyleSheet("color: red;");
+
+    auto* viewGroup = new QGroupBox("Views", page);
+    auto* viewLayout = new QHBoxLayout(viewGroup);
+    auto* traceButton = new QPushButton("CAN Trace", viewGroup);
+    auto* graphicsButton = new QPushButton("Graphics", viewGroup); // no-op until the Graph view exists
+    viewLayout->addWidget(traceButton);
+    viewLayout->addWidget(graphicsButton);
+
+    layout->addWidget(dbGroup);
+    layout->addWidget(dbcStatusLabel_);
+    layout->addWidget(viewGroup);
+    layout->addStretch(1);
+
+    connect(importDbcButton_, &QPushButton::clicked, this, &MainWindow::importDbc);
+    connect(traceButton, &QPushButton::clicked, this, [this]() { contentStack_->setCurrentWidget(frameTree_); });
+
+    return page;
+}
+
+QWidget* MainWindow::buildStimulationTab() {
+    auto* page = new QWidget(ribbon_);
+    auto* layout = new QVBoxLayout(page);
+    auto* label = new QLabel("coming soon :3", page);
+    label->setAlignment(Qt::AlignCenter);
+    layout->addWidget(label);
+    return page;
+}
+
+QWidget* MainWindow::buildLoggingTab() {
+    auto* page = new QWidget(ribbon_);
+    auto* layout = new QVBoxLayout(page);
+    auto* label = new QLabel("also coming soon :3", page);
+    label->setAlignment(Qt::AlignCenter);
+    layout->addWidget(label);
+    return page;
+}
+
+QWidget* MainWindow::buildAboutTab() {
+    auto* page = new QWidget(ribbon_);
+    auto* layout = new QHBoxLayout(page);
+
+    auto* githubButton = new QPushButton("GitHub", page);
+    auto* aboutButton = new QPushButton("About CANtrip...", page);
+    layout->addWidget(githubButton);
+    layout->addWidget(aboutButton);
+    layout->addStretch(1);
+
+    connect(githubButton, &QPushButton::clicked, this, []() {
+        QDesktopServices::openUrl(QUrl("https://github.com/avmolaei/CANtrip"));
+    });
+    connect(aboutButton, &QPushButton::clicked, this, &MainWindow::showAboutDialog);
+
+    return page;
+}
+
+void MainWindow::showAboutDialog() {
+    QMessageBox::about(this, "CANtrip - Made by Avesta MOLAEI",
+        "<b>CANtrip</b><br>"
+        "An open-source, free alternative to Vector CANalyzer for viewing "
+        "and decoding CAN / CAN-FD bus traffic on Windows.<br><br>"
+        "Created by Avesta Molaei.<br>"
+        "https://github.com/avmolaei/CANtrip<br><br>"
+        "Licensed under the GNU General Public License v3.0 (GPL-3.0). "
+        "See the LICENSE file in the repository for the full text.");
+}
+
+void MainWindow::openCanController() {
+    CanControllerDialog dialog(this);
+    dialog.setConfig(busConfig_);
+    if (dialog.exec() == QDialog::Accepted) {
+        busConfig_ = dialog.config();
+    }
 }
 
 void MainWindow::refreshChannels() {
@@ -236,7 +340,8 @@ void MainWindow::importDbc() {
         return;
     }
     dbcNetwork_ = std::move(net);
-    dbcStatusLabel_->setText(QFileInfo(path).fileName());
+    dbcStatusLabel_->setText(QFileInfo(path).fileName() + " loaded!");
+    dbcStatusLabel_->setStyleSheet("color: green;");
 }
 
 QString MainWindow::findTsharkExe() {
@@ -247,11 +352,8 @@ QString MainWindow::findTsharkExe() {
     return "tshark"; // let QProcess try PATH and fail with a clear error if not found
 }
 
-void MainWindow::toggleCapture() {
-    if (capture_.isRunning()) {
-        capture_.stop();
-        return;
-    }
+void MainWindow::startCapture() {
+    if (capture_.isRunning()) return;
 
     if (channelCombo_->currentIndex() < 0) {
         QMessageBox::warning(this, "Start Capture", "No channel selected.");
@@ -261,21 +363,34 @@ void MainWindow::toggleCapture() {
     TsharkCapture::Config config;
     config.tsharkPath = findTsharkExe();
     config.interfaceId = channelCombo_->currentData().toString();
-    config.nominalBitrateBps = bitrateCombo_->currentData().toUInt();
-    config.fd = fdCheckBox_->isChecked();
-    config.dataBitrateBps = dataBitrateCombo_->currentData().toUInt();
-    config.expertInitString = expertStringEdit_->text();
+    config.nominalBitrateBps = busConfig_.nominalBitrateBps;
+    config.fd = busConfig_.fd;
+    config.dataBitrateBps = busConfig_.dataBitrateBps;
+    config.nomBrp = busConfig_.nominalTiming.brp;
+    config.nomTseg1 = busConfig_.nominalTiming.tseg1;
+    config.nomTseg2 = busConfig_.nominalTiming.tseg2;
+    config.nomSjw = busConfig_.nominalTiming.sjw;
+    config.dataBrp = busConfig_.dataTiming.brp;
+    config.dataTseg1 = busConfig_.dataTiming.tseg1;
+    config.dataTseg2 = busConfig_.dataTiming.tseg2;
+    config.dataSjw = busConfig_.dataTiming.sjw;
 
     resetDisplay();
     statusLabel_->setText("Starting capture on " + channelCombo_->currentText() + "...");
     statusLed_->setCapturing(true);
     capture_.start(config);
-    startStopButton_->setText("Stop Capture");
+    startButton_->setEnabled(false);
+    stopButton_->setEnabled(true);
     channelCombo_->setEnabled(false);
 }
 
+void MainWindow::stopCapture() {
+    if (!capture_.isRunning()) return;
+    capture_.stop();
+}
+
 void MainWindow::onDisplayModeChanged() {
-    displayMode_ = static_cast<DisplayMode>(displayModeCombo_->currentData().toInt());
+    displayMode_ = periodicRadio_->isChecked() ? DisplayMode::Periodic : DisplayMode::Waterfall;
     resetDisplay();
 }
 
@@ -456,7 +571,8 @@ void MainWindow::onCaptureError(const QString& message) {
 }
 
 void MainWindow::onCaptureStopped() {
-    startStopButton_->setText("Start Capture");
+    startButton_->setEnabled(true);
+    stopButton_->setEnabled(false);
     channelCombo_->setEnabled(true);
     statusLed_->setCapturing(false);
     statusLabel_->setText("Capture stopped");
