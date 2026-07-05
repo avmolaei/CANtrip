@@ -1,6 +1,7 @@
 find_package(Qt6 REQUIRED COMPONENTS Widgets Charts)
 
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 
 add_executable(cantrip
     main.cpp
@@ -19,6 +20,7 @@ add_executable(cantrip
     TsharkCapture.h
     TsharkCapture.cpp
     resources/cantrip.rc
+    resources/cantrip.qrc
 )
 
 target_link_libraries(cantrip PRIVATE Qt6::Widgets Qt6::Charts cantrip_common dbcppp)

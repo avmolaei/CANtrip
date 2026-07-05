@@ -14,6 +14,7 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QMessageBox>
+#include <QPixmap>
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QStringList>
@@ -290,7 +291,11 @@ QWidget* MainWindow::buildAboutTab() {
 }
 
 void MainWindow::showAboutDialog() {
-    QMessageBox::about(this, "CANtrip - Made by Avesta MOLAEI",
+    QMessageBox box(this);
+    box.setWindowTitle("CANtrip - Made by Avesta MOLAEI");
+    box.setIconPixmap(QPixmap(":/cantrip_source.png").scaledToWidth(96, Qt::SmoothTransformation));
+    box.setTextFormat(Qt::RichText);
+    box.setText(
         "<b>CANtrip</b><br>"
         "An open-source, free alternative to Vector CANalyzer for viewing "
         "and decoding CAN / CAN-FD bus traffic on Windows.<br><br>"
@@ -298,6 +303,7 @@ void MainWindow::showAboutDialog() {
         "https://github.com/avmolaei/CANtrip<br><br>"
         "Licensed under the GNU General Public License v3.0 (GPL-3.0). "
         "See the LICENSE file in the repository for the full text.");
+    box.exec();
 }
 
 void MainWindow::openCanController() {

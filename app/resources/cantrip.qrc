@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>cantrip_source.png</file>
+    </qresource>
+</RCC>
