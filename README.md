@@ -13,12 +13,12 @@ Instead it reuses Wireshark's own capture pipeline:
 CANtrip (Qt app) --launches--> tshark -T ek --reads from--> extcap: pcan2pcap
                                                                     |
                                                           AVlabs CAN backend
-                                                             /      |      \
-                                                        PeakBackend  (Vector, Kvaser,
-                                                            |         ETAS, ... later)
-                                                     PCAN-Basic.dll
-                                                            |
-                                                      PEAK PCAN hardware
+                                                          /       |        \
+                                                   PeakBackend  VectorBackend  (Kvaser,
+                                                       |            |           ETAS, ...)
+                                                PCAN-Basic.dll  vxlapi64.dll
+                                                       |            |
+                                                 PEAK hardware  Vector VN-series hardware
 ```
 
 - **`extcap/pcan2pcap`** is a small Wireshark [extcap](https://www.wireshark.org/docs/wsdg_html_chunked/ChCaptureExtcap.html)
@@ -49,15 +49,21 @@ vendor SDK directly.
   (`LoadLibrary`/`GetProcAddress`), so CANtrip builds and runs fine with
   only some (or none) of the vendor SDKs installed - a backend whose DLL
   isn't found is simply omitted, not a startup error.
-- [`common/PeakBackend.h/.cpp`](common/PeakBackend.cpp) is the reference
-  implementation, wrapping PEAK-System's `PCANBasic.dll`.
+- [`common/PeakBackend.h/.cpp`](common/PeakBackend.cpp) wraps PEAK-System's
+  `PCANBasic.dll`. Supports classic CAN and CAN FD.
+- [`common/VectorBackend.h/.cpp`](common/VectorBackend.cpp) wraps Vector
+  Informatik's `vxlapi64.dll` (XL Driver Library), verified against a real
+  VN1640A. Classic CAN only for now - CAN FD support (Vector's separate
+  `xlCanFdSetConfiguration`/`XLcanRxEvent` API surface) isn't implemented
+  yet.
 - [`common/CanBackendRegistry.cpp`](common/CanBackendRegistry.cpp) is the
   single place that lists every backend CANtrip knows about.
-- Adding support for another vendor (Vector's XL Driver Library, Kvaser's
-  CANlib, ETAS's BOA, etc.) means implementing the AVlabs CAN backend
-  interface once, using that vendor's real SDK header (never reconstructed
-  from memory - a wrong struct layout when calling into a proprietary DLL
-  is a silent memory-corruption bug, not a compile error) and adding one
+- Adding support for another vendor (Kvaser's CANlib, ETAS's BOA, etc.)
+  means implementing the AVlabs CAN backend interface once, using that
+  vendor's real SDK header (never reconstructed from memory - a wrong
+  struct layout when calling into a proprietary DLL is a silent
+  memory-corruption bug, not a compile error - this bit us for real with an
+  earlier hand-transcribed PEAK header, see git history) and adding one
   line to the registry. The extcap's pcap-serialization code and the app's
   decode/UI layer don't change.
 
@@ -65,8 +71,13 @@ vendor SDK directly.
 
 - [Wireshark](https://www.wireshark.org/) installed (provides `tshark`,
   `dumpcap`, and the extcap plugin folder).
-- [PEAK-System PCAN-Basic](https://www.peak-system.com/PCAN-Basic.239.0.html)
-  driver package installed (provides `PCANBasic.dll`).
+- A driver package for whichever CAN hardware you're using - only one is
+  needed, CANtrip just uses whichever it finds:
+  - [PEAK-System PCAN-Basic](https://www.peak-system.com/PCAN-Basic.239.0.html)
+    (provides `PCANBasic.dll`), or
+  - Vector's XL Driver Library or any Vector driver package that installs
+    `vxlapi64.dll` (e.g. Vector Driver Setup, CANoe/CANalyzer, Vector
+    Hardware Manager).
 - Qt 6 (msvc2019_64 or newer kit) and a matching MSVC toolchain.
 - CMake >= 3.21.
 
