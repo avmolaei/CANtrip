@@ -1,0 +1,4 @@
+// Embeds cantrip.ico as the .exe's icon - shown in Explorer, the taskbar,
+// Alt-Tab, and the window title bar (Qt uses the exe's own icon by default
+// on Windows when the app doesn't call setWindowIcon() itself).
+IDI_ICON1 ICON "cantrip.ico"
