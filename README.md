@@ -40,9 +40,9 @@ CANtrip is not tied to one CAN adapter vendor. There's no OS-level CAN
 abstraction on Windows (unlike Linux's SocketCAN, which is why Wireshark's
 SocketCAN dissector already works for any Linux CAN device) - every vendor
 ships its own proprietary DLL and API shape. CANtrip works around this with
-a vendor-neutral interface, [`common/AVlabsCanBackend.h`](common/AVlabsCanBackend.h)
-(`ICanBackend`, colloquially "the AVlabs backend" - one bus to sniff them
-all): the extcap and app only ever talk to that interface, never to a
+a vendor-neutral interface, the **AVlabs CAN backend**
+([`common/AVlabsCanBackend.h`](common/AVlabsCanBackend.h)) - one bus to sniff
+them all: the extcap and app only ever talk to that interface, never to a
 vendor SDK directly.
 
 - Each backend dynamically loads its vendor's DLL at runtime
@@ -54,12 +54,12 @@ vendor SDK directly.
 - [`common/CanBackendRegistry.cpp`](common/CanBackendRegistry.cpp) is the
   single place that lists every backend CANtrip knows about.
 - Adding support for another vendor (Vector's XL Driver Library, Kvaser's
-  CANlib, ETAS's BOA, etc.) means implementing `ICanBackend` once, using
-  that vendor's real SDK header (never reconstructed from memory - a wrong
-  struct layout when calling into a proprietary DLL is a silent
-  memory-corruption bug, not a compile error) and adding one line to the
-  registry. The extcap's pcap-serialization code and the app's decode/UI
-  layer don't change.
+  CANlib, ETAS's BOA, etc.) means implementing the AVlabs CAN backend
+  interface once, using that vendor's real SDK header (never reconstructed
+  from memory - a wrong struct layout when calling into a proprietary DLL
+  is a silent memory-corruption bug, not a compile error) and adding one
+  line to the registry. The extcap's pcap-serialization code and the app's
+  decode/UI layer don't change.
 
 ## Prerequisites (Windows)
 
