@@ -166,7 +166,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     rootLayout->addLayout(controlsLayout);
     rootLayout->addWidget(frameTree_, /*stretch=*/1);
     setCentralWidget(central);
-    statusBar();
+
+    // Plain addWidget (not addPermanentWidget) so both sit flush at the
+    // bottom-left, in the order added - since nothing else ever calls
+    // showMessage() anymore, there's no temporary-message overlay to worry
+    // about hiding them.
+    statusLed_ = new StatusLed(this);
+    statusLed_->setCapturing(false);
+    statusLabel_ = new QLabel(this);
+    statusBar()->addWidget(statusLed_);
+    statusBar()->addWidget(statusLabel_, /*stretch=*/1);
 
     updateFdControlsEnabled();
 
@@ -258,7 +267,8 @@ void MainWindow::toggleCapture() {
     config.expertInitString = expertStringEdit_->text();
 
     resetDisplay();
-    statusBar()->showMessage("Starting capture on " + channelCombo_->currentText() + "...");
+    statusLabel_->setText("Starting capture on " + channelCombo_->currentText() + "...");
+    statusLed_->setCapturing(true);
     capture_.start(config);
     startStopButton_->setText("Stop Capture");
     channelCombo_->setEnabled(false);
@@ -420,7 +430,7 @@ void MainWindow::onFrameReceived(const DecodedCanFrame& frame) {
         handlePeriodicFrame(frame);
     }
 
-    statusBar()->showMessage(QString("Captured %1 frame(s)").arg(frameCount_));
+    statusLabel_->setText(QString("Captured %1 frame(s)").arg(frameCount_));
 }
 
 void MainWindow::checkStaleRows() {
@@ -442,13 +452,14 @@ void MainWindow::checkStaleRows() {
 }
 
 void MainWindow::onCaptureError(const QString& message) {
-    statusBar()->showMessage(message.trimmed(), 8000);
+    statusLabel_->setText(message.trimmed());
 }
 
 void MainWindow::onCaptureStopped() {
     startStopButton_->setText("Start Capture");
     channelCombo_->setEnabled(true);
-    statusBar()->showMessage("Capture stopped", 4000);
+    statusLed_->setCapturing(false);
+    statusLabel_->setText("Capture stopped");
 }
 
 } // namespace cantrip

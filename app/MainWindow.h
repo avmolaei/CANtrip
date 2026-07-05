@@ -17,6 +17,7 @@
 
 #include <dbcppp/Network.h>
 
+#include "StatusLed.h"
 #include "TsharkCapture.h"
 
 namespace cantrip {
@@ -77,6 +78,8 @@ private:
     QPushButton* startStopButton_;
     QComboBox* displayModeCombo_;
     QTreeWidget* frameTree_;
+    StatusLed* statusLed_;
+    QLabel* statusLabel_;
 
     std::vector<ChannelEntry> channels_;
     std::unique_ptr<dbcppp::INetwork> dbcNetwork_;

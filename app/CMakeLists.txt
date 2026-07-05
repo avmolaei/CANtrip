@@ -6,6 +6,8 @@ add_executable(cantrip
     main.cpp
     MainWindow.h
     MainWindow.cpp
+    StatusLed.h
+    StatusLed.cpp
     TsharkCapture.h
     TsharkCapture.cpp
     resources/cantrip.rc
