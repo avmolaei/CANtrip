@@ -9,3 +9,4 @@ add_library(cantrip_common STATIC
 )
 
 target_include_directories(cantrip_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+cantrip_target_options(cantrip_common)
