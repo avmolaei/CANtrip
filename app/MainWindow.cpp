@@ -131,8 +131,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     frameTree_->setSortingEnabled(true);
     frameTree_->sortByColumn(0, Qt::DescendingOrder);
 
+    graphView_ = new GraphView(&signalHistory_, this);
+
     contentStack_ = new QStackedWidget(this);
     contentStack_->addWidget(frameTree_);
+    contentStack_->addWidget(graphView_);
 
     auto* central = new QWidget(this);
     auto* rootLayout = new QVBoxLayout(central);
@@ -234,7 +237,7 @@ QWidget* MainWindow::buildAnalysisTab() {
     auto* viewGroup = new QGroupBox("Views", page);
     auto* viewLayout = new QHBoxLayout(viewGroup);
     auto* traceButton = new QPushButton("CAN Trace", viewGroup);
-    auto* graphicsButton = new QPushButton("Graphics", viewGroup); // no-op until the Graph view exists
+    auto* graphicsButton = new QPushButton("Graphics", viewGroup);
     viewLayout->addWidget(traceButton);
     viewLayout->addWidget(graphicsButton);
 
@@ -245,6 +248,7 @@ QWidget* MainWindow::buildAnalysisTab() {
 
     connect(importDbcButton_, &QPushButton::clicked, this, &MainWindow::importDbc);
     connect(traceButton, &QPushButton::clicked, this, [this]() { contentStack_->setCurrentWidget(frameTree_); });
+    connect(graphicsButton, &QPushButton::clicked, this, [this]() { contentStack_->setCurrentWidget(graphView_); });
 
     return page;
 }
@@ -399,6 +403,8 @@ void MainWindow::resetDisplay() {
     periodicRows_.clear();
     periodicErrorRows_.clear();
     frameCount_ = 0;
+    signalHistory_.reset();
+    graphView_->reset();
 }
 
 uint64_t MainWindow::frameKey(const DecodedCanFrame& frame) {
@@ -449,8 +455,15 @@ void MainWindow::populateDecodedChildren(QTreeWidgetItem* item, const DecodedCan
             const auto raw = sig.Decode(buf);
             const double phys = sig.RawToPhys(raw);
             auto* sigItem = new QTreeWidgetItem(item);
-            sigItem->setText(5, QString::fromStdString(sig.Name()));
-            sigItem->setText(6, QString::number(phys) + " " + QString::fromStdString(sig.Unit()));
+            const QString signalName = QString::fromStdString(sig.Name());
+            const QString unit = QString::fromStdString(sig.Unit());
+            sigItem->setText(5, signalName);
+            sigItem->setText(6, QString::number(phys) + " " + unit);
+
+            // Feed the Graph view's data model - same decode work, just also
+            // retained over time instead of thrown away once the row updates.
+            const QString qualifiedName = QString::fromStdString(message->Name()) + "." + signalName;
+            signalHistory_.recordSample(qualifiedName, unit, frame.timestamp.toDouble(), phys);
         }
     }
 }

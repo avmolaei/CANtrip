@@ -21,3 +21,8 @@ BO_ 768 BrakeStatus: 8 ECU1
 BO_ 2024 OBDResponse: 8 ECU1
  SG_ ResponseByte0 : 0|8@1+ (1,0) [0|255] "" Vector__XXX
  SG_ ResponseByte1 : 8|8@1+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 1024 TestWaveforms: 8 ECU1
+ SG_ SineWave : 0|16@1+ (0.01,-100) [-100|100] "" Vector__XXX
+ SG_ SawtoothWave : 16|16@1+ (0.01,0) [0|100] "" Vector__XXX
+ SG_ TriangleWave : 32|16@1+ (0.01,0) [0|100] "" Vector__XXX

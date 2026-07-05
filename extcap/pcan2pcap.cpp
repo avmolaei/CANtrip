@@ -20,6 +20,7 @@
 #include <windows.h>
 
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
@@ -242,6 +243,45 @@ CanFrame makeSyntheticFrame(uint64_t& tUs, uint32_t& counter) {
     return f;
 }
 
+// Smoothly time-varying signals (sine/sawtooth/triangle) for exercising the
+// Graph view without real hardware - matches test/sample.dbc's TestWaveforms
+// message (0x400 = 1024). Unlike makeSyntheticFrame's incrementing-byte
+// payload (fine for the trace view, useless for a chart demo), these are
+// real waveforms on distinguishable scales.
+CanFrame makeSyntheticWaveformFrame(uint64_t tUs) {
+    const double t = static_cast<double>(tUs) / 1e6; // seconds
+    constexpr double kPi = 3.14159265358979323846;
+
+    // Sine: amplitude 50 about 0, period 10s -> fits the signal's [-100,100]
+    // range with headroom.
+    const double sine = 50.0 * std::sin(2.0 * kPi * 0.1 * t);
+    // Sawtooth: ramps 0 -> 100 every 5s, then resets.
+    const double sawtooth = 100.0 * std::fmod(t * 0.2, 1.0);
+    // Triangle: ramps 0 -> 100 -> 0 every ~6.7s.
+    const double trianglePhase = std::fmod(t * 0.15, 1.0);
+    const double triangle = 100.0 * (trianglePhase < 0.5 ? trianglePhase * 2.0 : 2.0 - trianglePhase * 2.0);
+
+    auto toRawU16 = [](double phys, double offset, double scale) -> uint16_t {
+        return static_cast<uint16_t>(std::lround((phys - offset) / scale));
+    };
+    const uint16_t sineRaw = toRawU16(sine, -100.0, 0.01);
+    const uint16_t sawtoothRaw = toRawU16(sawtooth, 0.0, 0.01);
+    const uint16_t triangleRaw = toRawU16(triangle, 0.0, 0.01);
+
+    CanFrame f;
+    f.id = 0x400; // TestWaveforms, see test/sample.dbc
+    f.extended = false;
+    f.dlc = 8;
+    f.data[0] = static_cast<uint8_t>(sineRaw & 0xFF);
+    f.data[1] = static_cast<uint8_t>((sineRaw >> 8) & 0xFF);
+    f.data[2] = static_cast<uint8_t>(sawtoothRaw & 0xFF);
+    f.data[3] = static_cast<uint8_t>((sawtoothRaw >> 8) & 0xFF);
+    f.data[4] = static_cast<uint8_t>(triangleRaw & 0xFF);
+    f.data[5] = static_cast<uint8_t>((triangleRaw >> 8) & 0xFF);
+    f.timestampUs = tUs;
+    return f;
+}
+
 // CAN_ERR_PROT (bit 3 of the error class) and its data[2] protocol-violation
 // sub-flags, straight from linux/can/error.h - this is a long-stable public
 // kernel uAPI (also what Wireshark's own dissector decodes), not a vendor
@@ -308,7 +348,9 @@ int runCapture(const std::vector<std::string>& args, const std::string& interfac
         uint64_t tUs = 0;
         uint32_t counter = 0;
         while (true) {
+            const uint64_t tickUs = tUs;
             writeRecord(fifo, makeSyntheticFrame(tUs, counter));
+            writeRecord(fifo, makeSyntheticWaveformFrame(tickUs));
             // Every 8th tick, also inject a synthetic bus error frame so
             // CANtrip's error display can be exercised without needing real
             // hardware to actually fault on the bus.

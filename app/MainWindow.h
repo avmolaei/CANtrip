@@ -19,6 +19,8 @@
 #include <dbcppp/Network.h>
 
 #include "../common/AVlabsCanBackend.h"
+#include "GraphView.h"
+#include "SignalHistory.h"
 #include "StatusLed.h"
 #include "TsharkCapture.h"
 
@@ -97,6 +99,8 @@ private:
 
     QStackedWidget* contentStack_;
     QTreeWidget* frameTree_;
+    GraphView* graphView_;
+    SignalHistoryStore signalHistory_;
 
     StatusLed* statusLed_;
     QLabel* statusLabel_;
