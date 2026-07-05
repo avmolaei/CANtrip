@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <fstream>
 
@@ -24,16 +25,28 @@ namespace cantrip {
 
 namespace {
 
-std::string toLowerId(const std::string& name) {
-    std::string out = name;
-    for (char& c : out) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+// Must match pcan2pcap.cpp's sanitizeId()/interfaceIdFor() exactly - this is
+// how the app tells tshark/pcan2pcap which backend+channel to open. Every
+// non-alphanumeric character collapses to a single underscore: the ID is
+// used both as a tshark -i argument and as a preference NAME in
+// `-o extcap.<id>.<key>:<value>`, and tshark's preference parser breaks on
+// a raw space in that name (hit this for real with PEAK's "PCAN-USB FD").
+std::string sanitizeId(const std::string& name) {
+    std::string out;
+    out.reserve(name.size());
+    for (char c : name) {
+        if (std::isalnum(static_cast<unsigned char>(c))) {
+            out += static_cast<char>(tolower(static_cast<unsigned char>(c)));
+        } else if (!out.empty() && out.back() != '_') {
+            out += '_';
+        }
+    }
+    while (!out.empty() && out.back() == '_') out.pop_back();
     return out;
 }
 
-// Must match pcan2pcap.cpp's interfaceIdFor() exactly - this is how the app
-// tells tshark/pcan2pcap which backend+channel to open.
 QString interfaceIdFor(const ICanBackend& backend, const CanChannelInfo& channel) {
-    return QString::fromStdString(backend.id() + "_" + toLowerId(channel.name));
+    return QString::fromStdString(backend.id() + "_" + sanitizeId(channel.name));
 }
 
 constexpr const char* kTestInterfaceId = "cantrip_test";

@@ -19,6 +19,7 @@
 // CANtrip's own DBC layer adds signal-level decode on top later.
 #include <windows.h>
 
+#include <cctype>
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
@@ -40,10 +41,24 @@ using cantrip::ICanBackend;
 constexpr uint16_t kLinktypeCanSocketcan = 227;
 constexpr const char* kTestInterfaceId = "cantrip_test";
 
-std::string toLowerId(const std::string& name) {
-    // "PCAN_USBBUS1" -> "pcan_usbbus1"
-    std::string out = name;
-    for (char& c : out) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+// "PCAN_USBBUS1" -> "pcan_usbbus1", "PCAN-USB FD" -> "pcan_usb_fd". Every
+// non-alphanumeric character collapses to a single underscore - required
+// because the resulting ID is used both as a tshark -i argument AND as a
+// preference NAME in `-o extcap.<id>.<key>:<value>` (see runCapture()).
+// tshark's preference parser breaks on a raw space in that name (a real
+// device, PEAK's "PCAN-USB FD", triggered this: "-o" was rejected with
+// "specifies unknown preference" once the space reached tshark unescaped).
+std::string sanitizeId(const std::string& name) {
+    std::string out;
+    out.reserve(name.size());
+    for (char c : name) {
+        if (std::isalnum(static_cast<unsigned char>(c))) {
+            out += static_cast<char>(tolower(static_cast<unsigned char>(c)));
+        } else if (!out.empty() && out.back() != '_') {
+            out += '_';
+        }
+    }
+    while (!out.empty() && out.back() == '_') out.pop_back();
     return out;
 }
 
@@ -51,7 +66,7 @@ std::string toLowerId(const std::string& name) {
 // two different vendors (unlikely, but not impossible) can't collide, e.g.
 // "peak_pcan_usbbus1".
 std::string interfaceIdFor(const ICanBackend& backend, const CanChannelInfo& channel) {
-    return backend.id() + "_" + toLowerId(channel.name);
+    return backend.id() + "_" + sanitizeId(channel.name);
 }
 
 std::vector<std::string> collectArgs(int argc, char** argv) {
