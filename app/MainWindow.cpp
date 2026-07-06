@@ -4,6 +4,8 @@
 #include <cctype>
 #include <cstring>
 #include <fstream>
+#include <iostream>
+#include <sstream>
 
 #include <QBrush>
 #include <QColor>
@@ -344,9 +346,22 @@ void MainWindow::importDbc() {
         QMessageBox::warning(this, "Import DBC", "Could not open file:\n" + path);
         return;
     }
+    // dbcppp's boost::spirit x3 grammar writes its only diagnostic (which
+    // line/token it choked on) to std::cerr, with no way to retrieve it
+    // through LoadDBCFromIs's return value - redirect cerr for the duration
+    // of the call so a parse failure can show the user *why*, not just that
+    // it failed.
+    std::ostringstream parseLog;
+    std::streambuf* prevCerr = std::cerr.rdbuf(parseLog.rdbuf());
     auto net = dbcppp::INetwork::LoadDBCFromIs(is);
+    std::cerr.rdbuf(prevCerr);
     if (!net) {
-        QMessageBox::warning(this, "Import DBC", "Failed to parse DBC file:\n" + path);
+        QString detail = QString::fromStdString(parseLog.str()).trimmed();
+        QString message = "Failed to parse DBC file:\n" + path;
+        if (!detail.isEmpty()) {
+            message += "\n\n" + detail;
+        }
+        QMessageBox::warning(this, "Import DBC", message);
         return;
     }
     dbcNetwork_ = std::move(net);

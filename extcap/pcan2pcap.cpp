@@ -182,6 +182,24 @@ constexpr uint32_t kCanSffMask = 0x000007FFu;
 constexpr uint32_t kCanEffMask = 0x1FFFFFFFu;
 constexpr uint32_t kCanErrMask = 0x1FFFFFFFu;
 
+// CAN FD's DLC is a 4-bit *code*, not a byte count - codes 9-15 map
+// non-linearly to 12/16/20/24/32/48/64 bytes (ISO 11898-1). CanFrame::dlc
+// deliberately stores the raw code straight from the vendor driver
+// (matching real hardware/spec terminology - see its doc comment in
+// AVlabsCanBackend.h), but the SocketCAN wire format's `len` byte - which
+// Linux's kernel and Wireshark's own dissector both define as an actual byte
+// count, 0-64 - needs the translated value. Confirmed against a real,
+// actively-transmitting CAN FD bus (Vector VN7640): the untranslated code
+// silently truncated the majority of real frames (most real ECUs use DLC
+// codes 9-15 routinely, not just 0-8), with the true remaining bytes
+// discarded into Wireshark's own "can_can_padding" field, which CANtrip
+// never reads. Converted once here (the single serialization chokepoint)
+// rather than duplicated in every vendor backend.
+uint8_t fdDlcCodeToLength(uint8_t code) {
+    static const uint8_t kLengths[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64};
+    return code < 16 ? kLengths[code] : 64;
+}
+
 // Serializes one frame into the SocketCAN on-wire layout (network byte
 // order), returning the byte length (16 for classic, 72 for FD).
 size_t serializeFrame(const CanFrame& f, uint8_t* buf) {
@@ -207,7 +225,7 @@ size_t serializeFrame(const CanFrame& f, uint8_t* buf) {
         std::memcpy(buf + 8, f.data, 8);
         return 16;
     }
-    buf[4] = f.dlc;           // len
+    buf[4] = fdDlcCodeToLength(f.dlc); // len (real byte count, not the raw DLC code)
     buf[5] = (f.brs ? 0x01 : 0) | (f.esi ? 0x02 : 0); // flags
     buf[6] = 0;               // __res0
     buf[7] = 0;               // __res1
