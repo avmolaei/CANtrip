@@ -365,6 +365,14 @@ void MainWindow::importDbc() {
         return;
     }
     dbcNetwork_ = std::move(net);
+
+    // Built once here rather than linearly scanning dbcNetwork_->Messages()
+    // in populateDecodedChildren() on every single received frame.
+    messageById_.clear();
+    for (const dbcppp::IMessage& msg : dbcNetwork_->Messages()) {
+        messageById_[static_cast<uint32_t>(msg.Id())] = &msg;
+    }
+
     dbcStatusLabel_->setText(QFileInfo(path).fileName() + " loaded!");
     dbcStatusLabel_->setStyleSheet("color: green;");
 }
@@ -407,6 +415,17 @@ void MainWindow::startCapture() {
     startButton_->setEnabled(false);
     stopButton_->setEnabled(true);
     channelCombo_->setEnabled(false);
+    // QFileDialog (used by importDbc()) runs its own modal, nested Windows
+    // message loop - which still dispatches TsharkCapture's queued
+    // readyRead-driven frame processing underneath it. On a busy real bus,
+    // that reenters MainWindow::onFrameReceived potentially thousands of
+    // times while the dialog just sits there waiting for a click, since
+    // nothing paces it against the dialog's own loop - reproduced for real:
+    // opening Import DBC mid-capture on a busy CAN bus froze the UI and
+    // grew memory into the hundreds of MB. Simplest fix: don't allow that
+    // combination at all rather than try to make frame processing safe
+    // under an arbitrary nested loop.
+    importDbcButton_->setEnabled(false);
 }
 
 void MainWindow::stopCapture() {
@@ -455,9 +474,8 @@ void MainWindow::populateDecodedChildren(QTreeWidgetItem* item, const DecodedCan
 
     const dbcppp::IMessage* message = nullptr;
     if (dbcNetwork_) {
-        for (const dbcppp::IMessage& msg : dbcNetwork_->Messages()) {
-            if (msg.Id() == dbcId) { message = &msg; break; }
-        }
+        auto it = messageById_.find(dbcId);
+        if (it != messageById_.end()) message = it->second;
     }
 
     qDeleteAll(item->takeChildren());
@@ -608,6 +626,7 @@ void MainWindow::onCaptureStopped() {
     startButton_->setEnabled(true);
     stopButton_->setEnabled(false);
     channelCombo_->setEnabled(true);
+    importDbcButton_->setEnabled(true);
     statusLed_->setCapturing(false);
     statusLabel_->setText("Capture stopped");
 }

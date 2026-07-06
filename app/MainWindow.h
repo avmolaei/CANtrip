@@ -107,6 +107,11 @@ private:
 
     std::vector<ChannelEntry> channels_;
     std::unique_ptr<dbcppp::INetwork> dbcNetwork_;
+    // Built once in importDbc() so populateDecodedChildren() (called on
+    // every single received frame) doesn't have to linearly scan every
+    // message in the DBC to find the one matching a frame's ID - a real,
+    // measurable cost on a large real-world DBC at real bus rates.
+    std::unordered_map<uint32_t, const dbcppp::IMessage*> messageById_;
     TsharkCapture capture_;
     int frameCount_ = 0;
 
