@@ -65,6 +65,20 @@ void TsharkCapture::start(const Config& config) {
     // per ID) even though the underlying capture timing was fine.
     args << "-i" << config.interfaceId << "-T" << "ek" << "-l";
 
+    // Wireshark's autosar-nm dissector claims CAN ID 0 by default
+    // (autosar-nm.can_id/can_id_mask default to 0/0xffffffff), which is a
+    // real automotive convention for network-management frames but not a
+    // universal one - confirmed against a real production DBC where ID 0
+    // is a plain sensor message instead. When it claims a frame, the
+    // payload never reaches the generic "data" layer processLine() reads
+    // from at all, so every signal in that message silently decodes as if
+    // every byte were zero. CANtrip does its own DBC-based decoding and has
+    // no use for any of Wireshark's higher-level CAN sub-protocol
+    // dissectors, so disable this one outright rather than special-case ID
+    // 0. Verified: the same message with this disabled reports its real
+    // payload bytes instead of being swallowed into "autosar-nm".
+    args << "--disable-protocol" << "autosar-nm";
+
     // Preference key = the extcap's --call-name with the leading dashes and
     // every internal dash stripped (confirmed against a real tshark: our
     // pcan2pcap's --data-bitrate option shows up as extcap.<if>.databitrate

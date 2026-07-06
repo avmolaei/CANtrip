@@ -73,11 +73,19 @@ const char* toStyleLabel(GraphLineStyle style) {
 // item-model MIME type, not something a plain QTreeWidget drop target can
 // read directly.
 class SignalListWidget : public QListWidget {
+    Q_OBJECT
 public:
     explicit SignalListWidget(QWidget* parent = nullptr) : QListWidget(parent) {
         setDragEnabled(true);
         setDragDropMode(QAbstractItemView::DragOnly);
     }
+
+    bool isDragInProgress() const { return dragInProgress_; }
+
+signals:
+    // Emitted once QAbstractItemView::startDrag()'s own nested event loop
+    // (started internally by QDrag::exec()) has fully unwound.
+    void dragFinished();
 
 protected:
     QMimeData* mimeData(const QList<QListWidgetItem*>& items) const override {
@@ -85,6 +93,27 @@ protected:
         if (!items.isEmpty()) mime->setText(items.first()->text());
         return mime;
     }
+
+    // QAbstractItemView::startDrag() blocks inside QDrag::exec()'s own
+    // nested event loop for as long as the mouse button is held - during
+    // which TsharkCapture's socket-notifier-driven frame decoding keeps
+    // running normally. If a brand-new signal type showed up mid-drag,
+    // GraphView::onSignalAdded() would otherwise insert a new item into
+    // this exact list *while it's the active drag source* - a real Qt
+    // reentrancy hazard (this is the crash the user hit dragging a signal
+    // during a live capture: reproduced by starting a capture against a DBC
+    // with signals not seen yet, then dragging before they'd all appeared).
+    // Track drag-in-progress so GraphView can defer those insertions until
+    // the drag has fully finished instead.
+    void startDrag(Qt::DropActions supportedActions) override {
+        dragInProgress_ = true;
+        QListWidget::startDrag(supportedActions);
+        dragInProgress_ = false;
+        emit dragFinished();
+    }
+
+private:
+    bool dragInProgress_ = false;
 };
 
 // Accepts drops of a signal's qualified name (plain text) and reports which
@@ -152,6 +181,8 @@ GraphView::GraphView(SignalHistoryStore* history, QWidget* parent)
     leftLayout->addWidget(searchEdit_);
     signalList_ = new SignalListWidget(leftPanel);
     leftLayout->addWidget(signalList_, /*stretch=*/1);
+    connect(static_cast<SignalListWidget*>(signalList_), &SignalListWidget::dragFinished,
+            this, &GraphView::flushPendingSignalAdds);
 
     addAxisButton_ = new QPushButton("Add Y Axis", leftPanel);
     leftLayout->addWidget(addAxisButton_);
@@ -249,9 +280,23 @@ void GraphView::onSignalAdded(const QString& qualifiedName) {
     const QList<QListWidgetItem*> existing = signalList_->findItems(qualifiedName, Qt::MatchExactly);
     if (!existing.isEmpty()) return;
 
+    // Inserting into signalList_ while it's the source of its own active
+    // drag is a real Qt reentrancy hazard (see SignalListWidget::startDrag) -
+    // defer until the drag finishes rather than mutate the list mid-drag.
+    if (static_cast<SignalListWidget*>(signalList_)->isDragInProgress()) {
+        if (!pendingSignalAdds_.contains(qualifiedName)) pendingSignalAdds_.append(qualifiedName);
+        return;
+    }
+
     auto* item = new QListWidgetItem(qualifiedName, signalList_);
     item->setFlags(item->flags() | Qt::ItemIsDragEnabled);
     item->setHidden(!searchEdit_->text().isEmpty() && !qualifiedName.contains(searchEdit_->text(), Qt::CaseInsensitive));
+}
+
+void GraphView::flushPendingSignalAdds() {
+    const QStringList pending = pendingSignalAdds_;
+    pendingSignalAdds_.clear();
+    for (const QString& name : pending) onSignalAdded(name);
 }
 
 void GraphView::onSampleAdded(const QString& qualifiedName, SignalSample sample) {
@@ -417,7 +462,20 @@ void GraphView::buildSeriesForSignal(AxisEntry& entry, PlottedSignal& sig) {
     }
     sig.series->setName(sig.qualifiedName);
 
-    for (const SignalSample& s : history_->samplesFor(sig.qualifiedName)) {
+    // Snapshot (a real copy, not a reference) rather than iterate
+    // samplesFor()'s result directly: this backfill loop runs synchronously
+    // from within AxisTreeWidget::dropEvent(), which - for a drag sourced
+    // from signalList_ - executes while still nested inside QDrag::exec()'s
+    // own event loop. Live capture decoding keeps running during that nested
+    // loop, and SignalHistoryStore::recordSample() appends to this exact
+    // signal's QVector on every new sample - if that reallocates while a
+    // live reference into it is mid-iteration here, it's a real use-after-
+    // free (the actual crash reported when dropping a signal during a live
+    // capture). QVector is copy-on-write, so this copy is cheap and stays
+    // valid even if recordSample() appends to the "live" vector afterward -
+    // Qt detaches the live side instead of mutating shared data in place.
+    const QVector<SignalSample> snapshot = history_->samplesFor(sig.qualifiedName);
+    for (const SignalSample& s : snapshot) {
         sig.series->append(s.timeSec, s.value);
         if (s.timeSec > timeDataMax_) timeDataMax_ = s.timeSec;
         if (!timeZoomed_ && s.timeSec > timeAxis_->max()) timeAxis_->setMax(s.timeSec);

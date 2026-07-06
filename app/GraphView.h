@@ -10,6 +10,7 @@
 #include <QColor>
 #include <QPointF>
 #include <QRectF>
+#include <QStringList>
 #include <QWidget>
 
 #include "GraphAxisDialog.h"
@@ -50,6 +51,7 @@ private slots:
     void onSignalDropped(QTreeWidgetItem* axisItem, const QString& qualifiedName);
     void onWheelZoom(QPointF chartPos, double factor);
     void resetZoom();
+    void flushPendingSignalAdds();
 
 private:
     struct PlottedSignal {
@@ -101,6 +103,10 @@ private:
 
     QLineEdit* searchEdit_;
     QListWidget* signalList_;
+    // Signal names that arrived while signalList_ was the source of its own
+    // active drag (see SignalListWidget::startDrag) - inserted once the drag
+    // finishes instead of during it.
+    QStringList pendingSignalAdds_;
     QTreeWidget* axisTree_;
     QPushButton* addAxisButton_;
     QPushButton* zoomSelectButton_;
