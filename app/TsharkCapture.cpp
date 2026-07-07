@@ -2,6 +2,7 @@
 
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMetaObject>
 #include <QStringList>
 
 namespace cantrip {
@@ -120,11 +121,34 @@ bool TsharkCapture::isRunning() const {
 
 void TsharkCapture::onReadyReadStandardOutput() {
     pendingStdout_ += process_.readAllStandardOutput();
+
+    // Draining every buffered line unconditionally here - each of which
+    // triggers a full decode + UI mutation via frameReceived - is exactly
+    // how a real hang was reproduced: any nested Windows message loop
+    // (a modal dialog, dragging the window itself, a QDrag operation -
+    // confirmed via ProcDump + cdb to be any of these, not any one
+    // specific action) lets tshark's pipe buffer keep growing underneath
+    // it while this handler can't run, then dumps the entire backlog into
+    // one uninterruptible burst the moment it's called again. On a busy
+    // real bus that backlog can be tens of thousands of lines. Capping how
+    // many get processed per call and re-queuing the rest (rather than
+    // looping until pendingStdout_ is empty) lets the event loop - and
+    // whatever nested loop is currently running - get a turn in between
+    // batches, so the UI stays responsive while catching up instead of
+    // freezing solid. Nothing is dropped, just spread across more
+    // iterations.
+    constexpr int kMaxLinesPerBatch = 200;
+    int processed = 0;
     int newlineIdx;
-    while ((newlineIdx = pendingStdout_.indexOf('\n')) >= 0) {
+    while (processed < kMaxLinesPerBatch && (newlineIdx = pendingStdout_.indexOf('\n')) >= 0) {
         QByteArray line = pendingStdout_.left(newlineIdx);
         pendingStdout_.remove(0, newlineIdx + 1);
         processLine(line);
+        ++processed;
+    }
+
+    if (pendingStdout_.indexOf('\n') >= 0) {
+        QMetaObject::invokeMethod(this, &TsharkCapture::onReadyReadStandardOutput, Qt::QueuedConnection);
     }
 }
 
