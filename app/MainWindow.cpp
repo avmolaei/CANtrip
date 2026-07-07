@@ -31,8 +31,8 @@ namespace cantrip {
 
 namespace {
 
-// Must match pcan2pcap.cpp's sanitizeId()/interfaceIdFor() exactly - this is
-// how the app tells tshark/pcan2pcap which backend+channel to open. Every
+// Must match can2pcap.cpp's sanitizeId()/interfaceIdFor() exactly - this is
+// how the app tells tshark/can2pcap which backend+channel to open. Every
 // non-alphanumeric character collapses to a single underscore: the ID is
 // used both as a tshark -i argument and as a preference NAME in
 // `-o extcap.<id>.<key>:<value>`, and tshark's preference parser breaks on
@@ -51,7 +51,7 @@ std::string sanitizeId(const std::string& name) {
     return out;
 }
 
-QString interfaceIdFor(const ICanBackend& backend, const CanChannelInfo& channel) {
+QString interfaceIdFor(const IAvlabsCanBackend& backend, const CanChannelInfo& channel) {
     return QString::fromStdString(backend.id() + "_" + sanitizeId(channel.name));
 }
 

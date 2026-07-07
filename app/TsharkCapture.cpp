@@ -82,7 +82,7 @@ void TsharkCapture::start(const Config& config) {
 
     // Preference key = the extcap's --call-name with the leading dashes and
     // every internal dash stripped (confirmed against a real tshark: our
-    // pcan2pcap's --data-bitrate option shows up as extcap.<if>.databitrate
+    // can2pcap's --data-bitrate option shows up as extcap.<if>.databitrate
     // in `tshark -G defaultprefs`, not extcap.<if>.data-bitrate).
     auto setOpt = [&](const QString& key, const QString& value) {
         args << "-o" << QString("extcap.%1.%2:%3").arg(config.interfaceId, key, value);
@@ -179,8 +179,8 @@ void TsharkCapture::processLine(const QByteArray& line) {
 
     // Wireshark's SocketCAN dissector names the layer "can" for classic
     // frames (16-byte records) and "canfd" for CAN FD ones (72-byte
-    // records) - which one pcan2pcap emits follows directly from
-    // CanFrame::fd, see serializeFrame() in pcan2pcap.cpp.
+    // records) - which one can2pcap emits follows directly from
+    // CanFrame::fd, see serializeFrame() in can2pcap.cpp.
     const bool fd = layers.contains("canfd");
     const QJsonObject can = layers.value(fd ? "canfd" : "can").toObject();
     if (can.isEmpty()) return;

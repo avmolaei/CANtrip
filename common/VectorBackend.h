@@ -16,7 +16,7 @@
 
 namespace cantrip {
 
-class VectorBackend : public ICanBackend {
+class VectorBackend : public IAvlabsCanBackend {
 public:
     // Loads vxlapi64.dll and calls xlOpenDriver(). Returns nullptr (with
     // `error` set) if the DLL isn't found on the standard search path or in
@@ -62,7 +62,7 @@ private:
     xlCanTransmitEx_t pCanTransmitEx_ = nullptr;
 
     // Each initialized channel gets its own xlOpenPort() call scoped to just
-    // that channel's access mask, since CANtrip's ICanBackend interface
+    // that channel's access mask, since CANtrip's IAvlabsCanBackend interface
     // manages channels independently - Vector's own model would let one
     // port span several channels at once, but we don't need that here.
     std::unordered_map<XLaccess, XLportHandle> portByChannel_;

@@ -9,8 +9,8 @@
 
 namespace cantrip {
 
-std::vector<std::unique_ptr<ICanBackend>> probeAvailableBackends() {
-    std::vector<std::unique_ptr<ICanBackend>> backends;
+std::vector<std::unique_ptr<IAvlabsCanBackend>> probeAvailableBackends() {
+    std::vector<std::unique_ptr<IAvlabsCanBackend>> backends;
 
     std::string error;
     if (auto peak = PeakBackend::load(&error)) {

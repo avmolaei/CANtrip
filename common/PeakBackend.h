@@ -1,4 +1,4 @@
-// ICanBackend implementation for PEAK-System PCAN-Basic hardware. This is
+// IAvlabsCanBackend implementation for PEAK-System PCAN-Basic hardware. This is
 // the reference backend - see CanBackend.h for the vendor-neutral interface
 // that a Vector, Kvaser, or ETAS backend would implement the same way.
 #pragma once
@@ -10,7 +10,7 @@
 
 namespace cantrip {
 
-class PeakBackend : public ICanBackend {
+class PeakBackend : public IAvlabsCanBackend {
 public:
     // Loads PCANBasic.dll from the system search path. Returns nullptr
     // (with `error` set) if the DLL isn't found - meaning the PCAN-Basic

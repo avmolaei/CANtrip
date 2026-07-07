@@ -1,7 +1,7 @@
 // AVlabs CAN Backend(tm, not really) - the "any CAN adapter, we don't care
 // whose" interface. CANtrip's extcap and app talk to hardware only through
 // this interface, never directly to a vendor SDK, so adding support for a
-// new CAN adapter vendor means writing one new ICanBackend implementation
+// new CAN adapter vendor means writing one new IAvlabsCanBackend implementation
 // (see PeakBackend for the reference one) with no changes to the extcap's
 // pcap serialization or the app's decode/UI code. One bus to sniff them all.
 #pragma once
@@ -33,7 +33,7 @@ struct CanFrame {
     // holds the associated error detail bytes (data[2] = protocol violation
     // type - stuff/form/bit/ACK/etc). This mirrors the real SocketCAN error
     // frame ABI exactly (verified against a real Wireshark decode) so
-    // pcan2pcap can serialize it as a normal `struct can_frame` and get
+    // can2pcap can serialize it as a normal `struct can_frame` and get
     // Wireshark's own error-class dissection for free, same as data frames.
     bool error = false;
 };
@@ -69,9 +69,9 @@ struct CanBitrateConfig {
 // runs fine with only some (or none) of the vendor SDKs installed - a
 // backend whose DLL isn't found is simply omitted by probeAvailableBackends,
 // not treated as a build or startup error.
-class ICanBackend {
+class IAvlabsCanBackend {
 public:
-    virtual ~ICanBackend() = default;
+    virtual ~IAvlabsCanBackend() = default;
 
     // Short, stable, lowercase identifier used to namespace extcap
     // interface IDs across vendors, e.g. "peak", "vector", "kvaser".
@@ -95,8 +95,8 @@ public:
 // find its vendor DLL is silently omitted rather than treated as an error,
 // since most users will have only one vendor's driver installed.
 //
-// To add a new vendor: implement ICanBackend in a new CanBackend*.cpp/.h
+// To add a new vendor: implement IAvlabsCanBackend in a new CanBackend*.cpp/.h
 // pair (following PeakBackend.h/.cpp), then append a load attempt here.
-std::vector<std::unique_ptr<ICanBackend>> probeAvailableBackends();
+std::vector<std::unique_ptr<IAvlabsCanBackend>> probeAvailableBackends();
 
 } // namespace cantrip

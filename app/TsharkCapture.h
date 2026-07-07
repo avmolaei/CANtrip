@@ -1,7 +1,7 @@
 // Wraps `tshark -T ek` as a QProcess and turns its EK (Elasticsearch bulk)
 // JSON stdout into DecodedCanFrame values. tshark, not CANtrip, is doing the
 // low-level CAN dissection here (via Wireshark's SocketCAN dissector reading
-// from our pcan2pcap extcap) - this class just speaks tshark's line-oriented
+// from our can2pcap extcap) - this class just speaks tshark's line-oriented
 // JSON protocol.
 #pragma once
 
@@ -46,7 +46,7 @@ public:
         bool fd = false;
         // Bit-timing tick values, used only when fd is true (see
         // CanBitTiming.h - computed once in the app, then threaded through
-        // this CLI to pcan2pcap.exe, a separate process).
+        // this CLI to can2pcap.exe, a separate process).
         uint32_t nomBrp = 0, nomTseg1 = 0, nomTseg2 = 0, nomSjw = 0;
         uint32_t dataBrp = 0, dataTseg1 = 0, dataTseg2 = 0, dataSjw = 0;
     };

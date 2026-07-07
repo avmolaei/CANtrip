@@ -1,9 +1,9 @@
-// pcan2pcap - Wireshark extcap bridge for CANtrip's CAN hardware backends.
-//
-// Despite the filename (kept for continuity with the PEAK-only prototype),
-// this bridges *any* ICanBackend CANtrip has probed as available - see
-// ../common/CanBackend.h for the vendor-neutral interface and
+// can2pcap - Wireshark extcap bridge for CANtrip's CAN hardware backends.
+// Bridges *any* IAvlabsCanBackend CANtrip has probed as available - see
+// ../common/AVlabsCanBackend.h for the vendor-neutral interface and
 // ../common/CanBackendRegistry.cpp for the list of backends it tries.
+// (Named pcan2pcap prior to CANtrip 1.1 - a leftover from a PEAK-only
+// prototype, before the vendor-neutral backend abstraction existed.)
 //
 // Implements the four extcap CLI contracts Wireshark/tshark invoke:
 //   --extcap-interfaces           list capture interfaces
@@ -37,7 +37,7 @@ namespace {
 using cantrip::CanBitrateConfig;
 using cantrip::CanChannelInfo;
 using cantrip::CanFrame;
-using cantrip::ICanBackend;
+using cantrip::IAvlabsCanBackend;
 
 constexpr uint16_t kLinktypeCanSocketcan = 227;
 constexpr const char* kTestInterfaceId = "cantrip_test";
@@ -66,7 +66,7 @@ std::string sanitizeId(const std::string& name) {
 // Interfaces are namespaced by backend so identically-named channels from
 // two different vendors (unlikely, but not impossible) can't collide, e.g.
 // "peak_pcan_usbbus1".
-std::string interfaceIdFor(const ICanBackend& backend, const CanChannelInfo& channel) {
+std::string interfaceIdFor(const IAvlabsCanBackend& backend, const CanChannelInfo& channel) {
     return backend.id() + "_" + sanitizeId(channel.name);
 }
 
@@ -112,7 +112,7 @@ void printExtcapDlts(const std::string& /*interfaceId*/) {
 void printExtcapConfig(const std::string& /*interfaceId*/) {
     // "Usual" bitrate presets as a selector; FD bit-timing (tick values, not
     // a free-text expert string) as plain integer fields. The Qt app talks
-    // to pcan2pcap the same way (invoking with --bitrate/--fd/--data-bitrate/
+    // to can2pcap the same way (invoking with --bitrate/--fd/--data-bitrate/
     // --nom-*/--data-*), this config listing is what makes the tool also
     // usable stand-alone from within Wireshark's own capture-options dialog.
     // Values come from CANtrip's bit-timing calculator (see CanBitTiming.h);
@@ -331,7 +331,7 @@ CanFrame makeSyntheticErrorFrame(uint64_t& tUs, uint32_t errorIndex) {
 // backend-namespaced ID scheme used in printExtcapInterfaces(). Returns the
 // owning backend (so it stays alive for the capture loop) and sets
 // *channelId; backend is null if not found.
-std::unique_ptr<ICanBackend> resolveInterface(const std::string& interfaceId, uint64_t* channelId) {
+std::unique_ptr<IAvlabsCanBackend> resolveInterface(const std::string& interfaceId, uint64_t* channelId) {
     for (auto& backend : cantrip::probeAvailableBackends()) {
         for (const CanChannelInfo& ch : backend->enumerateChannels()) {
             if (interfaceIdFor(*backend, ch) == interfaceId) {
@@ -346,7 +346,7 @@ std::unique_ptr<ICanBackend> resolveInterface(const std::string& interfaceId, ui
 int runCapture(const std::vector<std::string>& args, const std::string& interfaceId) {
     std::string fifoPath = getOption(args, "--fifo");
     if (fifoPath.empty()) {
-        std::fprintf(stderr, "pcan2pcap: --capture requires --fifo <path>\n");
+        std::fprintf(stderr, "can2pcap: --capture requires --fifo <path>\n");
         return 1;
     }
 
@@ -354,7 +354,7 @@ int runCapture(const std::vector<std::string>& args, const std::string& interfac
 
     FILE* fifo = std::fopen(fifoPath.c_str(), "wb");
     if (!fifo) {
-        std::fprintf(stderr, "pcan2pcap: failed to open fifo '%s'\n", fifoPath.c_str());
+        std::fprintf(stderr, "can2pcap: failed to open fifo '%s'\n", fifoPath.c_str());
         return 1;
     }
 
@@ -397,16 +397,16 @@ int runCapture(const std::vector<std::string>& args, const std::string& interfac
     config.dataTiming.sjw = getUint("--data-sjw", "4");
 
     uint64_t channelId = 0;
-    std::unique_ptr<ICanBackend> backend = resolveInterface(interfaceId, &channelId);
+    std::unique_ptr<IAvlabsCanBackend> backend = resolveInterface(interfaceId, &channelId);
     if (!backend) {
-        std::fprintf(stderr, "pcan2pcap: unknown or unavailable interface '%s'\n", interfaceId.c_str());
+        std::fprintf(stderr, "can2pcap: unknown or unavailable interface '%s'\n", interfaceId.c_str());
         std::fclose(fifo);
         return 1;
     }
 
     std::string err;
     if (!backend->initialize(channelId, config, &err)) {
-        std::fprintf(stderr, "pcan2pcap: initialize failed: %s\n", err.c_str());
+        std::fprintf(stderr, "can2pcap: initialize failed: %s\n", err.c_str());
         std::fclose(fifo);
         return 1;
     }
@@ -417,7 +417,7 @@ int runCapture(const std::vector<std::string>& args, const std::string& interfac
         if (got) {
             writeRecord(fifo, frame);
         } else if (!err.empty()) {
-            std::fprintf(stderr, "pcan2pcap: read error: %s\n", err.c_str());
+            std::fprintf(stderr, "can2pcap: read error: %s\n", err.c_str());
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -448,7 +448,7 @@ int main(int argc, char** argv) {
     }
 
     std::fprintf(stderr,
-        "pcan2pcap: Wireshark extcap bridge for CANtrip's CAN hardware backends.\n"
+        "can2pcap: Wireshark extcap bridge for CANtrip's CAN hardware backends.\n"
         "This program is meant to be invoked by Wireshark/tshark/dumpcap,\n"
         "not run directly. See --extcap-interfaces.\n");
     return 1;

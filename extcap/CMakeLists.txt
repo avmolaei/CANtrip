@@ -1,3 +1,3 @@
-add_executable(pcan2pcap pcan2pcap.cpp)
-target_link_libraries(pcan2pcap PRIVATE cantrip_common)
-cantrip_target_options(pcan2pcap)
+add_executable(can2pcap can2pcap.cpp)
+target_link_libraries(can2pcap PRIVATE cantrip_common)
+cantrip_target_options(can2pcap)

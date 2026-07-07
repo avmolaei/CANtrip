@@ -12,18 +12,18 @@ CANtrip does not reimplement CAN capture or low-level frame dissection.
 Instead it reuses Wireshark's own capture pipeline:
 
 ```
-CANtrip (Qt app) --launches--> tshark -T ek --reads from--> extcap: pcan2pcap
+CANtrip (Qt app) --launches--> tshark -T ek --reads from--> extcap: can2pcap
                                                                     |
                                                           AVlabs CAN backend
                                                           /       |        \
-                                                   PeakBackend  VectorBackend  (Kvaser,
-                                                       |            |           ETAS, ...)
+                                                   PeakBackend  VectorBackend  Other
+                                                       |            |           HW
                                                 PCAN-Basic.dll  vxlapi64.dll
                                                        |            |
                                                  PEAK hardware  Vector VN-series hardware
 ```
 
-- **`extcap/pcan2pcap`** is a small Wireshark [extcap](https://www.wireshark.org/docs/wsdg_html_chunked/ChCaptureExtcap.html)
+- **`extcap/can2pcap`** is a small Wireshark [extcap](https://www.wireshark.org/docs/wsdg_html_chunked/ChCaptureExtcap.html)
   program. It exposes CAN channels from any available backend as capture
   interfaces to Wireshark/tshark, translating frames into SocketCAN-format
   pcapng records so Wireshark's built-in SocketCAN dissector decodes
@@ -91,16 +91,16 @@ cmake --build build --config Debug
 ```
 
 This produces:
-- `build\extcap\Debug\pcan2pcap.exe`
+- `build\extcap\Debug\can2pcap.exe`
 - `build\app\Debug\cantrip.exe`
 
 ### Installing the extcap into Wireshark
 
-Copy (or symlink) `pcan2pcap.exe` into Wireshark's personal extcap folder
+Copy (or symlink) `can2pcap.exe` into Wireshark's personal extcap folder
 so both Wireshark and `tshark` (and therefore CANtrip) can see it:
 
 ```powershell
-copy build\extcap\Debug\pcan2pcap.exe "$env:APPDATA\Wireshark\extcap\"
+copy build\extcap\Debug\can2pcap.exe "$env:APPDATA\Wireshark\extcap\"
 ```
 
 Verify it's picked up:
@@ -109,21 +109,21 @@ Verify it's picked up:
 tshark -D
 ```
 
-You should see a `pcan2pcap` interface listed.
+You should see a `can2pcap` interface listed.
 
 ## Running CANtrip
 
 Prebuilt binaries are also published under
 [Releases](https://github.com/avmolaei/CANtrip/releases) if you'd rather skip
 building from source - grab the zip, extract it anywhere, and skip straight
-to step 2 below (it already bundles `pcan2pcap.exe`, `cantrip.exe`, and every
+to step 2 below (it already bundles `can2pcap.exe`, `cantrip.exe`, and every
 DLL both need).
 
 CANtrip's window is a ribbon, Office-style: each tab across the top shows a
 different group of controls.
 
 1. Install the extcap (see above) - CANtrip's app doesn't talk to hardware
-   directly, it always goes through `tshark`, so `pcan2pcap.exe` has to be
+   directly, it always goes through `tshark`, so `can2pcap.exe` has to be
    somewhere Wireshark/tshark can find it.
 2. Launch `build\app\Debug\cantrip.exe` (or `cantrip.exe` from a Release
    zip).
@@ -148,6 +148,13 @@ different group of controls.
    signals (name, physical value, unit) via dbcppp. Switch between
    "Waterfall" (newest first) and "Periodic" (one row per ID) display from
    the same tab; click **Stop** to end the capture.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for code conventions (including the
+"AVlabs CAN backend" naming rule and how to add a new vendor backend) and
+how to verify changes. See [RELEASING.md](RELEASING.md) for the version
+naming scheme and how a release gets cut.
 
 ## License
 
