@@ -163,6 +163,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(&staleTimer_, &QTimer::timeout, this, &MainWindow::checkStaleRows);
     staleTimer_.start(500);
 
+    connect(&displayFlushTimer_, &QTimer::timeout, this, &MainWindow::flushPendingDisplay);
+    displayIntervalMs_ = displayRateCombo_->currentData().toInt();
+    if (displayIntervalMs_ > 0) displayFlushTimer_.start(displayIntervalMs_);
+
     refreshChannels();
 }
 
@@ -186,14 +190,33 @@ QWidget* MainWindow::buildHomeTab() {
     displayLayout->addWidget(waterfallRadio_);
     displayLayout->addWidget(periodicRadio_);
 
+    auto* rateGroup = new QGroupBox("Display Rate", page);
+    auto* rateLayout = new QVBoxLayout(rateGroup);
+    displayRateCombo_ = new QComboBox(rateGroup);
+    // A busy real bus can produce far more frames/sec than CANtrip can fully
+    // decode and paint into the Trace/Graph views in real time - reproduced
+    // for real (freeze + runaway memory) via ProcDump + cdb. This throttles
+    // how often the UI actually gets touched; full decode still happens for
+    // whichever frame is shown, just not every single one on a fast bus.
+    // Defaults to 30 Hz rather than Unlimited since the freeze is a real,
+    // confirmed risk, not a hypothetical one.
+    displayRateCombo_->addItem("Unlimited (may freeze on a busy bus)", 0);
+    displayRateCombo_->addItem("30 Hz", 33);
+    displayRateCombo_->addItem("10 Hz", 100);
+    displayRateCombo_->addItem("5 Hz", 200);
+    displayRateCombo_->setCurrentIndex(1);
+    rateLayout->addWidget(displayRateCombo_);
+
     layout->addWidget(captureGroup);
     layout->addWidget(displayGroup);
+    layout->addWidget(rateGroup);
     layout->addStretch(1);
 
     connect(startButton_, &QPushButton::clicked, this, &MainWindow::startCapture);
     connect(stopButton_, &QPushButton::clicked, this, &MainWindow::stopCapture);
     connect(waterfallRadio_, &QRadioButton::toggled, this, &MainWindow::onDisplayModeChanged);
     connect(periodicRadio_, &QRadioButton::toggled, this, &MainWindow::onDisplayModeChanged);
+    connect(displayRateCombo_, &QComboBox::currentIndexChanged, this, &MainWindow::onDisplayRateChanged);
 
     return page;
 }
@@ -442,6 +465,8 @@ void MainWindow::resetDisplay() {
     frameTree_->clear();
     periodicRows_.clear();
     periodicErrorRows_.clear();
+    pendingPeriodicFrames_.clear();
+    pendingWaterfallFrames_.clear();
     frameCount_ = 0;
     signalHistory_.reset();
     graphView_->reset();
@@ -586,18 +611,64 @@ void MainWindow::onFrameReceived(const DecodedCanFrame& frame) {
     ++frameCount_;
 
     if (frame.error) {
+        // Bus errors are comparatively rare and important - always shown
+        // immediately, never subject to the display-rate throttle below.
         if (displayMode_ == DisplayMode::Waterfall) {
             addErrorRow(frame);
         } else {
             handlePeriodicErrorFrame(frame);
         }
-    } else if (displayMode_ == DisplayMode::Waterfall) {
-        handleWaterfallFrame(frame);
-    } else {
-        handlePeriodicFrame(frame);
+        statusLabel_->setText(QString("Captured %1 frame(s)").arg(frameCount_));
+        return;
     }
 
+    if (displayIntervalMs_ <= 0) {
+        // Unlimited: exact previous behavior, no buffering.
+        if (displayMode_ == DisplayMode::Waterfall) {
+            handleWaterfallFrame(frame);
+        } else {
+            handlePeriodicFrame(frame);
+        }
+        statusLabel_->setText(QString("Captured %1 frame(s)").arg(frameCount_));
+        return;
+    }
+
+    // Throttled: keep only the latest frame per row (Periodic) or queue it
+    // (Waterfall) and let displayFlushTimer_ apply them at a bounded rate -
+    // see flushPendingDisplay(). Full decode still happens for whichever
+    // frame ends up displayed, just not for every single one on a fast bus.
+    if (displayMode_ == DisplayMode::Waterfall) {
+        pendingWaterfallFrames_.push_back(frame);
+    } else {
+        pendingPeriodicFrames_[frameKey(frame)] = frame;
+    }
+}
+
+void MainWindow::flushPendingDisplay() {
+    if (pendingPeriodicFrames_.empty() && pendingWaterfallFrames_.empty()) return;
+
+    for (auto& [key, frame] : pendingPeriodicFrames_) {
+        handlePeriodicFrame(frame);
+    }
+    pendingPeriodicFrames_.clear();
+
+    for (const DecodedCanFrame& frame : pendingWaterfallFrames_) {
+        handleWaterfallFrame(frame);
+    }
+    pendingWaterfallFrames_.clear();
+
     statusLabel_->setText(QString("Captured %1 frame(s)").arg(frameCount_));
+}
+
+void MainWindow::onDisplayRateChanged() {
+    displayIntervalMs_ = displayRateCombo_->currentData().toInt();
+    displayFlushTimer_.stop();
+    // Flush anything already buffered rather than stranding it under the
+    // old rate/mode - harmless no-op if nothing is pending.
+    flushPendingDisplay();
+    if (displayIntervalMs_ > 0) {
+        displayFlushTimer_.start(displayIntervalMs_);
+    }
 }
 
 void MainWindow::checkStaleRows() {

@@ -41,6 +41,8 @@ private slots:
     void onCaptureError(const QString& message);
     void onCaptureStopped();
     void onDisplayModeChanged();
+    void onDisplayRateChanged();
+    void flushPendingDisplay();
     void checkStaleRows();
     void showAboutDialog();
 
@@ -87,6 +89,7 @@ private:
     QPushButton* stopButton_;
     QRadioButton* waterfallRadio_;
     QRadioButton* periodicRadio_;
+    QComboBox* displayRateCombo_;
 
     // Hardware tab
     QComboBox* channelCombo_;
@@ -133,6 +136,23 @@ private:
     // deliberately a flat timeout rather than a multiple of the measured
     // period, since a message seen only once has no period to multiply yet.
     static constexpr qint64 kStaleTimeoutMs = 2000;
+
+    // Display-rate throttle: a real, busy CAN bus can produce far more
+    // frames/sec than a full decode + tree-widget/chart-series mutation per
+    // frame can keep up with in real time - confirmed via ProcDump + cdb
+    // (the main thread was CPU-saturated re-processing an ever-refilling
+    // backlog, not deadlocked, so capping batch size alone doesn't fix it).
+    // 0 means unlimited (decode/paint every frame immediately, exact
+    // original behavior); otherwise only the latest frame per row
+    // (Periodic) / queued frames (Waterfall) get displayed, applied by
+    // displayFlushTimer_ at this interval - see onFrameReceived() and
+    // flushPendingDisplay(). Bus errors are always shown immediately,
+    // regardless of this setting - they're comparatively rare and
+    // important enough not to throttle.
+    int displayIntervalMs_ = 33;
+    QTimer displayFlushTimer_;
+    std::unordered_map<uint64_t, DecodedCanFrame> pendingPeriodicFrames_;
+    std::vector<DecodedCanFrame> pendingWaterfallFrames_;
 };
 
 } // namespace cantrip
