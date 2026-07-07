@@ -155,3 +155,7 @@ GPL-3.0. See [LICENSE](LICENSE). CANtrip statically/dynamically links
 [dbcppp](https://github.com/xR3b0rn/dbcppp) (MPL-2.0) and shells out to
 Wireshark's `tshark` (GPL-2.0) as a separate process — see individual
 project licenses for details.
+
+Vector, CANalyzer, and CANoe are trademarks of Vector Informatik GmbH.
+CANtrip is an independent, unaffiliated open-source project and is not
+endorsed by or affiliated with Vector Informatik.

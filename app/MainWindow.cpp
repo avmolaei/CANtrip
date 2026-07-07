@@ -327,7 +327,11 @@ void MainWindow::showAboutDialog() {
         "Created by Avesta Molaei.<br>"
         "https://github.com/avmolaei/CANtrip<br><br>"
         "Licensed under the GNU General Public License v3.0 (GPL-3.0). "
-        "See the LICENSE file in the repository for the full text.");
+        "See the LICENSE file in the repository for the full text.<br><br>"
+        "<small>Vector, CANalyzer, and CANoe are trademarks of Vector "
+        "Informatik GmbH. CANtrip is an independent, unaffiliated "
+        "open-source project and is not endorsed by or affiliated with "
+        "Vector Informatik.</small>");
     box.exec();
 }
 
