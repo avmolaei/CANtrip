@@ -5,16 +5,14 @@
 For this, Claude said "Plain, professional, short and concise". I disagree. Have fun with it. Just don't forget to still describe what changed and why
 
 Prefer one commit per coherent change rather than a string of "fix typo", "azeazeazeaze", 
-"actually fix it", "wip" commits - squash/reword locally before pushing if
-you need to.
+"actually fix it", "wip" commits  
 
 ## Naming: "the AVlabs CAN backend"
 
 CANtrip's vendor-neutral hardware interface is called **the AVlabs CAN
 backend** (or "the AVlabs CAN backend interface") everywhere - prose and
 code alike. The C++ type is `IAvlabsCanBackend` (defined in
-`common/AVlabsCanBackend.h`) - use that name in full, don't abbreviate it
-to something else in code or in writing.
+`common/AVlabsCanBackend.h`) 
 
 ## Adding a new vendor backend (Kvaser, ETAS, etc.)
 
@@ -22,8 +20,8 @@ to something else in code or in writing.
    `common/YourVendorBackend.h/.cpp` pair, following `common/PeakBackend.h/
    .cpp` as the reference implementation.
 2. Add one line to `common/CanBackendRegistry.cpp`'s `probeAvailableBackends()`.
-3. Nothing else changes - the extcap's pcap serialization and the app's
-   decode/UI layer are already vendor-agnostic.
+3. Nothing else changes
+
 
 ## Verifying changes
 
@@ -40,13 +38,13 @@ the actual bytes on the wire aren't the point.
 (`common/*Backend.cpp`), the extcap/serialization layer
 (`extcap/can2pcap.cpp`), or performance/system-level changes (display
 throttling, batching, anything touching how much work happens per frame).**
-The synthetic source produces clean, predictable, low-volume traffic - it
+The synthetic source produces clean, predictable, low-volume traffic. It
 cannot catch real vendor-driver quirks, wrong struct layouts, bit-timing
 mismatches, or the kind of sustained real-world bus load that has actually
 caused freezes/data-loss bugs in this project before (see git history -
 several real bugs here were only ever exposed by real hardware or a
 genuinely busy bus, never by the synthetic source). Changes in this
-category need to be field-tested - a real vehicle, a test bench, or a
+category need to be field-tested: a real vehicle, a test bench, or a
 simulation/HIL setup actually outputting CAN traffic, driven through real hardware. If you can't field-test a low-level change
 yourself, say so explicitly rather than reporting it as verified.
 
@@ -63,7 +61,7 @@ through the full GUI:
    larger = frames flowing) - this tells you immediately whether the
    backend/driver is the problem.
 3. Feed that file through a real `tshark -r <file> -T ek` and inspect the
-   JSON directly - this tells you whether the pcap serialization / Wireshark
+   JSON directly. This tells you whether the pcap serialization / Wireshark
    dissection layer is the problem, independent of CANtrip's own Qt code.
 
 This isolates backend/driver issues from serialization issues from
@@ -82,7 +80,7 @@ Toolchain notes if setting up a machine from scratch:
   **Charts** addon module specifically (`aqt install-qt ... -m qtcharts` if
   using aqtinstall - a base Qt install doesn't include it, and
   `app/CMakeLists.txt` requires `Widgets Charts`).
-- A real Wireshark install (provides `tshark`/`dumpcap`) - Npcap is *not*
+- A real Wireshark install (provides `tshark`/`dumpcap`). Npcap is *not*
   required; it only gates normal NIC capture, not extcap-based capture,
   which is CANtrip's only capture path.
 - `git submodule update --init --recursive` for `third_party/dbcppp` (a
