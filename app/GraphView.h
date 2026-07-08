@@ -22,6 +22,7 @@ QT_BEGIN_NAMESPACE
 class QChart;
 class QChartView;
 class QGraphicsItem;
+class QPaintDevice;
 class QValueAxis;
 class QXYSeries;
 QT_END_NAMESPACE
@@ -67,6 +68,12 @@ public:
     // does, and what the "Clear Graph" button triggers manually mid-capture.
     void clearData();
 
+    // Renders this window's chart to an image/document file, format chosen
+    // by the path's extension (.png/.svg/.pdf) - returns false on failure.
+    // Used both by the interactive Export button (exportGraph()) and by
+    // GraphWindowContainer's "Export All" action.
+    bool exportToFile(const QString& path);
+
     // Exports the current axis/signal structure for saving to a .rune file.
     std::vector<AxisLayout> exportLayout() const;
     // Rebuilds axes/signals from a previously-exported layout - additive,
@@ -90,6 +97,7 @@ private slots:
     void onSignalDropped(QTreeWidgetItem* axisItem, const QStringList& qualifiedNames);
     void onWheelZoom(QPointF chartPos, double factor);
     void resetZoom();
+    void exportGraph();
     void flushPendingSignalAdds();
     void onChartMouseMove(QPointF chartPos, bool leftButtonDown);
     void onChartMousePress(QPointF chartPos);
@@ -155,6 +163,10 @@ private:
     void updateDeltaCursor(const QPointF& chartPos);
     void clearCursorOverlay();
 
+    // Shared by every export format - QWidget::render() paints identically
+    // into a QPixmap, a QSvgGenerator, or a QPrinter.
+    void renderChartTo(QPaintDevice* device);
+
     SignalHistoryStore* history_;
 
     QLineEdit* searchEdit_;
@@ -169,6 +181,7 @@ private:
     QPushButton* zoomResetButton_;
     QPushButton* clearGraphButton_;
     QPushButton* cursorToolButton_;
+    QPushButton* exportGraphButton_;
 
     // Delta-cursor state. cursorSeries_ is the curve a measurement is
     // active on (nullptr = no measurement set up yet) - cleared if that

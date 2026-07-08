@@ -1,9 +1,9 @@
-find_package(Qt6 REQUIRED COMPONENTS Widgets Charts)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Charts Svg PrintSupport)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-add_executable(cantrip
+add_executable(cantrip WIN32
     main.cpp
     MainWindow.h
     MainWindow.cpp
@@ -15,6 +15,19 @@ add_executable(cantrip
     GraphAxisDialog.cpp
     GraphView.h
     GraphView.cpp
+    GraphWindowContainer.h
+    GraphWindowContainer.cpp
+    AscLogWriter.h
+    AscLogWriter.cpp
+    CsvLogWriter.h
+    CsvLogWriter.cpp
+    LogFilenameTemplate.h
+    LogFilenameTemplate.cpp
+    LoggingOptionsDialog.h
+    LoggingOptionsDialog.cpp
+    LogReplaySource.h
+    LogReplaySource.cpp
+    LogWriter.h
     RuneFile.h
     RuneFile.cpp
     SignalHistory.h
@@ -23,11 +36,12 @@ add_executable(cantrip
     StatusLed.cpp
     TsharkCapture.h
     TsharkCapture.cpp
+    Version.h
     resources/cantrip.rc
     resources/cantrip.qrc
 )
 
-target_link_libraries(cantrip PRIVATE Qt6::Widgets Qt6::Charts cantrip_common dbcppp)
+target_link_libraries(cantrip PRIVATE Qt6::Widgets Qt6::Charts Qt6::Svg Qt6::PrintSupport cantrip_common dbcppp)
 cantrip_target_options(cantrip)
 
 # dbcppp is a DLL (see its own CMakeLists.txt - always SHARED, not our

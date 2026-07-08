@@ -6,9 +6,12 @@
 #include <QBrush>
 #include <QColor>
 #include <QDrag>
+#include <QDir>
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QFont>
 #include <QGraphicsLineItem>
 #include <QGraphicsSimpleTextItem>
@@ -18,15 +21,21 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMimeData>
 #include <QMouseEvent>
+#include <QPageLayout>
 #include <QPainter>
 #include <QPen>
 #include <QPushButton>
 #include <QSplitter>
+#include <QStandardPaths>
+#include <QSvgGenerator>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QWheelEvent>
+
+#include <QtPrintSupport/QPrinter>
 
 #include <QtCharts/QChart>
 #include <QtCharts/QChartView>
@@ -264,10 +273,13 @@ GraphView::GraphView(SignalHistoryStore* history, QWidget* parent)
     cursorToolButton_ = new QPushButton(QString::fromUtf8("\xE2\x9C\x9A"), rightPanel); // ruler/cursor glyph
     cursorToolButton_->setCheckable(true);
     cursorToolButton_->setToolTip("Hover for X/Y values; click and drag on a curve to measure Δt/Δvalue");
+    exportGraphButton_ = new QPushButton("Export...", rightPanel);
+    exportGraphButton_->setToolTip("Export this graph to a PNG, SVG, or PDF file");
     toolbar->addWidget(zoomSelectButton_);
     toolbar->addWidget(zoomResetButton_);
     toolbar->addWidget(cursorToolButton_);
     toolbar->addWidget(clearGraphButton_);
+    toolbar->addWidget(exportGraphButton_);
     toolbar->addStretch(1);
     rightLayout->addLayout(toolbar);
 
@@ -301,6 +313,7 @@ GraphView::GraphView(SignalHistoryStore* history, QWidget* parent)
     });
     connect(zoomResetButton_, &QPushButton::clicked, this, &GraphView::resetZoom);
     connect(clearGraphButton_, &QPushButton::clicked, this, &GraphView::clearRequested);
+    connect(exportGraphButton_, &QPushButton::clicked, this, &GraphView::exportGraph);
     connect(cursorToolButton_, &QPushButton::toggled, this, [this](bool checked) {
         if (checked) {
             zoomSelectButton_->setChecked(false); // mutually exclusive with rubber-band zoom
@@ -832,6 +845,49 @@ void GraphView::resetZoom() {
     }
 
     zoomSelectButton_->setChecked(false);
+}
+
+void GraphView::renderChartTo(QPaintDevice* device) {
+    QPainter painter(device);
+    painter.setRenderHint(QPainter::Antialiasing);
+    chartView_->render(&painter);
+}
+
+bool GraphView::exportToFile(const QString& path) {
+    const QString suffix = QFileInfo(path).suffix().toLower();
+    if (suffix == "svg") {
+        QSvgGenerator generator;
+        generator.setFileName(path);
+        generator.setSize(chartView_->size());
+        generator.setViewBox(QRect(QPoint(0, 0), chartView_->size()));
+        generator.setTitle("CANtrip graph export");
+        renderChartTo(&generator);
+        return true;
+    }
+    if (suffix == "pdf") {
+        QPrinter printer(QPrinter::HighResolution);
+        printer.setOutputFormat(QPrinter::PdfFormat);
+        printer.setOutputFileName(path);
+        printer.setPageOrientation(QPageLayout::Landscape);
+        renderChartTo(&printer);
+        return true;
+    }
+    return chartView_->grab().save(path, "PNG");
+}
+
+void GraphView::exportGraph() {
+    // Mirrors MainWindow's Logging tab default (Documents/CANtrip/captures) -
+    // same convention, sibling folder.
+    const QString graphsDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/CANtrip/graphs";
+    QDir().mkpath(graphsDir);
+
+    const QString path = QFileDialog::getSaveFileName(this, "Export Graph", graphsDir + "/graph.png",
+        "PNG Image (*.png);;SVG Image (*.svg);;PDF Document (*.pdf)");
+    if (path.isEmpty()) return;
+
+    if (!exportToFile(path)) {
+        QMessageBox::warning(this, "Export Graph", "Could not write the export file:\n" + path);
+    }
 }
 
 double GraphView::timeValueAt(double chartX) const {

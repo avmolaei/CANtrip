@@ -20,7 +20,10 @@
 
 #include "../common/AVlabsCanBackend.h"
 #include "BusAutoDetector.h"
-#include "GraphView.h"
+#include "GraphWindowContainer.h"
+#include "LogReplaySource.h"
+#include "LogWriter.h"
+#include "LoggingOptionsDialog.h"
 #include "RuneFile.h"
 #include "SignalHistory.h"
 #include "StatusLed.h"
@@ -50,6 +53,13 @@ private slots:
     void flushPendingDisplay();
     void checkStaleRows();
     void showAboutDialog();
+    void chooseLogOutputFile();
+    void openLoggingOptions();
+    void startLogging();
+    void stopLogging();
+    void startReplay();
+    void stopReplay();
+    void onReplayStopped();
 
 private:
     struct ChannelEntry {
@@ -83,6 +93,14 @@ private:
     static uint64_t frameKey(const DecodedCanFrame& frame);
     bool loadDbcFile(const QString& path, QString* error);
     void resetDisplay();
+    QString resolveMessageName(const DecodedCanFrame& frame) const;
+    QString currentBusNameForFilename() const;
+    std::unique_ptr<ILogWriter> makeLogWriter() const;
+    QString currentLogExtension() const;
+    void rotateLogFileIfNeeded();
+    void setLoggingUiRunning(bool running);
+    void setOutputFileLabel(const QString& path);
+    void setCaptureControlsEnabledForReplay(bool replaying);
     void populateDecodedChildren(QTreeWidgetItem* item, const DecodedCanFrame& frame);
     void handleWaterfallFrame(const DecodedCanFrame& frame);
     void handlePeriodicFrame(const DecodedCanFrame& frame);
@@ -110,9 +128,21 @@ private:
     QPushButton* importDbcButton_;
     QLabel* dbcStatusLabel_;
 
+    // Logging tab
+    QPushButton* startLoggingButton_;
+    QPushButton* stopLoggingButton_;
+    QPushButton* outputFileButton_;
+    QLabel* outputFileLabel_;
+    QRadioButton* ascFormatRadio_;
+    QRadioButton* csvFormatRadio_;
+    QRadioButton* mf4FormatRadio_;
+    QPushButton* loggingOptionsButton_;
+    QPushButton* startReplayButton_;
+    QPushButton* stopReplayButton_;
+
     QStackedWidget* contentStack_;
     QTreeWidget* frameTree_;
-    GraphView* graphView_;
+    GraphWindowContainer* graphWindows_;
     SignalHistoryStore signalHistory_;
 
     StatusLed* statusLed_;
@@ -166,6 +196,30 @@ private:
     QTimer displayFlushTimer_;
     std::unordered_map<uint64_t, DecodedCanFrame> pendingPeriodicFrames_;
     std::vector<DecodedCanFrame> pendingWaterfallFrames_;
+
+    // Logging state
+    std::unique_ptr<ILogWriter> logWriter_;
+    bool logging_ = false;
+    // Set when Start Capture auto-started logging (LoggingOptionsDialog's
+    // "auto-start" checkbox) - distinguishes that case from the user having
+    // manually started logging independently, so stopping a capture doesn't
+    // stop a log the user asked for explicitly and separately.
+    bool loggingAutoStarted_ = false;
+    QString logOutputPath_;
+    // True only once the user explicitly picks a path via "Output file..." -
+    // otherwise startLogging() regenerates a fresh path from the template
+    // (new timestamp, current format) every time rather than reusing
+    // whatever path the previous session happened to end up at.
+    bool logOutputPathExplicit_ = false;
+    QString logFilenameTemplate_ = "[user]_[bus]_[date]_[time]";
+    int logMaxFileSizeMb_ = 0;
+    LoggingOptionsDialog::ExistingFilePolicy logExistingFilePolicy_ = LoggingOptionsDialog::ExistingFilePolicy::AutoIncrement;
+    bool logAutoStartWithCapture_ = false;
+    // Bumped on every auto-split rollover so the next file gets a distinct
+    // "..._partN" name instead of colliding with the previous one.
+    int logSplitSequence_ = 0;
+
+    LogReplaySource replaySource_;
 };
 
 } // namespace cantrip

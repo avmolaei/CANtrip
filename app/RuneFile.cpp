@@ -100,10 +100,16 @@ bool saveRuneFile(const QString& path, const RuneConfig& config, QString* error)
     root["displayRateMs"] = config.displayRateMs;
     root["dbcPath"] = config.dbcPath;
 
-    QJsonArray axesArray;
-    for (const auto& axis : config.graphLayout) axesArray.append(axisLayoutToJson(axis));
+    QJsonArray windowsArray;
+    for (const auto& window : config.graphWindows) {
+        QJsonArray axesArray;
+        for (const auto& axis : window) axesArray.append(axisLayoutToJson(axis));
+        QJsonObject windowObj;
+        windowObj["axes"] = axesArray;
+        windowsArray.append(windowObj);
+    }
     QJsonObject graph;
-    graph["axes"] = axesArray;
+    graph["windows"] = windowsArray;
     root["graph"] = graph;
 
     QFile file(path);
@@ -144,8 +150,24 @@ std::optional<RuneConfig> loadRuneFile(const QString& path, QString* error) {
     config.displayRateMs = root["displayRateMs"].toInt(33);
     config.dbcPath = root["dbcPath"].toString();
 
-    for (const QJsonValue& v : root["graph"].toObject()["axes"].toArray()) {
-        config.graphLayout.push_back(axisLayoutFromJson(v.toObject()));
+    const QJsonObject graph = root["graph"].toObject();
+    if (graph.contains("windows")) {
+        for (const QJsonValue& windowVal : graph["windows"].toArray()) {
+            std::vector<GraphView::AxisLayout> window;
+            for (const QJsonValue& v : windowVal.toObject()["axes"].toArray()) {
+                window.push_back(axisLayoutFromJson(v.toObject()));
+            }
+            config.graphWindows.push_back(std::move(window));
+        }
+    } else if (graph.contains("axes")) {
+        // Pre-multi-window rune file: a single flat "axes" array directly
+        // under "graph" - load it as one window rather than rejecting the
+        // file or silently dropping the graph layout.
+        std::vector<GraphView::AxisLayout> window;
+        for (const QJsonValue& v : graph["axes"].toArray()) {
+            window.push_back(axisLayoutFromJson(v.toObject()));
+        }
+        config.graphWindows.push_back(std::move(window));
     }
 
     return config;

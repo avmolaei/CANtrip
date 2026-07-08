@@ -32,7 +32,10 @@ struct RuneConfig {
     // dbcppp::INetwork::LoadDBCFromIs() path MainWindow::importDbc() uses.
     // Empty means no DBC was loaded when the rune was saved.
     QString dbcPath;
-    std::vector<GraphView::AxisLayout> graphLayout;
+    // One entry per graph window (see GraphWindowContainer) - always at
+    // least one entry for a rune saved by the current version; loadRuneFile()
+    // also accepts the older single-window file shape (see RuneFile.cpp).
+    std::vector<std::vector<GraphView::AxisLayout>> graphWindows;
 };
 
 // Returns false (with *error set to a human-readable message) on any

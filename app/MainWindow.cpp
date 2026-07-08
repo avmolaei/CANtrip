@@ -11,6 +11,7 @@
 #include <QColor>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QGroupBox>
@@ -25,7 +26,11 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include "AscLogWriter.h"
 #include "CanControllerDialog.h"
+#include "CsvLogWriter.h"
+#include "LogFilenameTemplate.h"
+#include "Version.h"
 
 namespace cantrip {
 
@@ -114,8 +119,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     ribbon_->addTab(buildHomeTab(), "Home");
     ribbon_->addTab(buildHardwareTab(), "Hardware");
     ribbon_->addTab(buildAnalysisTab(), "Analysis && Measurement");
-    ribbon_->addTab(buildStimulationTab(), "Stimulation");
     ribbon_->addTab(buildLoggingTab(), "Logging");
+    ribbon_->addTab(buildStimulationTab(), "Stimulation");
     ribbon_->addTab(buildAboutTab(), "About...");
 
     frameTree_ = new QTreeWidget(this);
@@ -134,11 +139,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     frameTree_->setSortingEnabled(true);
     frameTree_->sortByColumn(0, Qt::DescendingOrder);
 
-    graphView_ = new GraphView(&signalHistory_, this);
+    graphWindows_ = new GraphWindowContainer(&signalHistory_, this);
 
     contentStack_ = new QStackedWidget(this);
     contentStack_->addWidget(frameTree_);
-    contentStack_->addWidget(graphView_);
+    contentStack_->addWidget(graphWindows_);
 
     auto* central = new QWidget(this);
     auto* rootLayout = new QVBoxLayout(central);
@@ -160,12 +165,21 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(&capture_, &TsharkCapture::errorOccurred, this, &MainWindow::onCaptureError);
     connect(&capture_, &TsharkCapture::stopped, this, &MainWindow::onCaptureStopped);
 
+    // A replay feeds the exact same frame handler a live capture does -
+    // Trace/Graph views can't tell the difference, by design.
+    connect(&replaySource_, &LogReplaySource::frameReceived, this, &MainWindow::onFrameReceived);
+    connect(&replaySource_, &LogReplaySource::errorOccurred, this, &MainWindow::onCaptureError);
+    connect(&replaySource_, &LogReplaySource::stopped, this, &MainWindow::onReplayStopped);
+
     // "Clear Graph" only clears plotted data/history, not axis layout -
     // GraphView doesn't own SignalHistoryStore, so it just requests this
-    // rather than clearing both itself.
-    connect(graphView_, &GraphView::clearRequested, this, [this]() {
+    // rather than clearing both itself. Every window shares one
+    // SignalHistoryStore, so a clear requested by any single window has to
+    // apply to all of them - otherwise the others would keep showing stale
+    // points against reset history.
+    connect(graphWindows_, &GraphWindowContainer::clearRequested, this, [this]() {
         signalHistory_.reset();
-        graphView_->clearData();
+        graphWindows_->clearAllData();
     });
 
     connect(&staleTimer_, &QTimer::timeout, this, &MainWindow::checkStaleRows);
@@ -299,7 +313,7 @@ QWidget* MainWindow::buildAnalysisTab() {
 
     connect(importDbcButton_, &QPushButton::clicked, this, &MainWindow::importDbc);
     connect(traceButton, &QPushButton::clicked, this, [this]() { contentStack_->setCurrentWidget(frameTree_); });
-    connect(graphicsButton, &QPushButton::clicked, this, [this]() { contentStack_->setCurrentWidget(graphView_); });
+    connect(graphicsButton, &QPushButton::clicked, this, [this]() { contentStack_->setCurrentWidget(graphWindows_); });
 
     return page;
 }
@@ -315,11 +329,283 @@ QWidget* MainWindow::buildStimulationTab() {
 
 QWidget* MainWindow::buildLoggingTab() {
     auto* page = new QWidget(ribbon_);
-    auto* layout = new QVBoxLayout(page);
-    auto* label = new QLabel("also coming soon :3", page);
-    label->setAlignment(Qt::AlignCenter);
-    layout->addWidget(label);
+    auto* layout = new QHBoxLayout(page);
+
+    auto* loggingGroup = new QGroupBox("Logging", page);
+    auto* loggingLayout = new QHBoxLayout(loggingGroup);
+    startLoggingButton_ = new QPushButton("Start", loggingGroup);
+    stopLoggingButton_ = new QPushButton("Stop", loggingGroup);
+    stopLoggingButton_->setEnabled(false);
+    loggingLayout->addWidget(startLoggingButton_);
+    loggingLayout->addWidget(stopLoggingButton_);
+
+    auto* outputGroup = new QGroupBox("Output File", page);
+    auto* outputLayout = new QVBoxLayout(outputGroup);
+    outputFileButton_ = new QPushButton("Output file...", outputGroup);
+    outputFileLabel_ = new QLabel("(default location)", outputGroup);
+    // Elided to a single line rather than word-wrapped: a wrapped label
+    // grows taller with a long filename, and since every ribbon group in
+    // this row shares the tab's fixed max height, that extra height came
+    // out of its siblings - squeezing the Format radio buttons down to
+    // near-unreadable. A fixed-width single line keeps this group's height
+    // constant regardless of filename length.
+    outputFileLabel_->setFixedWidth(170);
+    outputLayout->setContentsMargins(6, 4, 6, 4);
+    outputLayout->setSpacing(2);
+    outputLayout->addWidget(outputFileButton_);
+    outputLayout->addWidget(outputFileLabel_);
+
+    auto* formatGroup = new QGroupBox("Format", page);
+    auto* formatLayout = new QVBoxLayout(formatGroup);
+    ascFormatRadio_ = new QRadioButton(".asc", formatGroup);
+    csvFormatRadio_ = new QRadioButton(".csv", formatGroup);
+    mf4FormatRadio_ = new QRadioButton(".mf4", formatGroup);
+    ascFormatRadio_->setChecked(true);
+    mf4FormatRadio_->setEnabled(false);
+    mf4FormatRadio_->setToolTip("Coming soon");
+    // Default QVBoxLayout margins/spacing push 3 stacked radios + the
+    // groupbox title just past the ribbon's fixed max height (see
+    // MainWindow's constructor - ribbon_->setMaximumHeight(110)), which
+    // forced Qt to compress this entire row, including the sibling Output
+    // File group. Tightened rather than raising the ribbon height globally,
+    // since every other tab already fits comfortably at 110px.
+    formatLayout->setContentsMargins(6, 4, 6, 4);
+    formatLayout->setSpacing(2);
+    formatLayout->addWidget(ascFormatRadio_);
+    formatLayout->addWidget(csvFormatRadio_);
+    formatLayout->addWidget(mf4FormatRadio_);
+
+    auto* optionsGroup = new QGroupBox("Other Options", page);
+    auto* optionsLayout = new QHBoxLayout(optionsGroup);
+    loggingOptionsButton_ = new QPushButton("Other options...", optionsGroup);
+    optionsLayout->addWidget(loggingOptionsButton_);
+
+    auto* replayGroup = new QGroupBox("Log Replay", page);
+    auto* replayLayout = new QHBoxLayout(replayGroup);
+    startReplayButton_ = new QPushButton("Start Replay...", replayGroup);
+    stopReplayButton_ = new QPushButton("Stop Replay", replayGroup);
+    stopReplayButton_->setEnabled(false);
+    replayLayout->addWidget(startReplayButton_);
+    replayLayout->addWidget(stopReplayButton_);
+
+    layout->addWidget(loggingGroup);
+    layout->addWidget(outputGroup);
+    layout->addWidget(formatGroup);
+    layout->addWidget(optionsGroup);
+    layout->addWidget(replayGroup);
+    layout->addStretch(1);
+
+    connect(startLoggingButton_, &QPushButton::clicked, this, &MainWindow::startLogging);
+    connect(stopLoggingButton_, &QPushButton::clicked, this, &MainWindow::stopLogging);
+    connect(outputFileButton_, &QPushButton::clicked, this, &MainWindow::chooseLogOutputFile);
+    connect(loggingOptionsButton_, &QPushButton::clicked, this, &MainWindow::openLoggingOptions);
+    connect(startReplayButton_, &QPushButton::clicked, this, &MainWindow::startReplay);
+    connect(stopReplayButton_, &QPushButton::clicked, this, &MainWindow::stopReplay);
+
     return page;
+}
+
+QString MainWindow::resolveMessageName(const DecodedCanFrame& frame) const {
+    // Same DBC id convention as populateDecodedChildren() above - kept as
+    // its own small lookup rather than sharing code with that function,
+    // since populateDecodedChildren also needs the full IMessage* to walk
+    // ISignal::Decode() over, not just the name.
+    if (!dbcNetwork_) return QString();
+    const uint32_t dbcId = frame.extended ? (frame.id | 0x80000000u) : frame.id;
+    auto it = messageById_.find(dbcId);
+    return it != messageById_.end() ? QString::fromStdString(it->second->Name()) : QString();
+}
+
+QString MainWindow::currentLogExtension() const {
+    if (csvFormatRadio_->isChecked()) return "csv";
+    return "asc"; // default/fallback - mf4 is disabled, so this is always asc or csv in practice
+}
+
+QString MainWindow::currentBusNameForFilename() const {
+    if (channelCombo_->currentIndex() < 0) return "bus";
+    // The synthetic source's real display name ("CANtrip synthetic test
+    // source (no hardware needed)") is deliberately verbose for the channel
+    // picker, but that's the wrong thing to put in a filename - use the
+    // AVlabs CAN backend's own short identifier instead, matching how a
+    // real vendor channel's [bus] token is short too (e.g. "PEAK_System_...").
+    if (channelCombo_->currentData().toString() == kTestInterfaceId) return "AVLBS_CAN";
+    return channelCombo_->currentText();
+}
+
+std::unique_ptr<ILogWriter> MainWindow::makeLogWriter() const {
+    auto resolver = [this](const DecodedCanFrame& frame) { return resolveMessageName(frame); };
+    if (csvFormatRadio_->isChecked()) {
+        return std::make_unique<CsvLogWriter>(resolver);
+    }
+    return std::make_unique<AscLogWriter>(resolver);
+}
+
+void MainWindow::chooseLogOutputFile() {
+    const QString capturesDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/CANtrip/captures";
+    QDir().mkpath(capturesDir);
+
+    const QString busName = currentBusNameForFilename();
+    const QString defaultName = expandLogFilenameTemplate(logFilenameTemplate_, busName) + "." + currentLogExtension();
+
+    const QString path = QFileDialog::getSaveFileName(this, "Output File", capturesDir + "/" + defaultName,
+        "Log files (*.asc *.csv)");
+    if (path.isEmpty()) return;
+
+    logOutputPath_ = path;
+    logOutputPathExplicit_ = true;
+    setOutputFileLabel(path);
+}
+
+void MainWindow::openLoggingOptions() {
+    LoggingOptionsDialog dialog(this);
+    dialog.setFilenameTemplate(logFilenameTemplate_);
+    dialog.setPreviewBusName(currentBusNameForFilename());
+    dialog.setMaxFileSizeMb(logMaxFileSizeMb_);
+    dialog.setExistingFilePolicy(logExistingFilePolicy_);
+    dialog.setAutoStartWithCapture(logAutoStartWithCapture_);
+
+    if (dialog.exec() != QDialog::Accepted) return;
+
+    logFilenameTemplate_ = dialog.filenameTemplate();
+    logMaxFileSizeMb_ = dialog.maxFileSizeMb();
+    logExistingFilePolicy_ = dialog.existingFilePolicy();
+    logAutoStartWithCapture_ = dialog.autoStartWithCapture();
+}
+
+void MainWindow::setLoggingUiRunning(bool running) {
+    startLoggingButton_->setEnabled(!running);
+    stopLoggingButton_->setEnabled(running);
+    outputFileButton_->setEnabled(!running);
+    ascFormatRadio_->setEnabled(!running);
+    csvFormatRadio_->setEnabled(!running);
+}
+
+void MainWindow::setOutputFileLabel(const QString& path) {
+    const QString fileName = QFileInfo(path).fileName();
+    outputFileLabel_->setText(outputFileLabel_->fontMetrics().elidedText(fileName, Qt::ElideMiddle, outputFileLabel_->width()));
+    outputFileLabel_->setToolTip(path); // full path/name always available on hover, even when elided
+}
+
+void MainWindow::startLogging() {
+    if (logging_) return;
+
+    // Only reuse logOutputPath_ if the user explicitly chose it via "Output
+    // file..." - otherwise regenerate fresh from the template every time
+    // (new timestamp, current format radio), rather than silently reusing
+    // whatever path happened to be left over from the previous session.
+    QString path = logOutputPathExplicit_ ? logOutputPath_ : QString();
+    if (path.isEmpty()) {
+        const QString capturesDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/CANtrip/captures";
+        QDir().mkpath(capturesDir);
+        const QString busName = currentBusNameForFilename();
+        path = capturesDir + "/" + expandLogFilenameTemplate(logFilenameTemplate_, busName) + "." + currentLogExtension();
+    }
+
+    if (QFileInfo::exists(path)) {
+        switch (logExistingFilePolicy_) {
+            case LoggingOptionsDialog::ExistingFilePolicy::Prompt: {
+                const auto choice = QMessageBox::question(this, "Output File Exists",
+                    path + " already exists. Overwrite it?", QMessageBox::Yes | QMessageBox::No);
+                if (choice != QMessageBox::Yes) return;
+                break;
+            }
+            case LoggingOptionsDialog::ExistingFilePolicy::AutoIncrement: {
+                const QFileInfo info(path);
+                int suffix = 1;
+                QString candidate;
+                do {
+                    candidate = info.absolutePath() + "/" + info.completeBaseName() + QString("_%1.").arg(suffix++) + info.suffix();
+                } while (QFileInfo::exists(candidate));
+                path = candidate;
+                break;
+            }
+            case LoggingOptionsDialog::ExistingFilePolicy::Overwrite:
+                break;
+        }
+    }
+
+    auto writer = makeLogWriter();
+    QString error;
+    if (!writer->open(path, &error)) {
+        QMessageBox::warning(this, "Start Logging", error);
+        return;
+    }
+
+    logWriter_ = std::move(writer);
+    logOutputPath_ = path;
+    logSplitSequence_ = 0;
+    logging_ = true;
+    setOutputFileLabel(path);
+    setLoggingUiRunning(true);
+}
+
+void MainWindow::stopLogging() {
+    if (!logging_) return;
+    logWriter_->close();
+    logWriter_.reset();
+    logging_ = false;
+    loggingAutoStarted_ = false;
+    setLoggingUiRunning(false);
+}
+
+void MainWindow::rotateLogFileIfNeeded() {
+    if (!logging_ || logMaxFileSizeMb_ <= 0) return;
+    if (logWriter_->bytesWritten() < static_cast<qint64>(logMaxFileSizeMb_) * 1024 * 1024) return;
+
+    logWriter_->close();
+    ++logSplitSequence_;
+    const QFileInfo info(logOutputPath_);
+    const QString nextPath = info.absolutePath() + "/" + info.completeBaseName() + QString("_part%1.").arg(logSplitSequence_ + 1) + info.suffix();
+
+    auto writer = makeLogWriter();
+    QString error;
+    if (!writer->open(nextPath, &error)) {
+        // Nothing more we can do here without losing frames outright - stop
+        // logging cleanly rather than silently drop data into a broken writer.
+        logging_ = false;
+        setLoggingUiRunning(false);
+        QMessageBox::warning(this, "Logging", "Could not start a new log file after splitting: " + error);
+        return;
+    }
+    logWriter_ = std::move(writer);
+    logOutputPath_ = nextPath;
+}
+
+void MainWindow::setCaptureControlsEnabledForReplay(bool replaying) {
+    startButton_->setEnabled(!replaying);
+    channelCombo_->setEnabled(!replaying);
+    startReplayButton_->setEnabled(!replaying);
+    stopReplayButton_->setEnabled(replaying);
+}
+
+void MainWindow::startReplay() {
+    if (replaySource_.isRunning() || capture_.isRunning()) return;
+
+    const QString path = QFileDialog::getOpenFileName(this, "Log Replay", QString(), "Log files (*.asc *.csv)");
+    if (path.isEmpty()) return;
+
+    resetDisplay();
+    QString error;
+    if (!replaySource_.start(path, &error)) {
+        QMessageBox::warning(this, "Log Replay", error);
+        return;
+    }
+
+    statusLabel_->setText("Replaying " + QFileInfo(path).fileName() + "...");
+    statusLed_->setCapturing(true);
+    setCaptureControlsEnabledForReplay(true);
+}
+
+void MainWindow::stopReplay() {
+    if (!replaySource_.isRunning()) return;
+    replaySource_.stop();
+    onReplayStopped();
+}
+
+void MainWindow::onReplayStopped() {
+    setCaptureControlsEnabledForReplay(false);
+    statusLed_->setCapturing(false);
+    statusLabel_->setText("Replay finished");
 }
 
 QWidget* MainWindow::buildAboutTab() {
@@ -342,7 +628,7 @@ QWidget* MainWindow::buildAboutTab() {
 
 void MainWindow::showAboutDialog() {
     QMessageBox box(this);
-    box.setWindowTitle("CANtrip - Made by Avesta MOLAEI");
+    box.setWindowTitle(QString("CANtrip - v%1 \"%2\"").arg(kVersion, kCodename));
     box.setIconPixmap(QPixmap(":/cantrip_source.png").scaledToWidth(96, Qt::SmoothTransformation));
     box.setTextFormat(Qt::RichText);
     box.setText(
@@ -487,7 +773,7 @@ void MainWindow::saveRune() {
     config.displayMode = displayMode_ == DisplayMode::Periodic ? RuneDisplayMode::Periodic : RuneDisplayMode::Waterfall;
     config.displayRateMs = displayIntervalMs_;
     config.dbcPath = dbcPath_;
-    config.graphLayout = graphView_->exportLayout();
+    config.graphWindows = graphWindows_->exportLayout();
 
     QString error;
     if (!saveRuneFile(path, config, &error)) {
@@ -531,8 +817,8 @@ void MainWindow::loadRune() {
         }
     }
 
-    graphView_->reset();
-    graphView_->importLayout(config->graphLayout);
+    graphWindows_->reset();
+    graphWindows_->importLayout(config->graphWindows);
 }
 
 QString MainWindow::findTsharkExe() {
@@ -596,9 +882,18 @@ void MainWindow::startCapture() {
     // under an arbitrary nested loop.
     importDbcButton_->setEnabled(false);
     // Same nested-message-loop hazard as Import DBC above - Save/Load Rune
-    // both use QFileDialog too.
+    // and Output File all use QFileDialog too.
     saveRuneButton_->setEnabled(false);
     loadRuneButton_->setEnabled(false);
+    outputFileButton_->setEnabled(false);
+    // Live capture and replay both ultimately drive the same
+    // onFrameReceived() path - mutually exclusive, not simultaneous.
+    startReplayButton_->setEnabled(false);
+
+    if (logAutoStartWithCapture_ && !logging_) {
+        startLogging();
+        loggingAutoStarted_ = logging_; // startLogging() may have failed (e.g. bad path) - only true on real success
+    }
 }
 
 void MainWindow::stopCapture() {
@@ -622,9 +917,9 @@ void MainWindow::resetDisplay() {
     // Non-destructive: clears plotted data but keeps axis/signal layout, so
     // setting up a graph once and then Start -> Stop -> Start again keeps
     // plotting onto the same axes instead of losing them every run. Use
-    // graphView_->reset() instead (tears down axes entirely) for a
+    // graphWindows_->reset() instead (tears down axes entirely) for a
     // genuinely fresh setup, e.g. after importing a different DBC.
-    graphView_->clearData();
+    graphWindows_->clearAllData();
 }
 
 uint64_t MainWindow::frameKey(const DecodedCanFrame& frame) {
@@ -765,6 +1060,16 @@ void MainWindow::handlePeriodicErrorFrame(const DecodedCanFrame& frame) {
 void MainWindow::onFrameReceived(const DecodedCanFrame& frame) {
     ++frameCount_;
 
+    // Logging always sees every frame, regardless of the display-rate
+    // throttle below - that throttle only bounds how often the UI repaints,
+    // it was never meant to drop data from the log (bus errors get the same
+    // "never throttled" treatment for the same reason, a few lines down).
+    // Channel hardcoded to 1 until multi-bus exists - see LogWriter.h.
+    if (logging_) {
+        logWriter_->writeFrame(1, frame);
+        rotateLogFileIfNeeded();
+    }
+
     if (frame.error) {
         // Bus errors are comparatively rare and important - always shown
         // immediately, never subject to the display-rate throttle below.
@@ -855,8 +1160,15 @@ void MainWindow::onCaptureStopped() {
     importDbcButton_->setEnabled(true);
     saveRuneButton_->setEnabled(true);
     loadRuneButton_->setEnabled(true);
+    startReplayButton_->setEnabled(true);
+    if (!logging_) outputFileButton_->setEnabled(true); // stays disabled if the user is still manually logging
     statusLed_->setCapturing(false);
     statusLabel_->setText("Capture stopped");
+
+    // Only stop a log that Start Capture itself started - a log the user
+    // started independently (not via the auto-start option) keeps running
+    // past the end of this particular capture.
+    if (loggingAutoStarted_) stopLogging();
 }
 
 } // namespace cantrip
