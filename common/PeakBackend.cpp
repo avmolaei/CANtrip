@@ -74,6 +74,19 @@ std::string buildFdInitString(const CanBitrateConfig& config) {
            ",data_sjw=" + std::to_string(data.sjw);
 }
 
+// A message with PCAN_MESSAGE_STATUS set isn't real data - PEAK's real,
+// documented convention is that `ID` instead carries the current
+// PCAN_ERROR_* bitmask (same one CAN_GetValue(PCAN_ERROR_STATUS) returns).
+// Mapped to the closest SocketCAN CAN_ERR_* class bit(s) rather than
+// dropped, so real bus errors show up in Trace view / are visible to
+// auto-detect the same way the synthetic source's fake errors already are.
+uint32_t mapPcanStatusToCanErr(uint32_t pcanStatus) {
+    uint32_t out = 0;
+    if (pcanStatus & PCAN_ERROR_BUSOFF) out |= CanErr::kBusoff;
+    if (pcanStatus & (PCAN_ERROR_BUSHEAVY | PCAN_ERROR_BUSPASSIVE | PCAN_ERROR_OVERRUN)) out |= CanErr::kCtrl;
+    return out != 0 ? out : CanErr::kCtrl; // status frame with no recognized bit - still "something happened"
+}
+
 } // namespace
 
 PeakBackend::PeakBackend(HMODULE module) : module_(module) {}
@@ -210,6 +223,15 @@ bool PeakBackend::readClassic(TPCANHandle channel, CanFrame* out, std::string* e
         if (error) *error = describeStatus(status);
         return false;
     }
+    const uint64_t timestampUs = static_cast<uint64_t>(ts.millis) * 1000ull + ts.micros
+        + (static_cast<uint64_t>(ts.millis_overflow) << 32) * 1000ull;
+    if (msg.MSGTYPE & PCAN_MESSAGE_STATUS) {
+        out->error = true;
+        out->id = mapPcanStatusToCanErr(msg.ID);
+        std::memset(out->data, 0, sizeof(out->data));
+        out->timestampUs = timestampUs;
+        return true;
+    }
     out->id = msg.ID;
     out->extended = msg.MSGTYPE & PCAN_MESSAGE_EXTENDED;
     out->rtr = msg.MSGTYPE & PCAN_MESSAGE_RTR;
@@ -218,8 +240,7 @@ bool PeakBackend::readClassic(TPCANHandle channel, CanFrame* out, std::string* e
     out->esi = false;
     out->dlc = msg.LEN;
     std::memcpy(out->data, msg.DATA, msg.LEN);
-    out->timestampUs = static_cast<uint64_t>(ts.millis) * 1000ull + ts.micros
-        + (static_cast<uint64_t>(ts.millis_overflow) << 32) * 1000ull;
+    out->timestampUs = timestampUs;
     return true;
 }
 
@@ -237,6 +258,13 @@ bool PeakBackend::readFd(TPCANHandle channel, CanFrame* out, std::string* error)
     if (status != PCAN_ERROR_OK) {
         if (error) *error = describeStatus(status);
         return false;
+    }
+    if (msg.MSGTYPE & PCAN_MESSAGE_STATUS) {
+        out->error = true;
+        out->id = mapPcanStatusToCanErr(msg.ID);
+        std::memset(out->data, 0, sizeof(out->data));
+        out->timestampUs = static_cast<uint64_t>(ts);
+        return true;
     }
     out->id = msg.ID;
     out->extended = msg.MSGTYPE & PCAN_MESSAGE_EXTENDED;

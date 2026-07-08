@@ -217,6 +217,19 @@ bool VectorBackend::readClassic(XLportHandle port, CanFrame* out, std::string* e
     }
 
     const s_xl_can_msg& msg = event.tagData.msg;
+    // Classic error frames arrive as a normal XL_RECEIVE_MSG event with this
+    // flag set (confirmed in the real vxlapi.h - XL_CAN_MSG_FLAG_ERROR_FRAME),
+    // not as a separate event type. No further detail is available at this
+    // level (unlike the FD path below), so this reports an unspecified
+    // protocol violation - still enough for auto-detect to tell "errors are
+    // happening" from "clean bus".
+    if (msg.flags & XL_CAN_MSG_FLAG_ERROR_FRAME) {
+        out->error = true;
+        out->id = CanErr::kProt;
+        std::memset(out->data, 0, sizeof(out->data));
+        out->timestampUs = event.timeStamp / 1000ull;
+        return true;
+    }
     out->extended = (msg.id & XL_CAN_EXT_MSG_ID) != 0;
     out->id = msg.id & ~XL_CAN_EXT_MSG_ID;
     out->rtr = (msg.flags & XL_CAN_MSG_FLAG_REMOTE_FRAME) != 0;
@@ -241,8 +254,50 @@ bool VectorBackend::readFd(XLportHandle port, CanFrame* out, std::string* error)
         if (error) *error = describeStatus(status);
         return false;
     }
+    // XL_CAN_EV_TAG_RX_ERROR carries real per-error detail (XL_CAN_EV_ERROR::
+    // errorCode, confirmed in the real vxlapi.h) - map it to the closest
+    // SocketCAN CAN_ERR_* bit rather than dropping it silently, the same
+    // way this exact event was used to diagnose a real FD sample-point
+    // mismatch on a live Vector VN7640 earlier this project. ACK/NACK are
+    // their own top-level error class in the SocketCAN convention, not a
+    // CAN_ERR_PROT sub-type; anything else without a specific mapped bit
+    // still reports as an unspecified protocol violation rather than being
+    // dropped, since "some kind of error happened" is still useful signal
+    // (e.g. for auto-detect telling a clean bus from a mismatched one).
+    if (event.tag == XL_CAN_EV_TAG_RX_ERROR) {
+        const XL_CAN_EV_ERROR& err = event.tagData.canError;
+        out->error = true;
+        std::memset(out->data, 0, sizeof(out->data));
+        switch (err.errorCode) {
+            case XL_CAN_ERRC_ACK_ERROR:
+            case XL_CAN_ERRC_NACK_ERROR:
+                out->id = CanErr::kAck;
+                break;
+            case XL_CAN_ERRC_BIT_ERROR:
+                out->id = CanErr::kProt;
+                out->data[2] = CanErr::kProtBit;
+                break;
+            case XL_CAN_ERRC_FORM_ERROR:
+                out->id = CanErr::kProt;
+                out->data[2] = CanErr::kProtForm;
+                break;
+            case XL_CAN_ERRC_STUFF_ERROR:
+                out->id = CanErr::kProt;
+                out->data[2] = CanErr::kProtStuff;
+                break;
+            case XL_CAN_ERRC_OVLD_ERROR:
+                out->id = CanErr::kProt;
+                out->data[2] = CanErr::kProtOverload;
+                break;
+            default:
+                out->id = CanErr::kProt;
+                break;
+        }
+        out->timestampUs = event.timeStampSync / 1000ull;
+        return true;
+    }
     if (event.tag != XL_CAN_EV_TAG_RX_OK) {
-        return false; // chip-state/error/other non-data event; nothing to decode
+        return false; // chip-state/other non-data event; nothing to decode
     }
 
     const XL_CAN_EV_RX_MSG& msg = event.tagData.canRxOkMsg;

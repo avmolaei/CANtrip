@@ -38,6 +38,25 @@ struct CanFrame {
     bool error = false;
 };
 
+// CAN_ERR_* bitmask values a backend's readFrame() should use for
+// CanFrame::id when error == true, straight from linux/can/error.h (a
+// long-stable public kernel uAPI, safe to hardcode - same convention
+// already used by the synthetic test source in can2pcap.cpp, and decoded
+// by Wireshark's own SocketCAN dissector on the other end). Only the
+// subset backends actually populate is listed here, not the full uAPI.
+namespace CanErr {
+constexpr uint32_t kCtrl = 0x00000004u;    // controller problem (see kCtrl* below)
+constexpr uint32_t kProt = 0x00000008u;    // protocol violation (see kProt* below)
+constexpr uint32_t kAck = 0x00000020u;     // received no ACK on transmission
+constexpr uint32_t kBusoff = 0x00000040u;  // bus off
+
+// CAN_ERR_PROT sub-type, carried in data[2] when kProt is set.
+constexpr uint8_t kProtBit = 0x01;
+constexpr uint8_t kProtForm = 0x02;
+constexpr uint8_t kProtStuff = 0x04;
+constexpr uint8_t kProtOverload = 0x20;
+}  // namespace CanErr
+
 // A channel exposed by a backend. `channelId` is opaque outside the backend
 // that produced it - each backend interprets its own IDs however its native
 // SDK addresses channels (PEAK uses small integer handles, other vendors may

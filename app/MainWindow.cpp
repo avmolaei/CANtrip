@@ -160,6 +160,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(&capture_, &TsharkCapture::errorOccurred, this, &MainWindow::onCaptureError);
     connect(&capture_, &TsharkCapture::stopped, this, &MainWindow::onCaptureStopped);
 
+    // "Clear Graph" only clears plotted data/history, not axis layout -
+    // GraphView doesn't own SignalHistoryStore, so it just requests this
+    // rather than clearing both itself.
+    connect(graphView_, &GraphView::clearRequested, this, [this]() {
+        signalHistory_.reset();
+        graphView_->clearData();
+    });
+
     connect(&staleTimer_, &QTimer::timeout, this, &MainWindow::checkStaleRows);
     staleTimer_.start(500);
 
@@ -207,9 +215,17 @@ QWidget* MainWindow::buildHomeTab() {
     displayRateCombo_->setCurrentIndex(1);
     rateLayout->addWidget(displayRateCombo_);
 
+    auto* configGroup = new QGroupBox("Configuration", page);
+    auto* configLayout = new QHBoxLayout(configGroup);
+    saveRuneButton_ = new QPushButton("Save Rune...", configGroup);
+    loadRuneButton_ = new QPushButton("Load Rune...", configGroup);
+    configLayout->addWidget(saveRuneButton_);
+    configLayout->addWidget(loadRuneButton_);
+
     layout->addWidget(captureGroup);
     layout->addWidget(displayGroup);
     layout->addWidget(rateGroup);
+    layout->addWidget(configGroup);
     layout->addStretch(1);
 
     connect(startButton_, &QPushButton::clicked, this, &MainWindow::startCapture);
@@ -217,6 +233,8 @@ QWidget* MainWindow::buildHomeTab() {
     connect(waterfallRadio_, &QRadioButton::toggled, this, &MainWindow::onDisplayModeChanged);
     connect(periodicRadio_, &QRadioButton::toggled, this, &MainWindow::onDisplayModeChanged);
     connect(displayRateCombo_, &QComboBox::currentIndexChanged, this, &MainWindow::onDisplayRateChanged);
+    connect(saveRuneButton_, &QPushButton::clicked, this, &MainWindow::saveRune);
+    connect(loadRuneButton_, &QPushButton::clicked, this, &MainWindow::loadRune);
 
     return page;
 }
@@ -238,12 +256,19 @@ QWidget* MainWindow::buildHardwareTab() {
     canControllerButton_ = new QPushButton("CAN Controller...", controllerGroup);
     controllerLayout->addWidget(canControllerButton_);
 
+    auto* autoDetectGroup = new QGroupBox("Autodetect Bus Config", page);
+    auto* autoDetectLayout = new QHBoxLayout(autoDetectGroup);
+    autoDetectButton_ = new QPushButton("Click to check", autoDetectGroup);
+    autoDetectLayout->addWidget(autoDetectButton_);
+
     layout->addWidget(hwGroup);
     layout->addWidget(controllerGroup);
+    layout->addWidget(autoDetectGroup);
     layout->addStretch(1);
 
     connect(refreshButton_, &QPushButton::clicked, this, &MainWindow::refreshChannels);
     connect(canControllerButton_, &QPushButton::clicked, this, &MainWindow::openCanController);
+    connect(autoDetectButton_, &QPushButton::clicked, this, &MainWindow::autoDetectBusConfig);
 
     return page;
 }
@@ -343,6 +368,46 @@ void MainWindow::openCanController() {
     }
 }
 
+void MainWindow::autoDetectBusConfig() {
+    if (capture_.isRunning()) {
+        QMessageBox::warning(this, "Autodetect Bus Config", "Stop the current capture first.");
+        return;
+    }
+    if (channelCombo_->currentIndex() < 0) {
+        QMessageBox::warning(this, "Autodetect Bus Config", "No channel selected.");
+        return;
+    }
+
+    const QString can2pcapPath = findCan2pcapExe();
+    if (can2pcapPath.isEmpty()) {
+        QMessageBox::warning(this, "Autodetect Bus Config",
+            "can2pcap.exe isn't installed in Wireshark's extcap folder - see the README.");
+        return;
+    }
+
+    autoDetectButton_->setText("Checking...");
+    autoDetectButton_->setEnabled(false);
+    // BusAutoDetector::detectClassicBitrate() blocks synchronously for
+    // roughly a second - repaint explicitly now, since the event loop won't
+    // get a turn to show "Checking..." until this handler returns otherwise.
+    autoDetectButton_->repaint();
+
+    const QString interfaceId = channelCombo_->currentData().toString();
+    const std::optional<uint32_t> bitrate = BusAutoDetector::detectClassicBitrate(can2pcapPath, interfaceId);
+
+    if (bitrate) {
+        busConfig_.fd = false;
+        busConfig_.nominalBitrateBps = *bitrate;
+        autoDetectButton_->setText(QString("%1 kbit/s").arg(*bitrate / 1000));
+        // Reuse the same Save Rune flow the Home tab button uses, so a
+        // successful detection isn't lost if nothing was loaded/saved yet.
+        saveRune();
+    } else {
+        autoDetectButton_->setText("No config found");
+    }
+    autoDetectButton_->setEnabled(true);
+}
+
 void MainWindow::refreshChannels() {
     channelCombo_->clear();
     channels_.clear();
@@ -364,14 +429,11 @@ void MainWindow::refreshChannels() {
     }
 }
 
-void MainWindow::importDbc() {
-    const QString path = QFileDialog::getOpenFileName(this, "Import DBC", QString(), "DBC files (*.dbc)");
-    if (path.isEmpty()) return;
-
+bool MainWindow::loadDbcFile(const QString& path, QString* error) {
     std::ifstream is(path.toStdString());
     if (!is) {
-        QMessageBox::warning(this, "Import DBC", "Could not open file:\n" + path);
-        return;
+        if (error) *error = "Could not open file:\n" + path;
+        return false;
     }
     // dbcppp's boost::spirit x3 grammar writes its only diagnostic (which
     // line/token it choked on) to std::cerr, with no way to retrieve it
@@ -383,15 +445,15 @@ void MainWindow::importDbc() {
     auto net = dbcppp::INetwork::LoadDBCFromIs(is);
     std::cerr.rdbuf(prevCerr);
     if (!net) {
-        QString detail = QString::fromStdString(parseLog.str()).trimmed();
-        QString message = "Failed to parse DBC file:\n" + path;
-        if (!detail.isEmpty()) {
-            message += "\n\n" + detail;
+        if (error) {
+            QString detail = QString::fromStdString(parseLog.str()).trimmed();
+            *error = "Failed to parse DBC file:\n" + path;
+            if (!detail.isEmpty()) *error += "\n\n" + detail;
         }
-        QMessageBox::warning(this, "Import DBC", message);
-        return;
+        return false;
     }
     dbcNetwork_ = std::move(net);
+    dbcPath_ = path;
 
     // Built once here rather than linearly scanning dbcNetwork_->Messages()
     // in populateDecodedChildren() on every single received frame.
@@ -402,6 +464,75 @@ void MainWindow::importDbc() {
 
     dbcStatusLabel_->setText(QFileInfo(path).fileName() + " loaded!");
     dbcStatusLabel_->setStyleSheet("color: green;");
+    return true;
+}
+
+void MainWindow::importDbc() {
+    const QString path = QFileDialog::getOpenFileName(this, "Import DBC", QString(), "DBC files (*.dbc)");
+    if (path.isEmpty()) return;
+
+    QString error;
+    if (!loadDbcFile(path, &error)) {
+        QMessageBox::warning(this, "Import DBC", error);
+    }
+}
+
+void MainWindow::saveRune() {
+    const QString path = QFileDialog::getSaveFileName(this, "Save Rune", QString(), "Rune files (*.rune)");
+    if (path.isEmpty()) return;
+
+    RuneConfig config;
+    config.channelDisplayName = channelCombo_->currentIndex() >= 0 ? channelCombo_->currentText() : QString();
+    config.busConfig = busConfig_;
+    config.displayMode = displayMode_ == DisplayMode::Periodic ? RuneDisplayMode::Periodic : RuneDisplayMode::Waterfall;
+    config.displayRateMs = displayIntervalMs_;
+    config.dbcPath = dbcPath_;
+    config.graphLayout = graphView_->exportLayout();
+
+    QString error;
+    if (!saveRuneFile(path, config, &error)) {
+        QMessageBox::warning(this, "Save Rune", error);
+    }
+}
+
+void MainWindow::loadRune() {
+    const QString path = QFileDialog::getOpenFileName(this, "Load Rune", QString(), "Rune files (*.rune)");
+    if (path.isEmpty()) return;
+
+    QString error;
+    const std::optional<RuneConfig> config = loadRuneFile(path, &error);
+    if (!config) {
+        QMessageBox::warning(this, "Load Rune", error);
+        return;
+    }
+
+    const int channelIndex = channelCombo_->findText(config->channelDisplayName);
+    if (channelIndex < 0) {
+        QMessageBox::warning(this, "Load Rune",
+            "Channel not found among currently available hardware:\n" + config->channelDisplayName +
+            "\n\nLeaving the current channel selection as-is.");
+    } else {
+        channelCombo_->setCurrentIndex(channelIndex);
+    }
+
+    busConfig_ = config->busConfig;
+
+    displayMode_ = config->displayMode == RuneDisplayMode::Periodic ? DisplayMode::Periodic : DisplayMode::Waterfall;
+    periodicRadio_->setChecked(displayMode_ == DisplayMode::Periodic);
+    waterfallRadio_->setChecked(displayMode_ == DisplayMode::Waterfall);
+
+    const int rateIndex = displayRateCombo_->findData(config->displayRateMs);
+    if (rateIndex >= 0) displayRateCombo_->setCurrentIndex(rateIndex);
+
+    if (!config->dbcPath.isEmpty()) {
+        QString dbcError;
+        if (!loadDbcFile(config->dbcPath, &dbcError)) {
+            QMessageBox::warning(this, "Load Rune", "Could not reload the DBC referenced by this rune:\n" + dbcError);
+        }
+    }
+
+    graphView_->reset();
+    graphView_->importLayout(config->graphLayout);
 }
 
 QString MainWindow::findTsharkExe() {
@@ -410,6 +541,17 @@ QString MainWindow::findTsharkExe() {
     const QString defaultInstall = "C:/Program Files/Wireshark/tshark.exe";
     if (QFileInfo::exists(defaultInstall)) return defaultInstall;
     return "tshark"; // let QProcess try PATH and fail with a clear error if not found
+}
+
+QString MainWindow::findCan2pcapExe() {
+    // can2pcap.exe must already be installed in Wireshark's personal extcap
+    // folder for CANtrip to capture at all (see README) - reusing that exact
+    // path here (rather than looking next to cantrip.exe, which only holds
+    // true in a packaged release, not the raw build tree) means autodetect
+    // fails the same way capturing itself would if that step was skipped,
+    // instead of needing its own separate "can't find it" case.
+    const QString extcapPath = qEnvironmentVariable("APPDATA") + "/Wireshark/extcap/can2pcap.exe";
+    return QFileInfo::exists(extcapPath) ? extcapPath : QString();
 }
 
 void MainWindow::startCapture() {
@@ -453,6 +595,10 @@ void MainWindow::startCapture() {
     // combination at all rather than try to make frame processing safe
     // under an arbitrary nested loop.
     importDbcButton_->setEnabled(false);
+    // Same nested-message-loop hazard as Import DBC above - Save/Load Rune
+    // both use QFileDialog too.
+    saveRuneButton_->setEnabled(false);
+    loadRuneButton_->setEnabled(false);
 }
 
 void MainWindow::stopCapture() {
@@ -473,7 +619,12 @@ void MainWindow::resetDisplay() {
     pendingWaterfallFrames_.clear();
     frameCount_ = 0;
     signalHistory_.reset();
-    graphView_->reset();
+    // Non-destructive: clears plotted data but keeps axis/signal layout, so
+    // setting up a graph once and then Start -> Stop -> Start again keeps
+    // plotting onto the same axes instead of losing them every run. Use
+    // graphView_->reset() instead (tears down axes entirely) for a
+    // genuinely fresh setup, e.g. after importing a different DBC.
+    graphView_->clearData();
 }
 
 uint64_t MainWindow::frameKey(const DecodedCanFrame& frame) {
@@ -702,6 +853,8 @@ void MainWindow::onCaptureStopped() {
     stopButton_->setEnabled(false);
     channelCombo_->setEnabled(true);
     importDbcButton_->setEnabled(true);
+    saveRuneButton_->setEnabled(true);
+    loadRuneButton_->setEnabled(true);
     statusLed_->setCapturing(false);
     statusLabel_->setText("Capture stopped");
 }

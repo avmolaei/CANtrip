@@ -7,12 +7,16 @@ add_executable(cantrip
     main.cpp
     MainWindow.h
     MainWindow.cpp
+    BusAutoDetector.h
+    BusAutoDetector.cpp
     CanControllerDialog.h
     CanControllerDialog.cpp
     GraphAxisDialog.h
     GraphAxisDialog.cpp
     GraphView.h
     GraphView.cpp
+    RuneFile.h
+    RuneFile.cpp
     SignalHistory.h
     SignalHistory.cpp
     StatusLed.h

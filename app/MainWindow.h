@@ -19,7 +19,9 @@
 #include <dbcppp/Network.h>
 
 #include "../common/AVlabsCanBackend.h"
+#include "BusAutoDetector.h"
 #include "GraphView.h"
+#include "RuneFile.h"
 #include "SignalHistory.h"
 #include "StatusLed.h"
 #include "TsharkCapture.h"
@@ -35,6 +37,9 @@ private slots:
     void refreshChannels();
     void importDbc();
     void openCanController();
+    void autoDetectBusConfig();
+    void saveRune();
+    void loadRune();
     void startCapture();
     void stopCapture();
     void onFrameReceived(const DecodedCanFrame& frame);
@@ -74,7 +79,9 @@ private:
     QWidget* buildAboutTab();
 
     static QString findTsharkExe();
+    static QString findCan2pcapExe();
     static uint64_t frameKey(const DecodedCanFrame& frame);
+    bool loadDbcFile(const QString& path, QString* error);
     void resetDisplay();
     void populateDecodedChildren(QTreeWidgetItem* item, const DecodedCanFrame& frame);
     void handleWaterfallFrame(const DecodedCanFrame& frame);
@@ -90,11 +97,14 @@ private:
     QRadioButton* waterfallRadio_;
     QRadioButton* periodicRadio_;
     QComboBox* displayRateCombo_;
+    QPushButton* saveRuneButton_;
+    QPushButton* loadRuneButton_;
 
     // Hardware tab
     QComboBox* channelCombo_;
     QPushButton* refreshButton_;
     QPushButton* canControllerButton_;
+    QPushButton* autoDetectButton_;
 
     // Analysis & Measurement tab
     QPushButton* importDbcButton_;
@@ -115,6 +125,9 @@ private:
     // message in the DBC to find the one matching a frame's ID - a real,
     // measurable cost on a large real-world DBC at real bus rates.
     std::unordered_map<uint32_t, const dbcppp::IMessage*> messageById_;
+    // Path of the currently-loaded DBC, if any - needed to populate
+    // RuneConfig::dbcPath on save; empty means no DBC is loaded.
+    QString dbcPath_;
     TsharkCapture capture_;
     int frameCount_ = 0;
 

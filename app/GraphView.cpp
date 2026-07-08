@@ -1,6 +1,7 @@
 #include "GraphView.h"
 
 #include <algorithm>
+#include <limits>
 
 #include <QBrush>
 #include <QColor>
@@ -8,6 +9,9 @@
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
+#include <QFont>
+#include <QGraphicsLineItem>
+#include <QGraphicsSimpleTextItem>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -17,6 +21,7 @@
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPen>
 #include <QPushButton>
 #include <QSplitter>
 #include <QTreeWidget>
@@ -78,6 +83,10 @@ public:
     explicit SignalListWidget(QWidget* parent = nullptr) : QListWidget(parent) {
         setDragEnabled(true);
         setDragDropMode(QAbstractItemView::DragOnly);
+        // Ctrl+click / Shift+click to select several signals, then drag them
+        // all onto an axis at once - default QListWidget selection is
+        // single-item only.
+        setSelectionMode(QAbstractItemView::ExtendedSelection);
     }
 
     bool isDragInProgress() const { return dragInProgress_; }
@@ -90,7 +99,12 @@ signals:
 protected:
     QMimeData* mimeData(const QList<QListWidgetItem*>& items) const override {
         auto* mime = new QMimeData();
-        if (!items.isEmpty()) mime->setText(items.first()->text());
+        // Newline-joined rather than a custom MIME type: keeps the drop
+        // target (AxisTreeWidget, a plain QTreeWidget) able to read it via
+        // the same hasText()/text() path a single-signal drag already used.
+        QStringList names;
+        for (const QListWidgetItem* item : items) names << item->text();
+        mime->setText(names.join('\n'));
         return mime;
     }
 
@@ -127,7 +141,7 @@ public:
     }
 
 signals:
-    void signalDropped(QTreeWidgetItem* axisItem, const QString& qualifiedName);
+    void signalDropped(QTreeWidgetItem* axisItem, const QStringList& qualifiedNames);
 
 protected:
     void dragEnterEvent(QDragEnterEvent* event) override {
@@ -140,7 +154,10 @@ protected:
         if (!event->mimeData()->hasText()) return;
         QTreeWidgetItem* target = itemAt(event->position().toPoint());
         while (target && target->parent()) target = target->parent();
-        if (target) emit signalDropped(target, event->mimeData()->text());
+        if (target) {
+            const QStringList names = event->mimeData()->text().split('\n', Qt::SkipEmptyParts);
+            emit signalDropped(target, names);
+        }
         event->acceptProposedAction();
     }
 };
@@ -152,18 +169,47 @@ protected:
 class GraphChartView : public QChartView {
     Q_OBJECT
 public:
-    explicit GraphChartView(QChart* chart, QWidget* parent = nullptr) : QChartView(chart, parent) {}
+    explicit GraphChartView(QChart* chart, QWidget* parent = nullptr) : QChartView(chart, parent) {
+        // Needed so mouseMoveEvent fires on plain hover, not just while a
+        // button is held - the hover-cursor readout needs this.
+        setMouseTracking(true);
+    }
 
 signals:
     void wheelZoom(QPointF chartPos, double factor);
+    // Raw chart-local mouse position/button-state reports - GraphView owns
+    // deciding what these mean (hover cursor vs. delta-drag vs. nothing),
+    // this class just reports geometry. The base class's own handling
+    // (rubber-band zoom-select) still runs too, via the explicit base calls
+    // below, so that tool keeps working independently of these signals.
+    void chartMouseMove(QPointF chartPos, bool leftButtonDown);
+    void chartMousePress(QPointF chartPos);
+    void chartMouseRelease(QPointF chartPos);
 
 protected:
     void wheelEvent(QWheelEvent* event) override {
         const double factor = event->angleDelta().y() > 0 ? 0.9 : (1.0 / 0.9);
-        const QPointF scenePos = mapToScene(event->position().toPoint());
-        const QPointF chartPos = chart()->mapFromScene(scenePos);
+        const QPointF chartPos = toChartPos(event->position());
         emit wheelZoom(chartPos, factor);
         event->accept();
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override {
+        QChartView::mouseMoveEvent(event);
+        emit chartMouseMove(toChartPos(event->position()), event->buttons() & Qt::LeftButton);
+    }
+    void mousePressEvent(QMouseEvent* event) override {
+        QChartView::mousePressEvent(event);
+        if (event->button() == Qt::LeftButton) emit chartMousePress(toChartPos(event->position()));
+    }
+    void mouseReleaseEvent(QMouseEvent* event) override {
+        QChartView::mouseReleaseEvent(event);
+        if (event->button() == Qt::LeftButton) emit chartMouseRelease(toChartPos(event->position()));
+    }
+
+private:
+    QPointF toChartPos(const QPointF& widgetPos) const {
+        return chart()->mapFromScene(mapToScene(widgetPos.toPoint()));
     }
 };
 
@@ -213,8 +259,15 @@ GraphView::GraphView(SignalHistoryStore* history, QWidget* parent)
     zoomSelectButton_->setToolTip("Drag a rectangle to zoom into it");
     zoomResetButton_ = new QPushButton(QString::fromUtf8("\xF0\x9F\x94\x8D-"), rightPanel); // magnifier + "-"
     zoomResetButton_->setToolTip("Reset zoom to the full capture");
+    clearGraphButton_ = new QPushButton("Clear Graph", rightPanel);
+    clearGraphButton_->setToolTip("Clear all plotted data and restart the timeline from 0 - keeps axis setup");
+    cursorToolButton_ = new QPushButton(QString::fromUtf8("\xE2\x9C\x9A"), rightPanel); // ruler/cursor glyph
+    cursorToolButton_->setCheckable(true);
+    cursorToolButton_->setToolTip("Hover for X/Y values; click and drag on a curve to measure Δt/Δvalue");
     toolbar->addWidget(zoomSelectButton_);
     toolbar->addWidget(zoomResetButton_);
+    toolbar->addWidget(cursorToolButton_);
+    toolbar->addWidget(clearGraphButton_);
     toolbar->addStretch(1);
     rightLayout->addLayout(toolbar);
 
@@ -243,10 +296,22 @@ GraphView::GraphView(SignalHistoryStore* history, QWidget* parent)
             // "Reset Zoom" is what hands it back to auto-fit.
             timeZoomed_ = true;
             for (auto& a : axes_) a->autoScale = false;
+            cursorToolButton_->setChecked(false); // mutually exclusive with the cursor tool
         }
     });
     connect(zoomResetButton_, &QPushButton::clicked, this, &GraphView::resetZoom);
+    connect(clearGraphButton_, &QPushButton::clicked, this, &GraphView::clearRequested);
+    connect(cursorToolButton_, &QPushButton::toggled, this, [this](bool checked) {
+        if (checked) {
+            zoomSelectButton_->setChecked(false); // mutually exclusive with rubber-band zoom
+        } else {
+            clearCursorOverlay();
+        }
+    });
     connect(static_cast<GraphChartView*>(chartView_), &GraphChartView::wheelZoom, this, &GraphView::onWheelZoom);
+    connect(static_cast<GraphChartView*>(chartView_), &GraphChartView::chartMouseMove, this, &GraphView::onChartMouseMove);
+    connect(static_cast<GraphChartView*>(chartView_), &GraphChartView::chartMousePress, this, &GraphView::onChartMousePress);
+    connect(static_cast<GraphChartView*>(chartView_), &GraphChartView::chartMouseRelease, this, &GraphView::onChartMouseRelease);
 
     connect(history_, &SignalHistoryStore::signalAdded, this, &GraphView::onSignalAdded);
     connect(history_, &SignalHistoryStore::sampleAdded, this, &GraphView::onSampleAdded);
@@ -272,6 +337,93 @@ void GraphView::reset() {
     timeZoomed_ = false;
     zoomSelectButton_->setChecked(false);
     timeAxis_->setRange(0, 1);
+    // Every series just got destroyed - a dangling cursorSeries_ would be a
+    // real use-after-free the next time the cursor tool is used.
+    cursorSeries_ = nullptr;
+    hasCursorA_ = hasCursorB_ = false;
+    clearCursorOverlay();
+}
+
+void GraphView::clearData() {
+    for (auto& axisPtr : axes_) {
+        for (auto& sig : axisPtr->plottedSignals) {
+            sig.series->clear();
+        }
+        axisPtr->dataMin = 0.0;
+        axisPtr->dataMax = 1.0;
+        axisPtr->hasData = false;
+        // Auto-scaling axes would otherwise keep showing the old data's
+        // range until a fresh sample arrives to overwrite it - snap back to
+        // a neutral default immediately instead of waiting.
+        if (axisPtr->autoScale) axisPtr->axis->setRange(0, 1);
+    }
+    timeDataMax_ = 1.0;
+    timeZoomed_ = false;
+    zoomSelectButton_->setChecked(false);
+    timeAxis_->setRange(0, 1);
+    // The series themselves survive clearData() (unlike reset()), but their
+    // point data doesn't - any in-progress delta measurement no longer
+    // means anything against emptied series.
+    cursorSeries_ = nullptr;
+    hasCursorA_ = hasCursorB_ = false;
+    clearCursorOverlay();
+}
+
+std::vector<GraphView::AxisLayout> GraphView::exportLayout() const {
+    std::vector<AxisLayout> result;
+    for (auto& axisPtr : axes_) {
+        AxisLayout al;
+        al.name = axisPtr->name;
+        al.autoScale = axisPtr->autoScale;
+        al.min = axisPtr->min;
+        al.max = axisPtr->max;
+        al.hidden = axisPtr->hidden;
+        for (auto& sig : axisPtr->plottedSignals) {
+            al.plottedSignals.push_back({sig.qualifiedName, sig.color, sig.style});
+        }
+        result.push_back(std::move(al));
+    }
+    return result;
+}
+
+void GraphView::importLayout(const std::vector<AxisLayout>& layout) {
+    for (const AxisLayout& al : layout) {
+        addAxis();
+        AxisEntry& entry = *axes_.back();
+        entry.name = al.name;
+        entry.autoScale = al.autoScale;
+        entry.min = al.min;
+        entry.max = al.max;
+        applyAxisRange(entry);
+        refreshAxisItemText(entry);
+
+        for (const AxisLayoutSignal& sl : al.plottedSignals) {
+            addSignalToAxis(entry, sl.qualifiedName);
+            PlottedSignal* sig = nullptr;
+            for (auto& s : entry.plottedSignals) {
+                if (s.qualifiedName == sl.qualifiedName) { sig = &s; break; }
+            }
+            if (!sig) continue; // addSignalToAxis no-ops on an unrecognized/duplicate name
+
+            sig->color = sl.color;
+            if (sl.style != sig->style) {
+                // Scatter <-> Line needs a different QXYSeries subclass -
+                // same rebuild-in-place pattern as the style dialog's own
+                // handling in onAxisItemDoubleClicked().
+                QXYSeries* oldSeries = sig->series;
+                sig->style = sl.style;
+                buildSeriesForSignal(entry, *sig);
+                sig->series->attachAxis(timeAxis_);
+                sig->series->attachAxis(entry.axis);
+                chart_->removeSeries(oldSeries);
+                delete oldSeries;
+            }
+            applySeriesStyle(*sig);
+            refreshSignalItemText(*sig);
+        }
+
+        if (al.hidden) toggleAxisVisibility(entry); // reuses the same hide effects as the eye button
+    }
 }
 
 void GraphView::onSignalAdded(const QString& qualifiedName) {
@@ -372,9 +524,10 @@ GraphView::PlottedSignal* GraphView::signalForItem(QTreeWidgetItem* item, AxisEn
     return nullptr;
 }
 
-void GraphView::onSignalDropped(QTreeWidgetItem* axisItem, const QString& qualifiedName) {
+void GraphView::onSignalDropped(QTreeWidgetItem* axisItem, const QStringList& qualifiedNames) {
     AxisEntry* entry = axisForItem(axisItem);
-    if (entry) addSignalToAxis(*entry, qualifiedName);
+    if (!entry) return;
+    for (const QString& name : qualifiedNames) addSignalToAxis(*entry, name);
 }
 
 QColor GraphView::nextPaletteColor() {
@@ -512,6 +665,11 @@ void GraphView::refreshSignalItemText(PlottedSignal& sig) {
 }
 
 void GraphView::removeSignal(AxisEntry& entry, PlottedSignal& sig) {
+    if (cursorSeries_ == sig.series) {
+        cursorSeries_ = nullptr;
+        hasCursorA_ = hasCursorB_ = false;
+        clearCursorOverlay();
+    }
     chart_->removeSeries(sig.series);
     delete sig.series;
     delete sig.item;
@@ -567,6 +725,10 @@ void GraphView::onAxisItemDoubleClicked(QTreeWidgetItem* item, int /*column*/) {
         sig->series->attachAxis(timeAxis_);
         sig->series->attachAxis(owner->axis);
         chart_->removeSeries(oldSeries);
+        // Retarget rather than clear - this is still logically the same
+        // signal, just restyled, so an active delta measurement on it
+        // should keep working against the rebuilt series.
+        if (cursorSeries_ == oldSeries) cursorSeries_ = sig->series;
         delete oldSeries;
     }
     applySeriesStyle(*sig);
@@ -670,6 +832,151 @@ void GraphView::resetZoom() {
     }
 
     zoomSelectButton_->setChecked(false);
+}
+
+double GraphView::timeValueAt(double chartX) const {
+    const QRectF plotArea = chart_->plotArea();
+    const double fraction = (chartX - plotArea.left()) / plotArea.width();
+    return timeAxis_->min() + fraction * (timeAxis_->max() - timeAxis_->min());
+}
+
+std::optional<QPointF> GraphView::nearestSampleOnSeries(QXYSeries* series, double timeValue) const {
+    const QList<QPointF> pts = series->points();
+    if (pts.isEmpty()) return std::nullopt;
+    auto it = std::lower_bound(pts.begin(), pts.end(), timeValue,
+        [](const QPointF& p, double t) { return p.x() < t; });
+    if (it == pts.begin()) return *it;
+    if (it == pts.end()) return *(it - 1);
+    const QPointF& after = *it;
+    const QPointF& before = *(it - 1);
+    return (timeValue - before.x() <= after.x() - timeValue) ? before : after;
+}
+
+QXYSeries* GraphView::nearestVisibleSeries(const QPointF& chartPos, QPointF* outSampleValue) const {
+    QXYSeries* best = nullptr;
+    double bestDistSq = std::numeric_limits<double>::max();
+    QPointF bestValue;
+
+    const double timeValue = timeValueAt(chartPos.x());
+    for (auto& axisPtr : axes_) {
+        if (axisPtr->hidden) continue;
+        for (auto& sig : axisPtr->plottedSignals) {
+            if (!sig.series->isVisible()) continue;
+            const auto sample = nearestSampleOnSeries(sig.series, timeValue);
+            if (!sample) continue;
+            const QPointF scenePoint = chart_->mapToPosition(*sample, sig.series);
+            const double dx = scenePoint.x() - chartPos.x();
+            const double dy = scenePoint.y() - chartPos.y();
+            const double distSq = dx * dx + dy * dy;
+            if (distSq < bestDistSq) {
+                bestDistSq = distSq;
+                best = sig.series;
+                bestValue = *sample;
+            }
+        }
+    }
+    if (best && outSampleValue) *outSampleValue = bestValue;
+    return best;
+}
+
+void GraphView::clearCursorOverlay() {
+    for (QGraphicsItem* item : cursorOverlayItems_) delete item;
+    cursorOverlayItems_.clear();
+}
+
+void GraphView::updateHoverCursor(const QPointF& chartPos) {
+    clearCursorOverlay();
+    const QRectF plotArea = chart_->plotArea();
+    if (chartPos.x() < plotArea.left() || chartPos.x() > plotArea.right()) return;
+
+    // Parented to chart_ (not added to the scene directly) so these items
+    // share chart_'s own local coordinate system - the same one chartPos
+    // and mapToPosition() already use, via GraphChartView's
+    // mapFromScene()-based conversion.
+    auto* line = new QGraphicsLineItem(chartPos.x(), plotArea.top(), chartPos.x(), plotArea.bottom(), chart_);
+    line->setPen(QPen(QColor(128, 128, 128), 1, Qt::DashLine));
+    cursorOverlayItems_.append(line);
+
+    const double timeValue = timeValueAt(chartPos.x());
+    double labelY = plotArea.top() + 4;
+    for (auto& axisPtr : axes_) {
+        if (axisPtr->hidden) continue;
+        for (auto& sig : axisPtr->plottedSignals) {
+            if (!sig.series->isVisible()) continue;
+            const auto sample = nearestSampleOnSeries(sig.series, timeValue);
+            if (!sample) continue;
+            auto* label = new QGraphicsSimpleTextItem(
+                QString("%1: %2").arg(sig.qualifiedName).arg(sample->y(), 0, 'g', 6), chart_);
+            label->setBrush(sig.color);
+            label->setPos(chartPos.x() + 6, labelY);
+            cursorOverlayItems_.append(label);
+            labelY += 14;
+        }
+    }
+
+    auto* timeLabel = new QGraphicsSimpleTextItem(QString("t = %1 s").arg(timeValue, 0, 'f', 3), chart_);
+    timeLabel->setPos(chartPos.x() + 6, plotArea.bottom() - 16);
+    cursorOverlayItems_.append(timeLabel);
+}
+
+void GraphView::updateDeltaCursor(const QPointF& chartPos) {
+    if (!cursorSeries_) return;
+    const double timeValue = timeValueAt(chartPos.x());
+    const auto sample = nearestSampleOnSeries(cursorSeries_, timeValue);
+    if (!sample) return;
+    cursorBValue_ = *sample;
+    hasCursorB_ = true;
+
+    clearCursorOverlay();
+    const QRectF plotArea = chart_->plotArea();
+
+    auto addVLine = [&](double timeVal) {
+        // y=0 is a dummy - only the resulting x is used, and the x/y axis
+        // transforms are independent for a plain Cartesian value chart.
+        const QPointF scenePt = chart_->mapToPosition(QPointF(timeVal, 0), cursorSeries_);
+        auto* line = new QGraphicsLineItem(scenePt.x(), plotArea.top(), scenePt.x(), plotArea.bottom(), chart_);
+        line->setPen(QPen(QColor(Qt::gray), 1, Qt::DashLine));
+        cursorOverlayItems_.append(line);
+    };
+    addVLine(cursorAValue_.x());
+    addVLine(cursorBValue_.x());
+
+    const double dt = cursorBValue_.x() - cursorAValue_.x();
+    const double dv = cursorBValue_.y() - cursorAValue_.y();
+    auto* label = new QGraphicsSimpleTextItem(
+        QString::fromUtf8("\xCE\x94t = %1 s   \xCE\x94value = %2").arg(dt, 0, 'f', 3).arg(dv, 0, 'g', 6), chart_);
+    label->setPos(plotArea.left() + 8, plotArea.top() + 4);
+    cursorOverlayItems_.append(label);
+}
+
+void GraphView::onChartMouseMove(QPointF chartPos, bool leftButtonDown) {
+    if (!cursorToolButton_->isChecked()) return;
+    if (cursorDragging_ && leftButtonDown) {
+        updateDeltaCursor(chartPos);
+    } else if (!leftButtonDown) {
+        cursorDragging_ = false; // safety net if a release was ever missed
+        updateHoverCursor(chartPos);
+    }
+}
+
+void GraphView::onChartMousePress(QPointF chartPos) {
+    if (!cursorToolButton_->isChecked()) return;
+    QPointF sampleValue;
+    QXYSeries* series = nearestVisibleSeries(chartPos, &sampleValue);
+    if (!series) return;
+    cursorSeries_ = series;
+    cursorAValue_ = sampleValue;
+    hasCursorA_ = true;
+    hasCursorB_ = false;
+    cursorDragging_ = true;
+}
+
+void GraphView::onChartMouseRelease(QPointF chartPos) {
+    if (!cursorToolButton_->isChecked()) return;
+    cursorDragging_ = false;
+    if (hasCursorA_ && cursorSeries_) {
+        updateDeltaCursor(chartPos); // finalize cursor B, stays visible until the next click
+    }
 }
 
 } // namespace cantrip
