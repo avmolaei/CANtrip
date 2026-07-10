@@ -3,8 +3,7 @@
 ![CANtrip](app/resources/cantrip_source.png)
 
 An open-source, free alternative to Vector CANalyzer for viewing CAN /
-CAN-FD bus traffic on Windows, decoding it against DBC files, and (in a
-later phase) graphing signals and sending/gatewaying messages.
+CAN-FD bus traffic on Windows, decoding it against DBC files, and graphing signals.
 
 ## How it works
 
@@ -39,35 +38,28 @@ phase.
 ### Multi-vendor hardware support
 
 CANtrip is not tied to one CAN adapter vendor. There's no OS-level CAN
-abstraction on Windows (unlike Linux's SocketCAN, which is why Wireshark's
-SocketCAN dissector already works for any Linux CAN device) - every vendor
+abstraction on Windows (unlike Linux's SocketCAN). Every vendor
 ships its own proprietary DLL and API shape. CANtrip works around this with
 a vendor-neutral interface, the **AVlabs CAN backend**
-([`common/AVlabsCanBackend.h`](common/AVlabsCanBackend.h)) - one bus to sniff
-them all: the extcap and app only ever talk to that interface, never to a
+([`common/AVlabsCanBackend.h`](common/AVlabsCanBackend.h)); one bus to sniff
+them all.
+The extcap and app only ever talk to that interface, never to a
 vendor SDK directly.
 
 - Each backend dynamically loads its vendor's DLL at runtime
   (`LoadLibrary`/`GetProcAddress`), so CANtrip builds and runs fine with
-  only some (or none) of the vendor SDKs installed - a backend whose DLL
-  isn't found is simply omitted, not a startup error.
+  only some (or none) of the vendor SDKs installed.
 - [`common/PeakBackend.h/.cpp`](common/PeakBackend.cpp) wraps PEAK-System's
   `PCANBasic.dll`. Supports classic CAN and CAN FD.
 - [`common/VectorBackend.h/.cpp`](common/VectorBackend.cpp) wraps Vector
-  Informatik's `vxlapi64.dll` (XL Driver Library), verified against a real
-  VN1640A. Supports classic CAN and CAN FD, with bit timing computed by
-  [`common/CanBitTiming.h/.cpp`](common/CanBitTiming.cpp) (see the CAN
-  Controller dialog on the Hardware ribbon tab).
+  Informatik's `vxlapi64.dll` (XL Driver Library), verified against a VN1640A and a VN7640. Supports classic CAN and CAN FD, with bit timing computed by
+  [`common/CanBitTiming.h/.cpp`](common/CanBitTiming.cpp) 
 - [`common/CanBackendRegistry.cpp`](common/CanBackendRegistry.cpp) is the
   single place that lists every backend CANtrip knows about.
 - Adding support for another vendor (Kvaser's CANlib, ETAS's BOA, etc.)
   means implementing the AVlabs CAN backend interface once, using that
-  vendor's real SDK header (never reconstructed from memory - a wrong
-  struct layout when calling into a proprietary DLL is a silent
-  memory-corruption bug, not a compile error - this bit us for real with an
-  earlier hand-transcribed PEAK header, see git history) and adding one
-  line to the registry. The extcap's pcap-serialization code and the app's
-  decode/UI layer don't change.
+  vendor's real SDK header and adding one
+  line to the registry.
 
 ## Prerequisites (Windows)
 
@@ -96,7 +88,7 @@ This produces:
 
 ### Installing the extcap into Wireshark
 
-Copy (or symlink) `can2pcap.exe` into Wireshark's personal extcap folder
+After installing Wireshark and downloading CANtrip, copy `can2pcap.exe` into Wireshark's personal extcap folder
 so both Wireshark and `tshark` (and therefore CANtrip) can see it:
 
 ```powershell
@@ -115,44 +107,44 @@ You should see a `can2pcap` interface listed.
 
 Prebuilt binaries are also published under
 [Releases](https://github.com/avmolaei/CANtrip/releases) if you'd rather skip
-building from source - grab the zip, extract it anywhere, and skip straight
-to step 2 below (it already bundles `can2pcap.exe`, `cantrip.exe`, and every
-DLL both need).
+building from source. Grab the zip, extract it anywhere, and copy the `can2pcap.exe`in your `$env:APPDATA\Wireshark\extcap\` directory.
 
 CANtrip's window is a ribbon, Office-style: each tab across the top shows a
 different group of controls.
+![CANtrip's ribbon tabs](docs/images/ribbon-tabs.png)
 
-1. Install the extcap (see above) - CANtrip's app doesn't talk to hardware
-   directly, it always goes through `tshark`, so `can2pcap.exe` has to be
-   somewhere Wireshark/tshark can find it.
-2. Launch `build\app\Debug\cantrip.exe` (or `cantrip.exe` from a Release
+
+1. Launch `build\app\Debug\cantrip.exe` (or `cantrip.exe` from a Release
    zip).
-3. On the **Hardware** tab, pick a channel from the "Network Hardware"
+2. On the **Hardware** tab, pick a channel from the "Network Hardware"
    dropdown. No CAN hardware or vendor driver installed yet? Pick
-   **"CANtrip synthetic test source (no hardware needed)"** - it's always
+   **"CANtrip synthetic test source (no hardware needed)"**. It's always
    listed and fakes traffic so you can try everything below without owning
    a single wire.
-4. Still on **Hardware**, click **CAN Controller...** to set the bitrate -
+3. Still on **Hardware**, click **CAN Controller...** to set the bitrate: 
    classic `CAN` mode by default, or `ISO CAN FD`/`Expert CAN FD` for FD
-   (not applicable to the synthetic source, which is classic-only for now).
+   (synth source is CAN HS only). 
    ISO mode computes real BRP/TSEG1/TSEG2/SJW register values live from a
    target bitrate and sample point; Expert mode lets you type those raw
    values directly.
-5. On the **Analysis & Measurement** tab, click **Import DBC...** and load
-   [`test/sample.dbc`](test/sample.dbc) - a small DBC whose four message IDs
-   (`0x100`, `0x200`, `0x300`, `0x7E8`) deliberately match what the
-   synthetic test source transmits, so you get fully decoded signals with
-   zero hardware.
-6. On the **Home** tab, click **Start**. Frames stream into the table as
+4.   On the **Home** tab, click **Start**. Frames stream into the table as
    they arrive; click the arrow next to a row to unfold it into its decoded
    signals (name, physical value, unit) via dbcppp. Switch between
    "Waterfall" (newest first) and "Periodic" (one row per ID) display from
    the same tab; click **Stop** to end the capture.
 
+5. On the **Analysis & Measurement** tab, click **Import DBC...** and load
+   [`test/sample.dbc`](test/sample.dbc) - a small DBC whose four message IDs
+   (`0x100`, `0x200`, `0x300`, `0x7E8`) deliberately match what the
+   synthetic test source transmits, so you get fully decoded signals with
+   zero hardware.
+6. In this same tab, you can switch from the classic **CAN trace view**, to see your frames, to a **graphical view**. Not much to explain, play around with it to get a hold of how it works:
+   ![CANtrip's multi-window graph view](docs/images/graph-view.png)
+
+7. Your environement is exactly how you like it and want to save it for later? under the **Home** tab, press **"Save rune"**. Runes are CANtrip's configuration file: you can save them and load them at a later date, so CANtrip remembers your bus configuration, and your graph layout.
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for code conventions (including the
-"AVlabs CAN backend" naming rule and how to add a new vendor backend) and
+See [CONTRIBUTING.md](CONTRIBUTING.md) for code conventions and
 how to verify changes. See [RELEASING.md](RELEASING.md) for the version
 naming scheme and how a release gets cut.
 
