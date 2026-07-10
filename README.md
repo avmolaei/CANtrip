@@ -111,37 +111,72 @@ building from source. Grab the zip, extract it anywhere, and copy the `can2pcap.
 
 CANtrip's window is a ribbon, Office-style: each tab across the top shows a
 different group of controls.
-![CANtrip's ribbon tabs](docs/images/ribbon-tabs.png)
 
+<p align="center"><img src="docs/images/ribbon-tabs.png" alt="CANtrip's ribbon tabs"></p>
 
 1. Launch `build\app\Debug\cantrip.exe` (or `cantrip.exe` from a Release
    zip).
+
 2. On the **Hardware** tab, pick a channel from the "Network Hardware"
    dropdown. No CAN hardware or vendor driver installed yet? Pick
    **"CANtrip synthetic test source (no hardware needed)"**. It's always
    listed and fakes traffic so you can try everything below without owning
    a single wire.
-3. Still on **Hardware**, click **CAN Controller...** to set the bitrate: 
+
+   <p align="center"><img src="docs/images/src.png" alt="Network hardware dropdown"></p>
+
+3. Still on **Hardware**, click **CAN Controller...** to set the bitrate:
    classic `CAN` mode by default, or `ISO CAN FD`/`Expert CAN FD` for FD
-   (synth source is CAN HS only). 
-   ISO mode computes real BRP/TSEG1/TSEG2/SJW register values live from a
-   target bitrate and sample point; Expert mode lets you type those raw
-   values directly.
-4.   On the **Home** tab, click **Start**. Frames stream into the table as
+   (synth source is CAN HS only). ISO mode computes real
+   BRP/TSEG1/TSEG2/SJW register values live from a target bitrate and
+   sample point; Expert mode lets you type those raw values directly.
+
+   <p align="center">
+     <img src="docs/images/baudrate.png" alt="Baudrate configuration" height="220">
+     <img src="docs/images/expert.png" alt="Expert mode configuration" height="220">
+   </p>
+
+   Don't know the actual settings of your bus? Autodetect scans your
+   selected network hardware for its bus config and applies it:
+
+   <p align="center">
+     <img src="docs/images/autodetect-checking.png" alt="Autodetect checking">
+     <img src="docs/images/autodetect-result.png" alt="Autodetect result">
+   </p>
+
+4. On the **Home** tab, click **Start**. Frames stream into the table as
    they arrive; click the arrow next to a row to unfold it into its decoded
    signals (name, physical value, unit) via dbcppp. Switch between
    "Waterfall" (newest first) and "Periodic" (one row per ID) display from
-   the same tab; click **Stop** to end the capture.
+   the same tab, and change the display rate in case of busy buses; click
+   **Stop** to end the capture.
+
+   <p align="center"><img src="docs/images/periodic.png" alt="Display mode and rate"></p>
 
 5. On the **Analysis & Measurement** tab, click **Import DBC...** and load
    [`test/sample.dbc`](test/sample.dbc) - a small DBC whose four message IDs
    (`0x100`, `0x200`, `0x300`, `0x7E8`) deliberately match what the
    synthetic test source transmits, so you get fully decoded signals with
    zero hardware.
-6. In this same tab, you can switch from the classic **CAN trace view**, to see your frames, to a **graphical view**. Not much to explain, play around with it to get a hold of how it works:
-   ![CANtrip's multi-window graph view](docs/images/graph-view.png)
 
-7. Your environement is exactly how you like it and want to save it for later? under the **Home** tab, press **"Save rune"**. Runes are CANtrip's configuration file: you can save them and load them at a later date, so CANtrip remembers your bus configuration, and your graph layout.
+6. In this same tab, you can switch from the classic **CAN trace view** to
+   a **graphical view**. Not much to explain, play around with it to get a
+   hold of how it works:
+
+   <p align="center"><img src="docs/images/graph-view.png" alt="CANtrip's multi-window graph view"></p>
+
+7. Your environment is exactly how you like it and want to save it for
+   later? Under the **Home** tab, press **Save Rune...**. Runes are
+   CANtrip's configuration files - save and load them later so CANtrip
+   remembers your bus configuration and graph layout.
+
+   <p align="center"><img src="docs/images/rune.png" alt="Runes"></p>
+
+8. Press Start once your environment is all set up and you'll see your
+   frames, decoded signals, and any bus errors right in the trace view:
+
+   <p align="center"><img src="docs/images/trace-view.png" alt="CANtrip trace view showing bus errors"></p>
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for code conventions and
