@@ -13,7 +13,7 @@ dessert names or Ubuntu's animal names: the codename identifies the release
 
 This differs from CANtrip's own pre-1.0 history, where every release got a
 distinct name (`v0.1_mugi`, `v0.2_dawn`, `v0.3_miyuki`, `v0.4_mai`,
-`v0.5_Sawako`) - that per-release-naming approach is retired as of v1.0;
+`v0.5_Sawako`). That per-release-naming approach is retired as of v1.0;
 don't follow it for new releases.
 
 Names are anime girl names, picked when a new major version starts. No
@@ -50,7 +50,7 @@ fixed list - pick something when you get there.
 5. **Verify before shipping**: extract the zip fresh to a *different*
    folder than the one you built from, launch `cantrip.exe` from there, and
    confirm it starts and stays running. This has caught real packaging bugs
-   before (missing DLLs, stale files) - don't skip it just because the build
+   before (missing DLLs, stale files). Don't skip it just because the build
    succeeded.
 
 6. **Tag and push:**
@@ -59,14 +59,11 @@ fixed list - pick something when you get there.
    git push origin vMAJOR.MINOR.PATCH_codename
    ```
 
-7. **Write release notes** covering what's new since the last tag - a
-   couple of paragraphs plus bullet points is fine, mention *why* a fix
+7. **Write release notes** covering what's new since the last tag. A couple of paragraphs plus bullet points is fine, mention *why* a fix
    mattered if it was found against real hardware/data, not just what
    changed.
 
-8. **Create the GitHub Release and upload the zip** - done manually via
-   github.com (or `gh release create` if you have `gh` authenticated), not
-   automated. Attach the zip from step 4 and paste in the notes from step 7.
+8. **Create the GitHub Release and upload the zip**, Attach the zip from step 4 and paste in the notes from step 7.
 
 ## Notes
 

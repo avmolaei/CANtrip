@@ -2,19 +2,19 @@
 
 ## Commit messages
 
-For this, Claude said "Plain, professional, short and concise". I disagree. Have fun with it. Just don't forget to still describe what changed and why
+For this, Claude said "Plain, professional, short and concise". I disagree. Have fun with it. Just don't forget to still describe what changed and why.
 
 Prefer one commit per coherent change rather than a string of "fix typo", "azeazeazeaze", 
 "actually fix it", "wip" commits  
 
-## Naming: "the AVlabs CAN backend"
+## Naming conventions
 
-CANtrip's vendor-neutral hardware interface is called **the AVlabs CAN
-backend** (or "the AVlabs CAN backend interface") everywhere - prose and
+There is the only hard naming convention for CANtrip: its vendor-neutral hardware interface is called **the AVlabs CAN
+backend** (or "the AVlabs CAN backend interface"): prose and
 code alike. The C++ type is `IAvlabsCanBackend` (defined in
-`common/AVlabsCanBackend.h`) 
+`common/AVlabsCanBackend.h`).
 
-## Adding a new vendor backend (Kvaser, ETAS, etc.)
+## Adding a new vendor backend
 
 1. Implement `IAvlabsCanBackend` (`common/AVlabsCanBackend.h`) in a new
    `common/YourVendorBackend.h/.cpp` pair, following `common/PeakBackend.h/
@@ -38,15 +38,13 @@ the actual bytes on the wire aren't the point.
 (`common/*Backend.cpp`), the extcap/serialization layer
 (`extcap/can2pcap.cpp`), or performance/system-level changes (display
 throttling, batching, anything touching how much work happens per frame).**
+
 The synthetic source produces clean, predictable, low-volume traffic. It
 cannot catch real vendor-driver quirks, wrong struct layouts, bit-timing
 mismatches, or the kind of sustained real-world bus load that has actually
-caused freezes/data-loss bugs in this project before (see git history -
-several real bugs here were only ever exposed by real hardware or a
-genuinely busy bus, never by the synthetic source). Changes in this
-category need to be field-tested: a real vehicle, a test bench, or a
-simulation/HIL setup actually outputting CAN traffic, driven through real hardware. If you can't field-test a low-level change
-yourself, say so explicitly rather than reporting it as verified.
+caused freezes/data-loss bugs in this project before. Several real bugs here were only ever exposed by real hardware or a genuinely busy bus, never by the synthetic source. Changes in this  category need to be field-tested: a real vehicle, a test bench, or a simulation/HIL setup actually outputting CAN traffic, driven through real hardware. 
+
+If you can't field-test a low-level change yourself, say so explicitly rather than reporting it as verified.
 
 For anything touching the capture pipeline (`extcap/can2pcap.cpp`,
 `common/*Backend.cpp`, `app/TsharkCapture.cpp`), the fastest way to isolate
@@ -58,10 +56,10 @@ through the full GUI:
 2. Run it directly: `can2pcap.exe --capture --fifo <file>
    --extcap-interface <id> <bitrate flags>` for a few seconds, then check
    the output file size (24 bytes = header only = zero frames captured;
-   larger = frames flowing) - this tells you immediately whether the
+   larger = frames flowing), so you know whether the
    backend/driver is the problem.
 3. Feed that file through a real `tshark -r <file> -T ek` and inspect the
-   JSON directly. This tells you whether the pcap serialization / Wireshark
+   JSON. This tells you whether the pcap serialization / Wireshark
    dissection layer is the problem, independent of CANtrip's own Qt code.
 
 This isolates backend/driver issues from serialization issues from
