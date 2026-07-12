@@ -5,6 +5,8 @@
 An open-source, free alternative to Vector CANalyzer for viewing CAN /
 CAN-FD bus traffic on Windows, decoding it against DBC files, and graphing signals.
 
+<p align="center"><img src="docs/images/hero.png" alt="CANtrip main window"></p>
+
 ## Why CANtrip
 
 A Vector CANalyzer license costs anywhere from a few thousand to tens of
@@ -15,109 +17,19 @@ bus, and reward a typo with a cryptic error three layers removed from
 what actually went wrong. CANtrip aims to sit in the middle: a GUI tool
 that's simple to pick up, powerful, free to use, and licensed GPLv3.
 
-## How it works
-
-CANtrip does not reimplement CAN capture or low-level frame dissection.
-Instead it reuses Wireshark's own capture pipeline:
-
-```
-CANtrip (Qt app) --launches--> tshark -T ek --reads from--> extcap: can2pcap
-                                                                    |
-                                                          AVlabs CAN backend
-                                                          /       |        \
-                                                   PeakBackend  VectorBackend  Other
-                                                       |            |           HW
-                                                PCAN-Basic.dll  vxlapi64.dll
-                                                       |            |
-                                                 PEAK hardware  Vector VN-series hardware
-```
-
-- **`extcap/can2pcap`** is a small Wireshark [extcap](https://www.wireshark.org/docs/wsdg_html_chunked/ChCaptureExtcap.html)
-  program. It exposes CAN channels from any available backend as capture
-  interfaces to Wireshark/tshark, translating frames into SocketCAN-format
-  pcapng records so Wireshark's built-in SocketCAN dissector decodes
-  ID/DLC/data/FD flags.
-- **`app/`** is the Qt desktop application: pick a channel from any
-  installed vendor, configure bus timing (usual presets or expert raw
-  values), import a DBC per channel, and view live traffic in a table that
-  unfolds into per-signal decoded values (via [dbcppp](https://github.com/xR3b0rn/dbcppp)).
-
-Graphing, gateway mode, and message transmission are deferred to a later
-phase.
-
-### Multi-vendor hardware support
-
-CANtrip is not tied to one CAN adapter vendor. There's no OS-level CAN
-abstraction on Windows (unlike Linux's SocketCAN). Every vendor
-ships its own proprietary DLL and API shape. CANtrip works around this with
-a vendor-neutral interface, the **AVlabs CAN backend**
-([`common/AVlabsCanBackend.h`](common/AVlabsCanBackend.h)); one bus to sniff
-them all.
-The extcap and app only ever talk to that interface, never to a
-vendor SDK directly.
-
-- Each backend dynamically loads its vendor's DLL at runtime
-  (`LoadLibrary`/`GetProcAddress`), so CANtrip builds and runs fine with
-  only some (or none) of the vendor SDKs installed.
-- [`common/PeakBackend.h/.cpp`](common/PeakBackend.cpp) wraps PEAK-System's
-  `PCANBasic.dll`. Supports classic CAN and CAN FD.
-- [`common/VectorBackend.h/.cpp`](common/VectorBackend.cpp) wraps Vector
-  Informatik's `vxlapi64.dll` (XL Driver Library), verified against a VN1640A and a VN7640. Supports classic CAN and CAN FD, with bit timing computed by
-  [`common/CanBitTiming.h/.cpp`](common/CanBitTiming.cpp) 
-- [`common/CanBackendRegistry.cpp`](common/CanBackendRegistry.cpp) is the
-  single place that lists every backend CANtrip knows about.
-- Adding support for another vendor (Kvaser's CANlib, ETAS's BOA, etc.)
-  means implementing the AVlabs CAN backend interface once, using that
-  vendor's real SDK header and adding one
-  line to the registry.
 
 ## Prerequisites (Windows)
 
-- [Wireshark](https://www.wireshark.org/) installed (provides `tshark`,
-  `dumpcap`, and the extcap plugin folder).
-- A driver package for whichever CAN hardware you're using - only one is
-  needed, CANtrip just uses whichever it finds:
-  - [PEAK-System PCAN-Basic](https://www.peak-system.com/PCAN-Basic.239.0.html)
-    (provides `PCANBasic.dll`), or
-  - Vector's XL Driver Library or any Vector driver package that installs
-    `vxlapi64.dll` (e.g. Vector Driver Setup, CANoe/CANalyzer, Vector
-    Hardware Manager).
-- Qt 6 (msvc2019_64 or newer kit) and a matching MSVC toolchain.
-- CMake >= 3.21.
+- [Wireshark](https://www.wireshark.org/) installed 
+- A driver package for whichever CAN hardware you're using. If you don't have any and just want to try it out; CANtrip ships with a synthetic CAN source to test its features.
 
-## Building
-
-```powershell
-cmake -S . -B build -DCMAKE_PREFIX_PATH="G:\Qt\6.7.3\msvc2019_64"
-cmake --build build --config Debug
-```
-
-This produces:
-- `build\extcap\Debug\can2pcap.exe`
-- `build\app\Debug\cantrip.exe`
-
-### Installing the extcap into Wireshark
-
-After installing Wireshark and downloading CANtrip, copy `can2pcap.exe` into Wireshark's personal extcap folder
-so both Wireshark and `tshark` (and therefore CANtrip) can see it:
-
-```powershell
-copy build\extcap\Debug\can2pcap.exe "$env:APPDATA\Wireshark\extcap\"
-```
-
-Verify it's picked up:
-
-```powershell
-tshark -D
-```
-
-You should see a `can2pcap` interface listed.
 
 ## Running CANtrip
 
 Prebuilt binaries are also published under
 [Releases](https://github.com/avmolaei/CANtrip/releases) if you'd rather skip
-building from source. Grab the zip, extract it anywhere, and copy the `can2pcap.exe`in your `$env:APPDATA\Wireshark\extcap\` directory.
+building from source. 
+Grab the zip, extract it anywhere, and copy the `can2pcap.exe` from CANtrip in your `$env:APPDATA\Wireshark\extcap\` Wireshark directory.
 
 CANtrip's window is a ribbon, Office-style: each tab across the top shows a
 different group of controls.
@@ -186,6 +98,94 @@ different group of controls.
    frames, decoded signals, and any bus errors right in the trace view:
 
    <p align="center"><img src="docs/images/trace-view.png" alt="CANtrip trace view showing bus errors"></p>
+
+## How it works
+
+CANtrip does not reimplement CAN capture or low-level frame dissection.
+Instead it reuses Wireshark's own capture pipeline:
+
+```
+CANtrip (Qt app) --launches--> tshark -T ek --reads from--> extcap: can2pcap
+                                                                    |
+                                                          AVlabs CAN backend
+                                                          /       |        \
+                                                   PeakBackend  VectorBackend  Other
+                                                       |            |           HW
+                                                PCAN-Basic.dll  vxlapi64.dll
+                                                       |            |
+                                                 PEAK hardware  Vector VN-series hardware
+```
+
+- **`extcap/can2pcap`** is a small Wireshark [extcap](https://www.wireshark.org/docs/wsdg_html_chunked/ChCaptureExtcap.html)
+  program. It exposes CAN channels from any available backend as capture
+  interfaces to Wireshark/tshark, translating frames into SocketCAN-format
+  pcapng records so Wireshark's built-in SocketCAN dissector decodes
+  ID/DLC/data/FD flags.
+- **`app/`** is the Qt desktop application: pick a channel from any
+  installed vendor, configure bus timing (usual presets or expert raw
+  values), import a DBC per channel, and view live traffic in a table that
+  unfolds into per-signal decoded values (via [dbcppp](https://github.com/xR3b0rn/dbcppp)).
+
+Graphing, gateway mode, and message transmission are deferred to a later
+phase.
+
+### Multi-vendor hardware support
+
+CANtrip is not tied to one CAN adapter vendor. There's no OS-level CAN
+abstraction on Windows (unlike Linux's SocketCAN). Every vendor
+ships its own proprietary DLL and API shape. CANtrip works around this with
+a vendor-neutral interface, the **AVlabs CAN backend**
+([`common/AVlabsCanBackend.h`](common/AVlabsCanBackend.h)); one bus to sniff
+them all.
+The extcap and app only ever talk to that interface, never to a
+vendor SDK directly.
+
+- Each backend dynamically loads its vendor's DLL at runtime
+  (`LoadLibrary`/`GetProcAddress`), so CANtrip builds and runs fine with
+  only some (or none) of the vendor SDKs installed.
+- [`common/PeakBackend.h/.cpp`](common/PeakBackend.cpp) wraps PEAK-System's
+  `PCANBasic.dll`. Supports classic CAN and CAN FD.
+- [`common/VectorBackend.h/.cpp`](common/VectorBackend.cpp) wraps Vector
+  Informatik's `vxlapi64.dll` (XL Driver Library), verified against a VN1640A and a VN7640. Supports classic CAN and CAN FD, with bit timing computed by
+  [`common/CanBitTiming.h/.cpp`](common/CanBitTiming.cpp) 
+- [`common/CanBackendRegistry.cpp`](common/CanBackendRegistry.cpp) is the
+  single place that lists every backend CANtrip knows about.
+- Adding support for another vendor (Kvaser's CANlib, ETAS's BOA, etc.)
+  means implementing the AVlabs CAN backend interface once, using that
+  vendor's real SDK header and adding one
+  line to the registry.
+
+  
+## Building CANtrip
+
+### Build process
+
+```powershell
+cmake -S . -B build -DCMAKE_PREFIX_PATH="G:\Qt\6.7.3\msvc2019_64"
+cmake --build build --config Debug
+```
+
+This produces:
+- `build\extcap\Debug\can2pcap.exe`
+- `build\app\Debug\cantrip.exe`
+
+### Installing the extcap into Wireshark
+
+After installing Wireshark and downloading CANtrip, copy `can2pcap.exe` into Wireshark's personal extcap folder
+so both Wireshark and `tshark` (and therefore CANtrip) can see it:
+
+```powershell
+copy build\extcap\Debug\can2pcap.exe "$env:APPDATA\Wireshark\extcap\"
+```
+
+Verify it's picked up:
+
+```powershell
+tshark -D
+```
+
+You should see a `can2pcap` interface listed.
+
 
 ## Contributing
 
