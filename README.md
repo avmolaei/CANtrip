@@ -36,8 +36,8 @@ different group of controls.
 
 <p align="center"><img src="docs/images/ribbon-tabs.png" alt="CANtrip's ribbon tabs"></p>
 
-1. Launch `build\app\Debug\cantrip.exe` (or `cantrip.exe` from a Release
-   zip).
+1. Launch `cantrip.exe` from wherever you extracted the Release zip (or
+   `build\app\Debug\cantrip.exe` if you built from source).
 
 2. On the **Hardware** tab, pick a channel from the "Network Hardware"
    dropdown. No CAN hardware or vendor driver installed yet? Pick
