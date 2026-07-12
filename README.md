@@ -5,6 +5,16 @@
 An open-source, free alternative to Vector CANalyzer for viewing CAN /
 CAN-FD bus traffic on Windows, decoding it against DBC files, and graphing signals.
 
+## Why CANtrip
+
+A Vector CANalyzer license costs anywhere from a few thousand to tens of
+thousands of euros, putting it out of reach for students, hobbyists, and
+small teams. The free/open-source alternatives, meanwhile, tend to be
+CLI-first tools that expect you to memorize a dozen flags just to open a
+bus, and reward a typo with a cryptic error three layers removed from
+what actually went wrong. CANtrip aims to sit in the middle: a GUI tool
+that's simple to pick up, powerful, free to use, and licensed GPLv3.
+
 ## How it works
 
 CANtrip does not reimplement CAN capture or low-level frame dissection.
