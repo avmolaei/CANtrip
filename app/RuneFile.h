@@ -8,6 +8,7 @@
 #include <optional>
 #include <vector>
 
+#include <QByteArray>
 #include <QString>
 
 #include "../common/AVlabsCanBackend.h"
@@ -41,6 +42,10 @@ struct RuneConfig {
     // rune saved before this field existed, loadRuneFile() tolerates its
     // absence with no version field needed (see RuneFile.cpp).
     std::vector<TransmitMessage> transmitMessages;
+    // Trace view's column order/widths (QHeaderView::saveState()'s own
+    // opaque format) - empty for a rune saved before this field existed,
+    // in which case the header is just left as whatever it currently is.
+    QByteArray traceHeaderState;
 };
 
 // Returns false (with *error set to a human-readable message) on any

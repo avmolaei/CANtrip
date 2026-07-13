@@ -17,6 +17,7 @@
 #include <QFileInfo>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QMessageBox>
 #include <QPixmap>
 #include <QStandardPaths>
@@ -886,6 +887,7 @@ void MainWindow::saveRune() {
     config.dbcPath = dbcPath_;
     config.graphWindows = graphWindows_->exportLayout();
     config.transmitMessages = messageSender_.messages();
+    config.traceHeaderState = frameTree_->header()->saveState();
 
     QString error;
     if (!saveRuneFile(path, config, &error)) {
@@ -937,6 +939,12 @@ void MainWindow::loadRune() {
         messageSender_.addMessage(message);
     }
     refreshTransmitList();
+
+    // Absent (empty QByteArray) for a rune saved before this field existed -
+    // QHeaderView::restoreState() on an empty/invalid byte array is a
+    // documented no-op, so the header is simply left as whatever it
+    // currently is rather than needing an explicit "if saved" check.
+    frameTree_->header()->restoreState(config->traceHeaderState);
 }
 
 QString MainWindow::findTsharkExe() {

@@ -8,7 +8,7 @@
 
 namespace cantrip {
 
-constexpr const char* kVersion = "1.4.0";
+constexpr const char* kVersion = "1.4.1";
 constexpr const char* kCodename = "Yukari";
 
 } // namespace cantrip
