@@ -146,6 +146,8 @@ bool saveRuneFile(const QString& path, const RuneConfig& config, QString* error)
     for (const auto& message : config.transmitMessages) transmitArray.append(transmitMessageToJson(message));
     root["transmitMessages"] = transmitArray;
 
+    root["traceHeaderState"] = QString::fromLatin1(config.traceHeaderState.toHex());
+
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
         if (error) *error = "Could not open file for writing:\n" + path;
@@ -210,6 +212,8 @@ std::optional<RuneConfig> loadRuneFile(const QString& path, QString* error) {
     for (const QJsonValue& v : root["transmitMessages"].toArray()) {
         config.transmitMessages.push_back(transmitMessageFromJson(v.toObject()));
     }
+
+    config.traceHeaderState = QByteArray::fromHex(root["traceHeaderState"].toString().toLatin1());
 
     return config;
 }
