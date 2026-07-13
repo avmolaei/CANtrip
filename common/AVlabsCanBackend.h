@@ -100,7 +100,17 @@ public:
 
     virtual std::vector<CanChannelInfo> enumerateChannels() const = 0;
 
-    virtual bool initialize(uint64_t channelId, const CanBitrateConfig& config, std::string* error) = 0;
+    // requestOwnership: true (default) requests exclusive bus-configuration
+    // rights and configures the bitrate/timing - today's existing behavior.
+    // false opens the channel in listen-only mode instead: no configuration
+    // permission is requested and no bitrate/timing call is made, on the
+    // assumption another port (another app, or another CANtrip-owned port on
+    // the same channel) has already configured the bus. Lets CANtrip coexist
+    // on a channel another app already owns, and lets CANtrip itself open a
+    // second port on a channel it's already capturing on (see MessageSender)
+    // without re-requesting exclusive configuration rights.
+    virtual bool initialize(uint64_t channelId, const CanBitrateConfig& config,
+                             bool requestOwnership, std::string* error) = 0;
     virtual void uninitialize(uint64_t channelId) = 0;
 
     // Non-blocking single read; returns false with an empty *error when no

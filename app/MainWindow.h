@@ -24,9 +24,12 @@
 #include "LogReplaySource.h"
 #include "LogWriter.h"
 #include "LoggingOptionsDialog.h"
+#include "MessageSender.h"
 #include "RuneFile.h"
 #include "SignalHistory.h"
 #include "StatusLed.h"
+#include "StimulationView.h"
+#include "TransmitMessage.h"
 #include "TsharkCapture.h"
 
 namespace cantrip {
@@ -60,6 +63,20 @@ private slots:
     void startReplay();
     void stopReplay();
     void onReplayStopped();
+    void onRibbonTabChanged(int index);
+    void onNewMessage();
+    void onEditMessage(int index);
+    void onSendNow(const std::vector<int>& indices);
+    void onDeleteMessages(const std::vector<int>& indices);
+    void onClearAllMessages();
+    void onCopyMessages(const std::vector<int>& indices);
+    void onCutMessages(const std::vector<int>& indices);
+    void onPasteMessages();
+    void onStartSending();
+    void onStopSending();
+    void onSendFailed(const TransmitMessage& message, const QString& error);
+    void onStimDisplayModeChanged();
+    void onClearReceived();
 
 private:
     struct ChannelEntry {
@@ -82,6 +99,7 @@ private:
     enum class DisplayMode { Waterfall, Periodic };
 
     QWidget* buildHomeTab();
+    QWidget* buildPinnedToolbar();
     QWidget* buildHardwareTab();
     QWidget* buildAnalysisTab();
     QWidget* buildStimulationTab();
@@ -106,6 +124,14 @@ private:
     void handlePeriodicFrame(const DecodedCanFrame& frame);
     void addErrorRow(const DecodedCanFrame& frame);
     void handlePeriodicErrorFrame(const DecodedCanFrame& frame);
+    void handleStimWaterfallFrame(const DecodedCanFrame& frame);
+    void handleStimPeriodicFrame(const DecodedCanFrame& frame);
+    void addStimErrorRow(const DecodedCanFrame& frame);
+    void handleStimPeriodicErrorFrame(const DecodedCanFrame& frame);
+    void openTransmitMessageDialog(int editIndex); // -1 = new message
+    void refreshTransmitList();
+    void setSendingUiState();
+    bool ensureSenderPortOpen();
 
     QTabWidget* ribbon_;
 
@@ -140,10 +166,31 @@ private:
     QPushButton* startReplayButton_;
     QPushButton* stopReplayButton_;
 
+    // Stimulation tab
+    QPushButton* newMessageButton_;
+    QPushButton* startSendingButton_;
+    QPushButton* stopSendingButton_;
+    QPushButton* sendNowButton_;
+    QPushButton* clearReceivedButton_;
+    QRadioButton* stimWaterfallRadio_;
+    QRadioButton* stimPeriodicRadio_;
+    DisplayMode stimDisplayMode_ = DisplayMode::Periodic;
+    // Mirrors periodicRows_/periodicErrorRows_ but for the Stimulation
+    // tab's own received pane - kept separate since its display mode is
+    // independent of the Home tab's (see stimDisplayMode_).
+    std::unordered_map<uint64_t, PeriodicRowState> stimPeriodicRows_;
+    QHash<QString, PeriodicRowState> stimPeriodicErrorRows_;
+
     QStackedWidget* contentStack_;
     QTreeWidget* frameTree_;
     GraphWindowContainer* graphWindows_;
+    StimulationView* stimulationView_;
     SignalHistoryStore signalHistory_;
+    MessageSender messageSender_;
+    // MainWindow owns this rather than StimulationView since it's the real
+    // TransmitMessage data (StimulationView only ever sees display strings/
+    // indices) - see StimulationView::setPasteAvailable.
+    std::vector<TransmitMessage> transmitClipboard_;
 
     StatusLed* statusLed_;
     QLabel* statusLabel_;
@@ -164,6 +211,10 @@ private:
     // Populated by the CAN Controller dialog; applied the next time a
     // capture is started (not live-reconfigured while one is running).
     CanBitrateConfig busConfig_;
+    // "Request bus configuration" checkbox state, same dialog - kept
+    // separate from busConfig_ since it's an access-rights concern, not a
+    // bus-timing one. See TsharkCapture::Config::listenOnly.
+    bool listenOnlyMode_ = false;
 
     DisplayMode displayMode_ = DisplayMode::Waterfall;
     std::unordered_map<uint64_t, PeriodicRowState> periodicRows_;

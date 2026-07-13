@@ -94,7 +94,7 @@ void AscLogWriter::writeFrame(int channel, const DecodedCanFrame& frame) {
 
 QString AscLogWriter::formatClassicLine(int channel, const DecodedCanFrame& frame) const {
     const QString id = formatFrameId(frame.id, frame.extended);
-    const QString dir = "Rx"; // CANtrip only ever receives today - no Tx path yet (Send Message, not this pass)
+    const QString dir = frame.direction == FrameDirection::Tx ? "Tx" : "Rx";
 
     QString dtype;
     QString data;
@@ -119,11 +119,12 @@ QString AscLogWriter::formatFdLine(int channel, const DecodedCanFrame& frame) co
     const QString id = formatFrameId(frame.id, frame.extended);
     const QString name = messageNameResolver_ ? messageNameResolver_(frame) : QString();
     const int dlcCode = dlcCodeFromByteLength(frame.dlc);
+    const QString dir = frame.direction == FrameDirection::Tx ? "Tx" : "Rx";
 
     return QString("%1 CANFD %2 %3 %4  %5 %6 %7 %8 %9 %10")
         .arg(formatTimestampField(frame.timestamp.toDouble()))
         .arg(channel, 3)
-        .arg(QStringLiteral("Rx"), -4)
+        .arg(dir, -4)
         .arg(id, 8)
         .arg(name, -32)
         .arg(frame.brs ? 1 : 0)

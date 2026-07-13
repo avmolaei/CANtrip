@@ -28,12 +28,19 @@ add_executable(cantrip WIN32
     LogReplaySource.h
     LogReplaySource.cpp
     LogWriter.h
+    MessageSender.h
+    MessageSender.cpp
     RuneFile.h
     RuneFile.cpp
     SignalHistory.h
     SignalHistory.cpp
     StatusLed.h
     StatusLed.cpp
+    StimulationView.h
+    StimulationView.cpp
+    TransmitMessage.h
+    TransmitMessageDialog.h
+    TransmitMessageDialog.cpp
     TsharkCapture.h
     TsharkCapture.cpp
     Version.h

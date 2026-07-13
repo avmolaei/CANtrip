@@ -14,8 +14,15 @@
 
 namespace cantrip {
 
+// Rx: arrived via live capture or log replay (the only source until Send
+// Message). Tx: constructed by MessageSender and fed into the same
+// onFrameReceived pipeline as a real capture, so logging/display/decode all
+// pick it up without separate wiring.
+enum class FrameDirection { Rx, Tx };
+
 struct DecodedCanFrame {
     QString timestamp;
+    FrameDirection direction = FrameDirection::Rx;
     uint32_t id = 0;
     bool extended = false;
     bool rtr = false;
@@ -49,6 +56,11 @@ public:
         // this CLI to can2pcap.exe, a separate process).
         uint32_t nomBrp = 0, nomTseg1 = 0, nomTseg2 = 0, nomSjw = 0;
         uint32_t dataBrp = 0, dataTseg1 = 0, dataTseg2 = 0, dataSjw = 0;
+        // Join the channel without requesting exclusive bus-configuration
+        // rights - for coexisting with another app that's already configured
+        // it (see IAvlabsCanBackend::initialize's requestOwnership parameter
+        // and CanControllerDialog's "Request bus configuration" checkbox).
+        bool listenOnly = false;
     };
 
     // Starts `tshark -i <interfaceId> -T ek`, forwarding config via

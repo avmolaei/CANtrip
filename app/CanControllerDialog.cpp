@@ -1,5 +1,6 @@
 #include "CanControllerDialog.h"
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -92,6 +93,15 @@ CanControllerDialog::CanControllerDialog(QWidget* parent) : QDialog(parent) {
     fdLayout->addWidget(fdStack_);
 
     root->addWidget(fdPanel_);
+
+    requestOwnershipCheck_ = new QCheckBox("Request bus configuration", this);
+    requestOwnershipCheck_->setChecked(true);
+    requestOwnershipCheck_->setToolTip(
+        "Uncheck if another application (e.g. a diagnostics tool) already "
+        "configured this channel's bitrate - CANtrip will join in "
+        "listen-only mode instead of requesting exclusive configuration "
+        "rights, which would otherwise fail.");
+    root->addWidget(requestOwnershipCheck_);
 
     buttonBox_ = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     root->addWidget(buttonBox_);
@@ -240,6 +250,14 @@ void CanControllerDialog::setConfig(const CanBitrateConfig& config) {
     dataTseg2Spin_->setValue(static_cast<int>(config.dataTiming.tseg2));
     dataSjwSpin_->setValue(static_cast<int>(config.dataTiming.sjw));
     onModeChanged();
+}
+
+bool CanControllerDialog::listenOnly() const {
+    return !requestOwnershipCheck_->isChecked();
+}
+
+void CanControllerDialog::setListenOnly(bool listenOnly) {
+    requestOwnershipCheck_->setChecked(!listenOnly);
 }
 
 CanBitrateConfig CanControllerDialog::config() const {

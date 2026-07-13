@@ -108,11 +108,22 @@ std::vector<CanChannelInfo> VectorBackend::enumerateChannels() const {
     return result;
 }
 
-bool VectorBackend::initialize(uint64_t channelId, const CanBitrateConfig& config, std::string* error) {
+bool VectorBackend::initialize(uint64_t channelId, const CanBitrateConfig& config,
+                                bool requestOwnership, std::string* error) {
     auto accessMask = static_cast<XLaccess>(channelId);
     char appName[XL_MAX_APPNAME] = "CANtrip";
     XLportHandle portHandle = XL_INVALID_PORTHANDLE;
-    XLaccess permissionMask = accessMask;
+    // permissionMask is both an input (what we're asking for) and an output
+    // (what the driver actually granted - reduced or zeroed if another port
+    // already holds init/configuration rights on this channel). Requesting
+    // 0 instead of the full accessMask is how a port asks to join a channel
+    // in listen-only mode without contesting whoever already configured it -
+    // this is the exact mechanism real CANalyzer's own "Init Access" toggle
+    // uses. Root cause of the original channel-sharing failure: this used to
+    // unconditionally request the full mask and then unconditionally try to
+    // configure the bus below, which failed hard the moment another app (or
+    // another CANtrip-owned port, see MessageSender) already owned it.
+    XLaccess permissionMask = requestOwnership ? accessMask : 0;
 
     // FD-capable ports must be opened negotiating interface version V4, not
     // the V3 used for classic - confirmed against python-can's real Vector
@@ -129,33 +140,39 @@ bool VectorBackend::initialize(uint64_t channelId, const CanBitrateConfig& confi
         return false;
     }
 
-    if (config.fd) {
-        // XLcanFdConf takes bit-timing tick values (sjw/tseg1/tseg2), not a
-        // prescaler - unlike PCAN-Basic's init string, Vector's struct has
-        // no BRP field, so config.nominalTiming.brp/dataTiming.brp are
-        // unused here; the driver derives its own prescaler from bitrate +
-        // (1+tseg1+tseg2). Timing is computed by CanBitTiming (see
-        // AVlabsCanBackend.h) rather than the fixed defaults this backend
-        // used before real bit-timing support existed.
-        XLcanFdConf fdConf{};
-        fdConf.arbitrationBitRate = config.nominalBitrateBps;
-        fdConf.sjwAbr = config.nominalTiming.sjw;
-        fdConf.tseg1Abr = config.nominalTiming.tseg1;
-        fdConf.tseg2Abr = config.nominalTiming.tseg2;
-        fdConf.dataBitRate = config.dataBitrateBps;
-        fdConf.sjwDbr = config.dataTiming.sjw;
-        fdConf.tseg1Dbr = config.dataTiming.tseg1;
-        fdConf.tseg2Dbr = config.dataTiming.tseg2;
+    if (requestOwnership) {
+        if (config.fd) {
+            // XLcanFdConf takes bit-timing tick values (sjw/tseg1/tseg2), not a
+            // prescaler - unlike PCAN-Basic's init string, Vector's struct has
+            // no BRP field, so config.nominalTiming.brp/dataTiming.brp are
+            // unused here; the driver derives its own prescaler from bitrate +
+            // (1+tseg1+tseg2). Timing is computed by CanBitTiming (see
+            // AVlabsCanBackend.h) rather than the fixed defaults this backend
+            // used before real bit-timing support existed.
+            XLcanFdConf fdConf{};
+            fdConf.arbitrationBitRate = config.nominalBitrateBps;
+            fdConf.sjwAbr = config.nominalTiming.sjw;
+            fdConf.tseg1Abr = config.nominalTiming.tseg1;
+            fdConf.tseg2Abr = config.nominalTiming.tseg2;
+            fdConf.dataBitRate = config.dataBitrateBps;
+            fdConf.sjwDbr = config.dataTiming.sjw;
+            fdConf.tseg1Dbr = config.dataTiming.tseg1;
+            fdConf.tseg2Dbr = config.dataTiming.tseg2;
 
-        status = pCanFdSetConfiguration_(portHandle, accessMask, &fdConf);
-    } else {
-        status = pCanSetChannelBitrate_(portHandle, accessMask, config.nominalBitrateBps);
+            status = pCanFdSetConfiguration_(portHandle, accessMask, &fdConf);
+        } else {
+            status = pCanSetChannelBitrate_(portHandle, accessMask, config.nominalBitrateBps);
+        }
+        if (status != XL_SUCCESS) {
+            if (error) *error = describeStatus(status);
+            pClosePort_(portHandle);
+            return false;
+        }
     }
-    if (status != XL_SUCCESS) {
-        if (error) *error = describeStatus(status);
-        pClosePort_(portHandle);
-        return false;
-    }
+    // else: listen-only - skip bitrate/FD configuration entirely, on the
+    // assumption another port has already configured this channel. fdByChannel_
+    // is still populated below from the caller's own config.fd so writeFrame()'s
+    // classic/FD dispatch works correctly even though no config call was made.
 
     status = pActivateChannel_(portHandle, accessMask, XL_BUS_TYPE_CAN, XL_ACTIVATE_NONE);
     if (status != XL_SUCCESS) {
@@ -332,10 +349,22 @@ bool VectorBackend::writeClassic(XLportHandle port, XLaccess accessMask, const C
 }
 
 bool VectorBackend::writeFd(XLportHandle port, XLaccess accessMask, const CanFrame& frame, std::string* error) const {
+    // This function handles every transmit on an FD-capable port (see
+    // writeFrame()'s dispatch, keyed on the channel's own FD mode, not any
+    // per-frame flag - a V4-opened port must use xlCanTransmitEx for all
+    // its I/O). But an FD-capable bus can still carry plain classic frames
+    // mixed in (see TransmitMessageDialog's "FD Frame" checkbox), which
+    // this port-level function has to express by leaving XL_CAN_TXMSG_FLAG_EDL
+    // unset for those - setting it unconditionally (as this did before)
+    // marked every single frame as FD-formatted regardless of what the
+    // caller actually asked for. Found via code review (2026-07-13) while
+    // investigating a real bus-error flood reported on the user's Vector
+    // hardware - plausible contributor, not yet confirmed as the specific
+    // fix for that report (need the user's actual test config to be sure).
     XLcanTxEvent event{};
     event.tag = XL_CAN_EV_TAG_TX_MSG;
     event.tagData.canMsg.canId = frame.extended ? (frame.id | XL_CAN_EXT_MSG_ID) : frame.id;
-    event.tagData.canMsg.msgFlags = XL_CAN_TXMSG_FLAG_EDL
+    event.tagData.canMsg.msgFlags = (frame.fd ? XL_CAN_TXMSG_FLAG_EDL : 0)
         | (frame.brs ? XL_CAN_TXMSG_FLAG_BRS : 0)
         | (frame.rtr ? XL_CAN_TXMSG_FLAG_RTR : 0);
     event.tagData.canMsg.dlc = frame.dlc;

@@ -150,6 +150,11 @@ void printExtcapConfig(const std::string& /*interfaceId*/) {
 
     std::printf("arg {number=11}{call=--test-mode}{display=Synthetic test source}{type=boolflag}"
                 "{default=false}{tooltip=Generate fake frames instead of reading real hardware}\n");
+
+    std::printf("arg {number=12}{call=--listen-only}{display=Listen-only (no bus configuration)}"
+                "{type=boolflag}{default=false}{tooltip=Join this channel without requesting "
+                "exclusive configuration rights, for use alongside another app that already "
+                "configured the bus}\n");
 }
 
 #pragma pack(push, 1)
@@ -246,6 +251,56 @@ void writeRecord(FILE* out, const CanFrame& f) {
     std::fwrite(&rh, sizeof(rh), 1, out);
     std::fwrite(payload, len, 1, out);
     std::fflush(out);
+}
+
+// PEAK-only transmit path for Send Message (app/MessageSender.cpp is the
+// client side): PCAN-Basic has no equivalent to Vector XL's permission-mask
+// concept, so a second process/handle can't join a channel this process
+// already initialized (confirmed for real - CAN_Initialize on an
+// already-active channel returns PCAN_ERROR_INITIALIZE). The only handle
+// that can transmit is the one this process already holds, so instead
+// CANtrip's app process sends frames here over a named pipe, and this
+// process writes them out on its own already-initialized handle.
+//
+// PIPE_NOWAIT (non-blocking ConnectNamedPipe/ReadFile) rather than
+// overlapped I/O - keeps this in the same simple synchronous polling style
+// as the rest of this file's capture loop, for what's a low-frequency,
+// internal-only control channel; not Microsoft's modern-recommended
+// approach, but sufficient here and far simpler to integrate.
+HANDLE createTxPipe(const std::string& interfaceId) {
+    const std::string pipeName = "\\\\.\\pipe\\cantrip_tx_" + interfaceId;
+    HANDLE pipe = CreateNamedPipeA(
+        pipeName.c_str(),
+        PIPE_ACCESS_INBOUND,
+        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_NOWAIT,
+        1,                  // max instances
+        0,                  // out buffer size (inbound-only, unused)
+        sizeof(CanFrame) * 4, // in buffer size, room for a few queued frames
+        0,                  // default timeout
+        nullptr);
+    return pipe; // INVALID_HANDLE_VALUE on failure - non-fatal, checked by caller
+}
+
+// Non-blocking: accepts a client connection if one is pending (no-op if
+// already connected or nothing waiting), then checks for a complete
+// CanFrame's worth of bytes and reads it if so. Returns true and fills
+// *frame only when a full frame was actually read this call.
+bool tryReadTxPipe(HANDLE pipe, CanFrame* frame) {
+    if (pipe == INVALID_HANDLE_VALUE) return false;
+
+    // PIPE_NOWAIT makes this return immediately regardless of outcome -
+    // ERROR_PIPE_LISTENING (no client yet) and ERROR_NO_DATA are both
+    // expected, not real failures, so their return value is intentionally
+    // ignored here.
+    ConnectNamedPipe(pipe, nullptr);
+
+    DWORD available = 0;
+    if (!PeekNamedPipe(pipe, nullptr, 0, nullptr, &available, nullptr)) return false;
+    if (available < sizeof(CanFrame)) return false;
+
+    DWORD bytesRead = 0;
+    if (!ReadFile(pipe, frame, sizeof(CanFrame), &bytesRead, nullptr)) return false;
+    return bytesRead == sizeof(CanFrame);
 }
 
 CanFrame makeSyntheticFrame(uint64_t& tUs, uint32_t& counter) {
@@ -383,6 +438,13 @@ int runCapture(const std::vector<std::string>& args, const std::string& interfac
         return static_cast<uint32_t>(std::strtol(getOption(args, name, def).c_str(), nullptr, 10));
     };
 
+    // Listen-only: join this channel without requesting exclusive
+    // bus-configuration rights, assuming another app has already configured
+    // it (see IAvlabsCanBackend::initialize's requestOwnership parameter).
+    // Threaded from MainWindow's CAN Controller dialog "Request bus
+    // configuration" checkbox down through TsharkCapture's launch args.
+    const bool requestOwnership = !hasFlag(args, "--listen-only");
+
     CanBitrateConfig config;
     config.fd = hasFlag(args, "--fd");
     config.nominalBitrateBps = getUint("--bitrate", "500000");
@@ -405,10 +467,21 @@ int runCapture(const std::vector<std::string>& args, const std::string& interfac
     }
 
     std::string err;
-    if (!backend->initialize(channelId, config, &err)) {
+    if (!backend->initialize(channelId, config, requestOwnership, &err)) {
         std::fprintf(stderr, "can2pcap: initialize failed: %s\n", err.c_str());
         std::fclose(fifo);
         return 1;
+    }
+
+    // Send Message's PEAK transmit path - see createTxPipe()'s comment for
+    // why PEAK needs this and Vector doesn't. Failure is non-fatal: capture
+    // continues normally, Send Message just won't be able to connect.
+    HANDLE txPipe = INVALID_HANDLE_VALUE;
+    if (backend->id() == "peak") {
+        txPipe = createTxPipe(interfaceId);
+        if (txPipe == INVALID_HANDLE_VALUE) {
+            std::fprintf(stderr, "can2pcap: could not create transmit pipe (Send Message unavailable this session)\n");
+        }
     }
 
     while (true) {
@@ -421,6 +494,14 @@ int runCapture(const std::vector<std::string>& args, const std::string& interfac
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        CanFrame txFrame;
+        if (tryReadTxPipe(txPipe, &txFrame)) {
+            std::string txErr;
+            if (!backend->writeFrame(channelId, txFrame, &txErr)) {
+                std::fprintf(stderr, "can2pcap: transmit error: %s\n", txErr.c_str());
+            }
         }
     }
 }
