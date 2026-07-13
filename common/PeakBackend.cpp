@@ -166,7 +166,28 @@ std::vector<CanChannelInfo> PeakBackend::enumerateChannels() const {
     return result;
 }
 
-bool PeakBackend::initialize(uint64_t channelId, const CanBitrateConfig& config, std::string* error) {
+bool PeakBackend::initialize(uint64_t channelId, const CanBitrateConfig& config,
+                              bool requestOwnership, std::string* error) {
+    // PCANBasic.h exposes no equivalent to Vector XL's permission-mask
+    // concept (see VectorBackend::initialize for the real listen-only
+    // implementation) - CAN_Initialize/CAN_InitializeFD always take the
+    // bitrate/timing directly. Unlike Vector, though, PCAN-Basic is
+    // explicitly designed for multiple applications/handles to share one
+    // physical channel - each caller just calls CAN_Initialize with
+    // matching parameters, the driver handles the sharing. So
+    // requestOwnership doesn't change what call gets made here; it's
+    // accepted for interface conformance only.
+    //
+    // A real capture break was seen once (2026-07-13, user's PEAK hardware)
+    // when a second initialize happened immediately after the first - most
+    // likely a startup race (the second caller's initialize ran before the
+    // first caller's capture had actually finished starting up), not proof
+    // that PCAN-Basic can't share a channel at all. The actual fix was on
+    // the caller side (MessageSender opens its port lazily on first use
+    // now, not automatically at capture start, removing that race) rather
+    // than refusing to share here. Needs confirming against real hardware
+    // again with that fix in place.
+    (void)requestOwnership;
     auto handle = static_cast<TPCANHandle>(channelId);
     bool ok = config.fd
         ? initializeFd(handle, buildFdInitString(config), error)

@@ -11,6 +11,7 @@
 #include "../common/AVlabsCanBackend.h"
 #include "../common/CanBitTiming.h"
 
+class QCheckBox;
 class QComboBox;
 class QDialogButtonBox;
 class QLabel;
@@ -29,6 +30,14 @@ public:
     // reopening it shows what's currently configured rather than defaults.
     void setConfig(const CanBitrateConfig& config);
     CanBitrateConfig config() const;
+
+    // "Request bus configuration" checkbox - unchecked means join the
+    // channel in listen-only mode (no exclusive configuration rights
+    // requested), for coexisting with another app that's already configured
+    // the bus. See IAvlabsCanBackend::initialize's requestOwnership
+    // parameter, threaded through TsharkCapture::Config::listenOnly.
+    bool listenOnly() const;
+    void setListenOnly(bool listenOnly);
 
 private slots:
     void onModeChanged();
@@ -60,6 +69,8 @@ private:
     QSpinBox* dataTseg1Spin_;
     QSpinBox* dataTseg2Spin_;
     QSpinBox* dataSjwSpin_;
+
+    QCheckBox* requestOwnershipCheck_;
 
     QDialogButtonBox* buttonBox_;
 

@@ -102,6 +102,9 @@ void TsharkCapture::start(const Config& config) {
         setOpt("datatseg2", QString::number(config.dataTseg2));
         setOpt("datasjw", QString::number(config.dataSjw));
     }
+    if (config.listenOnly) {
+        setOpt("listenonly", "true");
+    }
 
     process_.start(config.tsharkPath, args);
 }

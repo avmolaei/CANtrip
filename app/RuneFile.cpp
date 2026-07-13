@@ -82,6 +82,36 @@ GraphView::AxisLayout axisLayoutFromJson(const QJsonObject& obj) {
     return axis;
 }
 
+QJsonObject transmitMessageToJson(const TransmitMessage& m) {
+    QJsonObject obj;
+    obj["id"] = static_cast<int>(m.id);
+    obj["extended"] = m.extended;
+    obj["fd"] = m.fd;
+    obj["brs"] = m.brs;
+    obj["rtr"] = m.rtr;
+    obj["dlc"] = static_cast<int>(m.dlc);
+    obj["data"] = QString::fromLatin1(m.data.toHex());
+    obj["cycleTimeMs"] = m.cycleTimeMs;
+    obj["paused"] = m.paused;
+    obj["comment"] = m.comment;
+    return obj;
+}
+
+TransmitMessage transmitMessageFromJson(const QJsonObject& obj) {
+    TransmitMessage m;
+    m.id = static_cast<uint32_t>(obj["id"].toInt());
+    m.extended = obj["extended"].toBool();
+    m.fd = obj["fd"].toBool();
+    m.brs = obj["brs"].toBool();
+    m.rtr = obj["rtr"].toBool();
+    m.dlc = static_cast<uint8_t>(obj["dlc"].toInt());
+    m.data = QByteArray::fromHex(obj["data"].toString().toLatin1());
+    m.cycleTimeMs = obj["cycleTimeMs"].toInt();
+    m.paused = obj["paused"].toBool();
+    m.comment = obj["comment"].toString();
+    return m;
+}
+
 } // namespace
 
 bool saveRuneFile(const QString& path, const RuneConfig& config, QString* error) {
@@ -111,6 +141,10 @@ bool saveRuneFile(const QString& path, const RuneConfig& config, QString* error)
     QJsonObject graph;
     graph["windows"] = windowsArray;
     root["graph"] = graph;
+
+    QJsonArray transmitArray;
+    for (const auto& message : config.transmitMessages) transmitArray.append(transmitMessageToJson(message));
+    root["transmitMessages"] = transmitArray;
 
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
@@ -168,6 +202,13 @@ std::optional<RuneConfig> loadRuneFile(const QString& path, QString* error) {
             window.push_back(axisLayoutFromJson(v.toObject()));
         }
         config.graphWindows.push_back(std::move(window));
+    }
+
+    // Absent entirely in a rune saved before this field existed -
+    // QJsonObject::operator[] on a missing key yields an empty array, no
+    // explicit version field needed (same convention as graph/windows above).
+    for (const QJsonValue& v : root["transmitMessages"].toArray()) {
+        config.transmitMessages.push_back(transmitMessageFromJson(v.toObject()));
     }
 
     return config;

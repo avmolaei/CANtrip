@@ -13,6 +13,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileDialog>
+#include <QFont>
 #include <QFileInfo>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -30,6 +31,7 @@
 #include "CanControllerDialog.h"
 #include "CsvLogWriter.h"
 #include "LogFilenameTemplate.h"
+#include "TransmitMessageDialog.h"
 #include "Version.h"
 
 namespace cantrip {
@@ -69,8 +71,16 @@ QString flagsString(const DecodedCanFrame& f) {
     if (f.brs) flags << "BRS";
     if (f.esi) flags << "ESI";
     if (f.rtr) flags << "RTR";
+    if (f.direction == FrameDirection::Tx) flags << "TX";
     return flags.join(" ");
 }
+
+// Light blue, distinct from the plain default text color and from the red
+// used for bus errors - MessageSender's own sends flow through the exact
+// same onFrameReceived pipeline as real captured traffic (see its class
+// comment), so without this a frame CANtrip itself put on the bus is
+// visually indistinguishable from one actually received off the wire.
+const QBrush kTxBrush = QBrush(QColor(100, 181, 246));
 
 void setItemGrayed(QTreeWidgetItem* item, bool grayed) {
     const QBrush brush = grayed ? QBrush(QColor(Qt::gray)) : QBrush();
@@ -123,6 +133,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     ribbon_->addTab(buildStimulationTab(), "Stimulation");
     ribbon_->addTab(buildAboutTab(), "About...");
 
+    // Start/Stop capture pinned into the tab bar's own top-left corner
+    // (same row as the tab labels, sitting before "Home") rather than
+    // living only on the Home tab's page - a capture running from, say,
+    // the Stimulation tab otherwise had no visible way to stop it without
+    // switching tabs first.
+    ribbon_->setCornerWidget(buildPinnedToolbar(), Qt::TopLeftCorner);
+
     frameTree_ = new QTreeWidget(this);
     frameTree_->setColumnCount(7);
     frameTree_->setHeaderLabels({"Time", "ID", "Flags", "DLC", "Data", "Message/Signal", "Value"});
@@ -140,10 +157,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     frameTree_->sortByColumn(0, Qt::DescendingOrder);
 
     graphWindows_ = new GraphWindowContainer(&signalHistory_, this);
+    stimulationView_ = new StimulationView(this);
 
     contentStack_ = new QStackedWidget(this);
     contentStack_->addWidget(frameTree_);
     contentStack_->addWidget(graphWindows_);
+    contentStack_->addWidget(stimulationView_);
 
     auto* central = new QWidget(this);
     auto* rootLayout = new QVBoxLayout(central);
@@ -182,6 +201,27 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         graphWindows_->clearAllData();
     });
 
+    // Send Message frames flow through the exact same pipeline a live
+    // capture does - logging, Trace/Graph display, decode - all for free.
+    connect(&messageSender_, &MessageSender::frameSent, this, &MainWindow::onFrameReceived);
+    connect(&messageSender_, &MessageSender::sendFailed, this, &MainWindow::onSendFailed);
+    connect(clearReceivedButton_, &QPushButton::clicked, this, &MainWindow::onClearReceived);
+
+    connect(stimulationView_, &StimulationView::newMessageRequested, this, &MainWindow::onNewMessage);
+    connect(stimulationView_, &StimulationView::editMessageRequested, this, &MainWindow::onEditMessage);
+    connect(stimulationView_, &StimulationView::sendNowRequested, this, &MainWindow::onSendNow);
+    connect(stimulationView_, &StimulationView::deleteMessagesRequested, this, &MainWindow::onDeleteMessages);
+    connect(stimulationView_, &StimulationView::clearAllRequested, this, &MainWindow::onClearAllMessages);
+    connect(stimulationView_, &StimulationView::copyRequested, this, &MainWindow::onCopyMessages);
+    connect(stimulationView_, &StimulationView::cutRequested, this, &MainWindow::onCutMessages);
+    connect(stimulationView_, &StimulationView::pasteRequested, this, &MainWindow::onPasteMessages);
+
+    // Selecting the Stimulation ribbon tab switches the content area to its
+    // split view - the only ribbon tab whose selection has this side effect,
+    // since the split view *is* what Stimulation mode means (unlike Analysis
+    // & Measurement, where Trace/Graphics are separate explicit buttons).
+    connect(ribbon_, &QTabWidget::currentChanged, this, &MainWindow::onRibbonTabChanged);
+
     connect(&staleTimer_, &QTimer::timeout, this, &MainWindow::checkStaleRows);
     staleTimer_.start(500);
 
@@ -192,17 +232,48 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     refreshChannels();
 }
 
+QWidget* MainWindow::buildPinnedToolbar() {
+    // No QGroupBox chrome here - this sits inline with the tab strip itself
+    // (see QTabWidget::setCornerWidget in the constructor), which is much
+    // shorter than a page full of grouped controls, so it needs to stay as
+    // compact as a couple of plain buttons.
+    auto* bar = new QWidget(ribbon_);
+    auto* layout = new QHBoxLayout(bar);
+    layout->setContentsMargins(4, 0, 4, 0);
+    // Same ▶/⏸ convention as Start Sending/Stop Sending on the Stimulation
+    // tab (see buildStimulationTab()), just larger - this is the primary
+    // capture control, pinned where it's always reachable.
+    startButton_ = new QPushButton(QString::fromUtf8("\xE2\x96\xB6 Start"), bar); // ▶
+    stopButton_ = new QPushButton(QString::fromUtf8("\xE2\x8F\xB8 Stop"), bar); // ⏸
+    stopButton_->setEnabled(false);
+    QFont bigFont = startButton_->font();
+    bigFont.setPointSize(bigFont.pointSize() + 1);
+    bigFont.setBold(true);
+    startButton_->setFont(bigFont);
+    stopButton_->setFont(bigFont);
+    // Sized via stylesheet padding, not setMinimumSize - a hard minimum
+    // height fought QTabWidget's own tab-bar row height and got clipped at
+    // the top instead of growing the row (confirmed for real, 2026-07-14).
+    // Padding lets the button ask for what it needs and the tab bar grows
+    // to actually fit it.
+    const QString buttonStyle =
+        "QPushButton { background-color: %1; color: white; border-radius: 4px; padding: 6px 16px; }"
+        "QPushButton:hover:!disabled { background-color: %2; }"
+        "QPushButton:disabled { background-color: #444; color: #888; }";
+    startButton_->setStyleSheet(buttonStyle.arg("#2e7d32", "#388e3c"));
+    stopButton_->setStyleSheet(buttonStyle.arg("#c62828", "#d32f2f"));
+    layout->addWidget(startButton_);
+    layout->addWidget(stopButton_);
+
+    connect(startButton_, &QPushButton::clicked, this, &MainWindow::startCapture);
+    connect(stopButton_, &QPushButton::clicked, this, &MainWindow::stopCapture);
+
+    return bar;
+}
+
 QWidget* MainWindow::buildHomeTab() {
     auto* page = new QWidget(ribbon_);
     auto* layout = new QHBoxLayout(page);
-
-    auto* captureGroup = new QGroupBox("Capture", page);
-    auto* captureLayout = new QHBoxLayout(captureGroup);
-    startButton_ = new QPushButton("Start", captureGroup);
-    stopButton_ = new QPushButton("Stop", captureGroup);
-    stopButton_->setEnabled(false);
-    captureLayout->addWidget(startButton_);
-    captureLayout->addWidget(stopButton_);
 
     auto* displayGroup = new QGroupBox("Display", page);
     auto* displayLayout = new QVBoxLayout(displayGroup);
@@ -236,14 +307,11 @@ QWidget* MainWindow::buildHomeTab() {
     configLayout->addWidget(saveRuneButton_);
     configLayout->addWidget(loadRuneButton_);
 
-    layout->addWidget(captureGroup);
     layout->addWidget(displayGroup);
     layout->addWidget(rateGroup);
     layout->addWidget(configGroup);
     layout->addStretch(1);
 
-    connect(startButton_, &QPushButton::clicked, this, &MainWindow::startCapture);
-    connect(stopButton_, &QPushButton::clicked, this, &MainWindow::stopCapture);
     connect(waterfallRadio_, &QRadioButton::toggled, this, &MainWindow::onDisplayModeChanged);
     connect(periodicRadio_, &QRadioButton::toggled, this, &MainWindow::onDisplayModeChanged);
     connect(displayRateCombo_, &QComboBox::currentIndexChanged, this, &MainWindow::onDisplayRateChanged);
@@ -320,10 +388,51 @@ QWidget* MainWindow::buildAnalysisTab() {
 
 QWidget* MainWindow::buildStimulationTab() {
     auto* page = new QWidget(ribbon_);
-    auto* layout = new QVBoxLayout(page);
-    auto* label = new QLabel("coming soon :3", page);
-    label->setAlignment(Qt::AlignCenter);
-    layout->addWidget(label);
+    auto* layout = new QHBoxLayout(page);
+
+    auto* messagesGroup = new QGroupBox("Messages", page);
+    auto* messagesLayout = new QHBoxLayout(messagesGroup);
+    newMessageButton_ = new QPushButton("New Message...", messagesGroup);
+    messagesLayout->addWidget(newMessageButton_);
+
+    auto* sendingGroup = new QGroupBox("Sending", page);
+    auto* sendingLayout = new QHBoxLayout(sendingGroup);
+    startSendingButton_ = new QPushButton(QString::fromUtf8("\xE2\x96\xB6 Start Sending"), sendingGroup); // ▶
+    stopSendingButton_ = new QPushButton(QString::fromUtf8("\xE2\x8F\xB8 Stop Sending"), sendingGroup); // ⏸
+    sendNowButton_ = new QPushButton("Send Now", sendingGroup);
+    sendingLayout->addWidget(startSendingButton_);
+    sendingLayout->addWidget(stopSendingButton_);
+    sendingLayout->addWidget(sendNowButton_);
+
+    auto* receivedGroup = new QGroupBox("Received", page);
+    auto* receivedLayout = new QHBoxLayout(receivedGroup);
+    // Own Waterfall/Periodic toggle, independent of the Home tab's -
+    // defaults to Periodic since that's what actually keeps a cyclic Send
+    // Now/Start Sending burst from flooding this pane with a new row per
+    // send the way plain Waterfall mode would (confirmed as a real
+    // complaint, 2026-07-14: "the received message window gets spammed
+    // with the sent messages").
+    stimWaterfallRadio_ = new QRadioButton("Waterfall", receivedGroup);
+    stimPeriodicRadio_ = new QRadioButton("Periodic", receivedGroup);
+    stimPeriodicRadio_->setChecked(true);
+    clearReceivedButton_ = new QPushButton("Clear", receivedGroup);
+    receivedLayout->addWidget(stimWaterfallRadio_);
+    receivedLayout->addWidget(stimPeriodicRadio_);
+    receivedLayout->addWidget(clearReceivedButton_);
+
+    layout->addWidget(messagesGroup);
+    layout->addWidget(sendingGroup);
+    layout->addWidget(receivedGroup);
+    layout->addStretch(1);
+
+    connect(newMessageButton_, &QPushButton::clicked, this, &MainWindow::onNewMessage);
+    connect(startSendingButton_, &QPushButton::clicked, this, &MainWindow::onStartSending);
+    connect(stopSendingButton_, &QPushButton::clicked, this, &MainWindow::onStopSending);
+    connect(sendNowButton_, &QPushButton::clicked, this, [this]() { onSendNow(stimulationView_->selectedTransmitIndices()); });
+    connect(stimWaterfallRadio_, &QRadioButton::toggled, this, &MainWindow::onStimDisplayModeChanged);
+    connect(stimPeriodicRadio_, &QRadioButton::toggled, this, &MainWindow::onStimDisplayModeChanged);
+
+    setSendingUiState();
     return page;
 }
 
@@ -628,7 +737,7 @@ QWidget* MainWindow::buildAboutTab() {
 
 void MainWindow::showAboutDialog() {
     QMessageBox box(this);
-    box.setWindowTitle(QString("CANtrip - v%1 \"%2\"").arg(kVersion, kCodename));
+    box.setWindowTitle(QString("CANtrip v%1 - %2").arg(kVersion, kCodename));
     box.setIconPixmap(QPixmap(":/cantrip_source.png").scaledToWidth(96, Qt::SmoothTransformation));
     box.setTextFormat(Qt::RichText);
     box.setText(
@@ -649,8 +758,10 @@ void MainWindow::showAboutDialog() {
 void MainWindow::openCanController() {
     CanControllerDialog dialog(this);
     dialog.setConfig(busConfig_);
+    dialog.setListenOnly(listenOnlyMode_);
     if (dialog.exec() == QDialog::Accepted) {
         busConfig_ = dialog.config();
+        listenOnlyMode_ = dialog.listenOnly();
     }
 }
 
@@ -774,6 +885,7 @@ void MainWindow::saveRune() {
     config.displayRateMs = displayIntervalMs_;
     config.dbcPath = dbcPath_;
     config.graphWindows = graphWindows_->exportLayout();
+    config.transmitMessages = messageSender_.messages();
 
     QString error;
     if (!saveRuneFile(path, config, &error)) {
@@ -819,6 +931,12 @@ void MainWindow::loadRune() {
 
     graphWindows_->reset();
     graphWindows_->importLayout(config->graphWindows);
+
+    messageSender_.clearMessages();
+    for (const TransmitMessage& message : config->transmitMessages) {
+        messageSender_.addMessage(message);
+    }
+    refreshTransmitList();
 }
 
 QString MainWindow::findTsharkExe() {
@@ -862,6 +980,7 @@ void MainWindow::startCapture() {
     config.dataTseg1 = busConfig_.dataTiming.tseg1;
     config.dataTseg2 = busConfig_.dataTiming.tseg2;
     config.dataSjw = busConfig_.dataTiming.sjw;
+    config.listenOnly = listenOnlyMode_;
 
     resetDisplay();
     statusLabel_->setText("Starting capture on " + channelCombo_->currentText() + "...");
@@ -894,6 +1013,17 @@ void MainWindow::startCapture() {
         startLogging();
         loggingAutoStarted_ = logging_; // startLogging() may have failed (e.g. bad path) - only true on real success
     }
+
+    // MessageSender's own port (see MessageSender.h) is opened lazily, on
+    // the first actual Start Sending/Send Now click (see
+    // ensureSenderPortOpen()) rather than here - opening it immediately
+    // raced against capture_.start() actually finishing launching
+    // tshark/can2pcap.exe and initializing the channel, which broke live
+    // capture for real on PEAK hardware (confirmed 2026-07-13: the second,
+    // near-simultaneous initialize call reset the channel the capture had
+    // just set up). By the time the user clicks Start Sending, capture is
+    // reliably already flowing.
+    setSendingUiState();
 }
 
 void MainWindow::stopCapture() {
@@ -934,6 +1064,12 @@ void MainWindow::populateDecodedChildren(QTreeWidgetItem* item, const DecodedCan
     item->setText(2, flagsString(frame));
     item->setText(3, QString::number(frame.dlc));
     item->setText(4, dataText);
+    // Reset (or apply) the TX tint every call, not just on first creation -
+    // periodic mode reuses the same item across many frames, and a row that
+    // was never Tx must not keep a stale color from some earlier state.
+    for (int col = 0; col < item->columnCount(); ++col) {
+        item->setForeground(col, frame.direction == FrameDirection::Tx ? kTxBrush : QBrush());
+    }
     // Real values for FrameTreeItem::operator< to sort on numerically/
     // byte-wise rather than as display text (see its definition above).
     item->setData(1, Qt::UserRole, frame.id);
@@ -1057,6 +1193,82 @@ void MainWindow::handlePeriodicErrorFrame(const DecodedCanFrame& frame) {
     }
 }
 
+// Stimulation tab's received pane, own Waterfall/Periodic dedup mirroring
+// handleWaterfallFrame/handlePeriodicFrame/addErrorRow/handlePeriodicErrorFrame
+// above exactly, just against stimulationView_->receivedTree() and the
+// stimPeriodicRows_/stimPeriodicErrorRows_ maps instead of frameTree_'s own.
+void MainWindow::handleStimWaterfallFrame(const DecodedCanFrame& frame) {
+    populateDecodedChildren(stimulationView_->addReceivedRow(frame.timestamp), frame);
+}
+
+void MainWindow::handleStimPeriodicFrame(const DecodedCanFrame& frame) {
+    const uint64_t key = frameKey(frame);
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+
+    auto it = stimPeriodicRows_.find(key);
+    if (it == stimPeriodicRows_.end()) {
+        auto* item = new FrameTreeItem();
+        item->setText(0, "--");
+        stimulationView_->receivedTree()->addTopLevelItem(item);
+        it = stimPeriodicRows_.emplace(key, PeriodicRowState{item, now, -1, false}).first;
+    } else {
+        const qint64 period = now - it->second.lastArrivalMs;
+        it->second.periodMs = period;
+        it->second.lastArrivalMs = now;
+        it->second.item->setText(0, QString::number(period / 1000.0, 'f', 3) + " s");
+    }
+
+    if (it->second.stale) {
+        it->second.stale = false;
+        setItemGrayed(it->second.item, false);
+    }
+
+    populateDecodedChildren(it->second.item, frame);
+}
+
+void MainWindow::addStimErrorRow(const DecodedCanFrame& frame) {
+    QTreeWidgetItem* item = stimulationView_->addReceivedRow(frame.timestamp);
+    item->setText(5, "BUS ERROR: " + frame.errorDescription);
+    for (int col = 0; col < item->columnCount(); ++col) {
+        item->setForeground(col, QBrush(QColor(Qt::red)));
+    }
+}
+
+void MainWindow::handleStimPeriodicErrorFrame(const DecodedCanFrame& frame) {
+    const QString key = frame.errorDescription;
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+
+    auto it = stimPeriodicErrorRows_.find(key);
+    if (it == stimPeriodicErrorRows_.end()) {
+        auto* item = new FrameTreeItem();
+        item->setText(0, "--");
+        item->setText(5, "BUS ERROR: " + frame.errorDescription);
+        stimulationView_->receivedTree()->addTopLevelItem(item);
+        it = stimPeriodicErrorRows_.insert(key, PeriodicRowState{item, now, -1, false});
+    } else {
+        const qint64 period = now - it->lastArrivalMs;
+        it->periodMs = period;
+        it->lastArrivalMs = now;
+        it->item->setText(0, QString::number(period / 1000.0, 'f', 3) + " s");
+    }
+
+    it->stale = false;
+    for (int col = 0; col < it->item->columnCount(); ++col) {
+        it->item->setForeground(col, QBrush(QColor(Qt::red)));
+    }
+}
+
+void MainWindow::onStimDisplayModeChanged() {
+    stimDisplayMode_ = stimPeriodicRadio_->isChecked() ? DisplayMode::Periodic : DisplayMode::Waterfall;
+    onClearReceived();
+}
+
+void MainWindow::onClearReceived() {
+    stimulationView_->clearReceived();
+    stimPeriodicRows_.clear();
+    stimPeriodicErrorRows_.clear();
+}
+
 void MainWindow::onFrameReceived(const DecodedCanFrame& frame) {
     ++frameCount_;
 
@@ -1068,6 +1280,28 @@ void MainWindow::onFrameReceived(const DecodedCanFrame& frame) {
     if (logging_) {
         logWriter_->writeFrame(1, frame);
         rotateLogFileIfNeeded();
+    }
+
+    // Stimulation view's received pane gets every frame too (Rx and Tx
+    // alike, since MessageSender's transmitted frames flow through this same
+    // slot - marked and colored distinctly, see flagsString()/kTxBrush) -
+    // only while it's actually the visible page, same spirit as the
+    // display-rate throttle not doing UI work nobody's looking at. Uses its
+    // own Waterfall/Periodic toggle (stimDisplayMode_), same reasoning as
+    // the main Trace view's: a cyclic Send Now/Start Sending burst would
+    // otherwise flood this pane with a new row per send.
+    if (contentStack_->currentWidget() == stimulationView_) {
+        if (frame.error) {
+            if (stimDisplayMode_ == DisplayMode::Waterfall) {
+                addStimErrorRow(frame);
+            } else {
+                handleStimPeriodicErrorFrame(frame);
+            }
+        } else if (stimDisplayMode_ == DisplayMode::Waterfall) {
+            handleStimWaterfallFrame(frame);
+        } else {
+            handleStimPeriodicFrame(frame);
+        }
     }
 
     if (frame.error) {
@@ -1132,19 +1366,37 @@ void MainWindow::onDisplayRateChanged() {
 }
 
 void MainWindow::checkStaleRows() {
-    if (displayMode_ != DisplayMode::Periodic) return;
-
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
-    for (auto& [key, state] : periodicRows_) {
-        if (!state.stale && (now - state.lastArrivalMs) > kStaleTimeoutMs) {
-            state.stale = true;
-            setItemGrayed(state.item, true);
+
+    if (displayMode_ == DisplayMode::Periodic) {
+        for (auto& [key, state] : periodicRows_) {
+            if (!state.stale && (now - state.lastArrivalMs) > kStaleTimeoutMs) {
+                state.stale = true;
+                setItemGrayed(state.item, true);
+            }
+        }
+        for (auto it = periodicErrorRows_.begin(); it != periodicErrorRows_.end(); ++it) {
+            if (!it->stale && (now - it->lastArrivalMs) > kStaleTimeoutMs) {
+                it->stale = true;
+                setItemGrayed(it->item, true);
+            }
         }
     }
-    for (auto it = periodicErrorRows_.begin(); it != periodicErrorRows_.end(); ++it) {
-        if (!it->stale && (now - it->lastArrivalMs) > kStaleTimeoutMs) {
-            it->stale = true;
-            setItemGrayed(it->item, true);
+
+    // Independent of displayMode_ above - the Stimulation tab's received
+    // pane has its own Waterfall/Periodic toggle (stimDisplayMode_).
+    if (stimDisplayMode_ == DisplayMode::Periodic) {
+        for (auto& [key, state] : stimPeriodicRows_) {
+            if (!state.stale && (now - state.lastArrivalMs) > kStaleTimeoutMs) {
+                state.stale = true;
+                setItemGrayed(state.item, true);
+            }
+        }
+        for (auto it = stimPeriodicErrorRows_.begin(); it != stimPeriodicErrorRows_.end(); ++it) {
+            if (!it->stale && (now - it->lastArrivalMs) > kStaleTimeoutMs) {
+                it->stale = true;
+                setItemGrayed(it->item, true);
+            }
         }
     }
 }
@@ -1169,6 +1421,155 @@ void MainWindow::onCaptureStopped() {
     // started independently (not via the auto-start option) keeps running
     // past the end of this particular capture.
     if (loggingAutoStarted_) stopLogging();
+
+    messageSender_.closePort();
+    setSendingUiState();
+}
+
+void MainWindow::onRibbonTabChanged(int index) {
+    if (ribbon_->tabText(index) == "Stimulation") {
+        contentStack_->setCurrentWidget(stimulationView_);
+    } else {
+        // Every other tab defaults back to the normal CAN Trace view -
+        // Analysis & Measurement's own Trace/Graphics buttons can still
+        // switch to Graphics explicitly once you're there, this only
+        // governs what you land on when switching tabs.
+        contentStack_->setCurrentWidget(frameTree_);
+    }
+}
+
+void MainWindow::setSendingUiState() {
+    // The port itself isn't opened until first use (see
+    // ensureSenderPortOpen()) - these buttons only gate on whether a
+    // capture is actually running, matching the original spec ("if a
+    // capture is currently going on then the play button becomes
+    // available"). A failure to actually open the port on first click
+    // surfaces as a warning dialog at that point, not as a permanently
+    // disabled button.
+    const bool canSend = capture_.isRunning();
+    startSendingButton_->setEnabled(canSend && !messageSender_.isSending());
+    sendNowButton_->setEnabled(canSend);
+
+    stopSendingButton_->setEnabled(canSend && messageSender_.isSending());
+    stopSendingButton_->setStyleSheet(messageSender_.isSending()
+        ? "background-color: #cc7a00; color: white;"
+        : QString());
+}
+
+bool MainWindow::ensureSenderPortOpen() {
+    if (messageSender_.isPortOpen()) return true;
+
+    QString error;
+    if (!messageSender_.openPort(channelCombo_->currentData().toString(), busConfig_, &error)) {
+        QMessageBox::warning(this, "Send Message",
+            "Could not open a transmit port for this channel:\n" + error);
+        return false;
+    }
+    return true;
+}
+
+void MainWindow::onSendFailed(const TransmitMessage& message, const QString& error) {
+    if (contentStack_->currentWidget() != stimulationView_) return;
+
+    // Same red-row treatment as a real bus error (see onFrameReceived's
+    // frame.error branch) - the message never reached the wire, so there's
+    // no DecodedCanFrame to hand to the usual populateDecodedChildren() path.
+    QTreeWidgetItem* item = stimulationView_->addReceivedRow(
+        QString::number(QDateTime::currentMSecsSinceEpoch() / 1000.0, 'f', 6));
+    item->setText(1, QString("0x%1").arg(message.id, message.extended ? 8 : 3, 16, QChar('0')).toUpper());
+    item->setText(5, "SEND FAILED: " + error);
+    for (int col = 0; col < item->columnCount(); ++col) {
+        item->setForeground(col, QBrush(QColor(Qt::red)));
+    }
+}
+
+void MainWindow::onStartSending() {
+    if (!ensureSenderPortOpen()) return;
+    messageSender_.start();
+    setSendingUiState();
+}
+
+void MainWindow::onStopSending() {
+    messageSender_.stop();
+    setSendingUiState();
+}
+
+void MainWindow::onSendNow(const std::vector<int>& indices) {
+    if (!ensureSenderPortOpen()) return;
+    messageSender_.sendNow(indices);
+}
+
+void MainWindow::refreshTransmitList() {
+    stimulationView_->refreshTransmitList(messageSender_.messages());
+}
+
+void MainWindow::openTransmitMessageDialog(int editIndex) {
+    TransmitMessageDialog dialog(this);
+
+    const QString busSummary = busConfig_.fd
+        ? QString("CAN FD, %1 bps / %2 bps").arg(busConfig_.nominalBitrateBps).arg(busConfig_.dataBitrateBps)
+        : QString("CAN, %1 bps").arg(busConfig_.nominalBitrateBps);
+    dialog.setBusInfo(busSummary, busConfig_.fd);
+
+    if (editIndex >= 0 && editIndex < static_cast<int>(messageSender_.messages().size())) {
+        dialog.setMessage(messageSender_.messages()[static_cast<size_t>(editIndex)]);
+    }
+
+    connect(&dialog, &TransmitMessageDialog::hardwareSettingsRequested, this, [this]() {
+        for (int i = 0; i < ribbon_->count(); ++i) {
+            if (ribbon_->tabText(i) == "Hardware") { ribbon_->setCurrentIndex(i); break; }
+        }
+    });
+
+    if (dialog.exec() != QDialog::Accepted) return;
+
+    const TransmitMessage message = dialog.message();
+    if (editIndex >= 0) {
+        messageSender_.updateMessage(editIndex, message);
+    } else {
+        messageSender_.addMessage(message);
+    }
+    refreshTransmitList();
+}
+
+void MainWindow::onNewMessage() {
+    openTransmitMessageDialog(-1);
+}
+
+void MainWindow::onEditMessage(int index) {
+    openTransmitMessageDialog(index);
+}
+
+void MainWindow::onDeleteMessages(const std::vector<int>& indices) {
+    messageSender_.removeMessages(indices);
+    refreshTransmitList();
+}
+
+void MainWindow::onClearAllMessages() {
+    messageSender_.clearMessages();
+    refreshTransmitList();
+}
+
+void MainWindow::onCopyMessages(const std::vector<int>& indices) {
+    transmitClipboard_.clear();
+    for (int i : indices) {
+        if (i >= 0 && i < static_cast<int>(messageSender_.messages().size())) {
+            transmitClipboard_.push_back(messageSender_.messages()[static_cast<size_t>(i)]);
+        }
+    }
+    stimulationView_->setPasteAvailable(!transmitClipboard_.empty());
+}
+
+void MainWindow::onCutMessages(const std::vector<int>& indices) {
+    onCopyMessages(indices);
+    onDeleteMessages(indices);
+}
+
+void MainWindow::onPasteMessages() {
+    for (const TransmitMessage& message : transmitClipboard_) {
+        messageSender_.addMessage(message);
+    }
+    refreshTransmitList();
 }
 
 } // namespace cantrip

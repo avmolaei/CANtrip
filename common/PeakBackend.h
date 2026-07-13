@@ -23,7 +23,8 @@ public:
 
     std::vector<CanChannelInfo> enumerateChannels() const override;
 
-    bool initialize(uint64_t channelId, const CanBitrateConfig& config, std::string* error) override;
+    bool initialize(uint64_t channelId, const CanBitrateConfig& config,
+                     bool requestOwnership, std::string* error) override;
     void uninitialize(uint64_t channelId) override;
 
     bool readFrame(uint64_t channelId, CanFrame* out, std::string* error) override;

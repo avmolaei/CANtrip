@@ -32,21 +32,23 @@ bool CsvLogWriter::open(const QString& path, QString* error) {
         return false;
     }
     stream_.setDevice(&file_);
-    stream_ << "Time,Channel,ID,Extended,FD,BRS,ESI,RTR,DLC,Data,MessageName,Error\n";
+    stream_ << "Time,Channel,ID,Direction,Extended,FD,BRS,ESI,RTR,DLC,Data,MessageName,Error\n";
     return true;
 }
 
 void CsvLogWriter::writeFrame(int channel, const DecodedCanFrame& frame) {
     if (frame.error) {
-        stream_ << frame.timestamp << "," << channel << ",,,,,,,,,," << csvEscape(frame.errorDescription) << "\n";
+        stream_ << frame.timestamp << "," << channel << ",,,,,,,,,,," << csvEscape(frame.errorDescription) << "\n";
         return;
     }
 
     const QString name = messageNameResolver_ ? messageNameResolver_(frame) : QString();
+    const QString dir = frame.direction == FrameDirection::Tx ? "Tx" : "Rx";
 
     stream_ << frame.timestamp << ","
             << channel << ","
             << QString::number(frame.id, 16).toUpper() << ","
+            << dir << ","
             << (frame.extended ? "1" : "0") << ","
             << (frame.fd ? "1" : "0") << ","
             << (frame.brs ? "1" : "0") << ","

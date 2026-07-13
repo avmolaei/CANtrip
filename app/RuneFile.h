@@ -12,6 +12,7 @@
 
 #include "../common/AVlabsCanBackend.h"
 #include "GraphView.h"
+#include "TransmitMessage.h"
 
 namespace cantrip {
 
@@ -36,6 +37,10 @@ struct RuneConfig {
     // least one entry for a rune saved by the current version; loadRuneFile()
     // also accepts the older single-window file shape (see RuneFile.cpp).
     std::vector<std::vector<GraphView::AxisLayout>> graphWindows;
+    // Configured Stimulation-tab messages (see MessageSender) - empty for a
+    // rune saved before this field existed, loadRuneFile() tolerates its
+    // absence with no version field needed (see RuneFile.cpp).
+    std::vector<TransmitMessage> transmitMessages;
 };
 
 // Returns false (with *error set to a human-readable message) on any
