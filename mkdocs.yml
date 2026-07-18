@@ -1,0 +1,74 @@
+site_name: CANtrip
+site_description: An open-source, free alternative to Vector CANalyzer for CAN/CAN-FD bus analysis on Windows.
+site_url: https://avmolaei.github.io/CANtrip/
+repo_url: https://github.com/avmolaei/CANtrip
+repo_name: avmolaei/CANtrip
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - navigation.tracking
+    - toc.follow
+    - search.suggest
+    - content.code.copy
+    - content.action.edit
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - User Guide:
+      - Getting Started: user-guide/getting-started.md
+      - Home Tab: user-guide/home-tab.md
+      - Hardware Tab: user-guide/hardware-tab.md
+      - Analysis & Measurement Tab: user-guide/analysis-and-measurement-tab.md
+      - Logging Tab: user-guide/logging-tab.md
+      - Stimulation Tab: user-guide/stimulation-tab.md
+      - About Tab: user-guide/about-tab.md
+      - Runes: user-guide/runes.md
+      - Troubleshooting & FAQ: user-guide/troubleshooting.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Data Flow: architecture/data-flow.md
+      - The AVlabs CAN Backend: architecture/can-backend-abstraction.md
+      - Send Message Internals: architecture/send-message-internals.md
+      - Logging & Replay: architecture/logging-and-replay.md
+      - Rune Persistence: architecture/rune-persistence.md
+  - Future:
+      - CLI & Headless Mode: future/cli-and-headless-mode.md

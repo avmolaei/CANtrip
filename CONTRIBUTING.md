@@ -69,6 +69,22 @@ or reproduce anything through drag-and-drop/dialogs. Add temporary
 or event tag needs inspecting - cheap to add and remove, just make sure
 they're fully reverted (`git diff` before committing) before shipping.
 
+## Building the docs site locally
+
+The [documentation site](https://avmolaei.github.io/CANtrip/) is built with
+[MkDocs](https://www.mkdocs.org/) + the [Material theme](https://squidfunk.github.io/mkdocs-material/),
+source in `docs/`, config in `mkdocs.yml` at the repo root. To preview
+changes locally:
+
+```powershell
+pip install mkdocs-material
+mkdocs serve
+```
+
+Then open `http://127.0.0.1:8000`. It auto-deploys to GitHub Pages via
+`.github/workflows/docs.yml` on every push to `main` that touches `docs/**`
+or `mkdocs.yml`.
+
 ## Build setup
 
 See the README's "Building" section for the day-to-day CMake/Qt invocation.
