@@ -147,6 +147,7 @@ bool saveRuneFile(const QString& path, const RuneConfig& config, QString* error)
     root["transmitMessages"] = transmitArray;
 
     root["traceHeaderState"] = QString::fromLatin1(config.traceHeaderState.toHex());
+    root["listenOnly"] = config.listenOnly;
 
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
@@ -214,6 +215,7 @@ std::optional<RuneConfig> loadRuneFile(const QString& path, QString* error) {
     }
 
     config.traceHeaderState = QByteArray::fromHex(root["traceHeaderState"].toString().toLatin1());
+    config.listenOnly = root["listenOnly"].toBool(false);
 
     return config;
 }

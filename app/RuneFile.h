@@ -46,6 +46,10 @@ struct RuneConfig {
     // opaque format) - empty for a rune saved before this field existed,
     // in which case the header is just left as whatever it currently is.
     QByteArray traceHeaderState;
+    // CAN Controller dialog's "Request bus configuration" checkbox (see
+    // MainWindow::listenOnlyMode_) - false (request ownership, today's
+    // longstanding default) for a rune saved before this field existed.
+    bool listenOnly = false;
 };
 
 // Returns false (with *error set to a human-readable message) on any

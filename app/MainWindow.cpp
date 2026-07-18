@@ -888,6 +888,7 @@ void MainWindow::saveRune() {
     config.graphWindows = graphWindows_->exportLayout();
     config.transmitMessages = messageSender_.messages();
     config.traceHeaderState = frameTree_->header()->saveState();
+    config.listenOnly = listenOnlyMode_;
 
     QString error;
     if (!saveRuneFile(path, config, &error)) {
@@ -945,6 +946,7 @@ void MainWindow::loadRune() {
     // documented no-op, so the header is simply left as whatever it
     // currently is rather than needing an explicit "if saved" check.
     frameTree_->header()->restoreState(config->traceHeaderState);
+    listenOnlyMode_ = config->listenOnly;
 }
 
 QString MainWindow::findTsharkExe() {
