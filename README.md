@@ -7,6 +7,11 @@ CAN-FD bus traffic on Windows, decoding it against DBC files, and graphing signa
 
 <p align="center"><img src="docs/images/hero.png" alt="CANtrip main window"></p>
 
+**[Read the full documentation site](https://avmolaei.github.io/CANtrip/)**
+for a complete user guide (every tab and dialog, with screenshots), the
+system architecture (with diagrams), and the v1.5 CLI/headless mode design.
+This README is just a quick start.
+
 ## Why CANtrip
 
 A Vector CANalyzer license costs anywhere from a few thousand to tens of
@@ -102,60 +107,17 @@ different group of controls.
 ## How it works
 
 CANtrip does not reimplement CAN capture or low-level frame dissection.
-Instead it reuses Wireshark's own capture pipeline:
+Instead it reuses Wireshark's own capture pipeline (`tshark`/`can2pcap`),
+talking to hardware through a vendor-neutral interface, **the AVlabs CAN
+backend** ([`common/AVlabsCanBackend.h`](common/AVlabsCanBackend.h)) - one
+bus to sniff them all, with `PeakBackend`/`VectorBackend` as the two
+reference implementations today.
 
-```
-CANtrip (Qt app) --launches--> tshark -T ek --reads from--> extcap: can2pcap
-                                                                    |
-                                                          AVlabs CAN backend
-                                                          /       |        \
-                                                   PeakBackend  VectorBackend  Other
-                                                       |            |           HW
-                                                PCAN-Basic.dll  vxlapi64.dll
-                                                       |            |
-                                                 PEAK hardware  Vector VN-series hardware
-```
+**[Read the full Architecture guide](https://avmolaei.github.io/CANtrip/architecture/overview/)**
+for the complete process diagram, the exact data flow from a bit on the
+wire to a decoded signal on screen, and how Send Message works differently
+per vendor under the hood.
 
-- **`extcap/can2pcap`** is a small Wireshark [extcap](https://www.wireshark.org/docs/wsdg_html_chunked/ChCaptureExtcap.html)
-  program. It exposes CAN channels from any available backend as capture
-  interfaces to Wireshark/tshark, translating frames into SocketCAN-format
-  pcapng records so Wireshark's built-in SocketCAN dissector decodes
-  ID/DLC/data/FD flags.
-- **`app/`** is the Qt desktop application: pick a channel from any
-  installed vendor, configure bus timing (usual presets or expert raw
-  values), import a DBC per channel, and view live traffic in a table that
-  unfolds into per-signal decoded values (via [dbcppp](https://github.com/xR3b0rn/dbcppp)).
-
-Graphing, gateway mode, and message transmission are deferred to a later
-phase.
-
-### Multi-vendor hardware support
-
-CANtrip is not tied to one CAN adapter vendor. There's no OS-level CAN
-abstraction on Windows (unlike Linux's SocketCAN). Every vendor
-ships its own proprietary DLL and API shape. CANtrip works around this with
-a vendor-neutral interface, the **AVlabs CAN backend**
-([`common/AVlabsCanBackend.h`](common/AVlabsCanBackend.h)); one bus to sniff
-them all.
-The extcap and app only ever talk to that interface, never to a
-vendor SDK directly.
-
-- Each backend dynamically loads its vendor's DLL at runtime
-  (`LoadLibrary`/`GetProcAddress`), so CANtrip builds and runs fine with
-  only some (or none) of the vendor SDKs installed.
-- [`common/PeakBackend.h/.cpp`](common/PeakBackend.cpp) wraps PEAK-System's
-  `PCANBasic.dll`. Supports classic CAN and CAN FD.
-- [`common/VectorBackend.h/.cpp`](common/VectorBackend.cpp) wraps Vector
-  Informatik's `vxlapi64.dll` (XL Driver Library), verified against a VN1640A and a VN7640. Supports classic CAN and CAN FD, with bit timing computed by
-  [`common/CanBitTiming.h/.cpp`](common/CanBitTiming.cpp) 
-- [`common/CanBackendRegistry.cpp`](common/CanBackendRegistry.cpp) is the
-  single place that lists every backend CANtrip knows about.
-- Adding support for another vendor (Kvaser's CANlib, ETAS's BOA, etc.)
-  means implementing the AVlabs CAN backend interface once, using that
-  vendor's real SDK header and adding one
-  line to the registry.
-
-  
 ## Building CANtrip
 
 ### Build process
