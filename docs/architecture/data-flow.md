@@ -43,7 +43,7 @@ sequenceDiagram
   use.
 - **`DbcDecoder`** (`app/DbcDecoder.h/.cpp`): DBC load + signal decode -
   a plain, non-GUI class (extracted out of `MainWindow` specifically so
-  [headless mode](../future/cli-and-headless-mode.md) could reuse it
+  [headless mode](../headless-mode.md) could reuse it
   without a `MainWindow` to host it).
 - **`MainWindow`**: calls `DbcDecoder` from `populateDecodedChildren()`
   and fans the result out to every view/writer that cares about it

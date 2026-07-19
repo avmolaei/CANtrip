@@ -70,5 +70,5 @@ nav:
       - Send Message Internals: architecture/send-message-internals.md
       - Logging & Replay: architecture/logging-and-replay.md
       - Rune Persistence: architecture/rune-persistence.md
-  - Future:
-      - CLI & Headless Mode: future/cli-and-headless-mode.md
+      - Bus Load Calculation: architecture/bus-load-calculation.md
+  - Headless Mode: headless-mode.md
