@@ -20,7 +20,7 @@ sequenceDiagram
     TS->>App: JSON (Elastic/ek output format), one object per frame
     App->>App: parse -> DecodedCanFrame
     App->>MW: frameReceived signal
-    MW->>MW: populateDecodedChildren() - dbcppp decode against loaded DBC
+    MW->>MW: populateDecodedChildren() calls DbcDecoder::decodeSignals()
     MW-->>MW: fan out to Trace view, Graph view (SignalHistoryStore), log writer
 ```
 
@@ -41,13 +41,15 @@ sequenceDiagram
   output into a `DecodedCanFrame` - CANtrip's own in-process frame
   representation, distinct from the wire-level `CanFrame` struct backends
   use.
-- **`MainWindow`**: the only place DBC signal decode currently happens
-  (`populateDecodedChildren()`), fanning one decoded frame out to every
-  view/writer that cares about it (Trace, Graph, log file). This is also
-  the one piece of core logic that's currently GUI-locked rather than
-  living in a plain non-GUI class - see
-  [Future: CLI & Headless Mode](../future/cli-and-headless-mode.md#open-design-questions)
-  for why that matters.
+- **`DbcDecoder`** (`app/DbcDecoder.h/.cpp`): DBC load + signal decode -
+  a plain, non-GUI class (extracted out of `MainWindow` specifically so
+  [headless mode](../future/cli-and-headless-mode.md) could reuse it
+  without a `MainWindow` to host it).
+- **`MainWindow`**: calls `DbcDecoder` from `populateDecodedChildren()`
+  and fans the result out to every view/writer that cares about it
+  (Trace, Graph, log file) - the GUI-specific part (building
+  `QTreeWidgetItem`s, feeding `SignalHistoryStore`) is all that's left
+  here now.
 
 ## The transmit side feeds the same pipeline
 

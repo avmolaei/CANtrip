@@ -222,12 +222,16 @@ private:
     }
 };
 
-GraphView::GraphView(SignalHistoryStore* history, QWidget* parent)
-    : QWidget(parent), history_(history) {
+GraphView::GraphView(SignalHistoryStore* history, QWidget* parent, bool simpleMode)
+    : QWidget(parent), history_(history), simpleMode_(simpleMode) {
     auto* root = new QHBoxLayout(this);
     auto* splitter = new QSplitter(Qt::Horizontal, this);
 
-    auto* leftPanel = new QWidget(splitter);
+    // QSplitter auto-inserts any widget constructed with itself as the
+    // parent (it overrides childEvent() to do this) - simple mode must
+    // NOT parent leftPanel to splitter at all, or it shows up regardless
+    // of whether splitter->addWidget() is ever called for it below.
+    auto* leftPanel = new QWidget(simpleMode_ ? static_cast<QWidget*>(this) : static_cast<QWidget*>(splitter));
     auto* leftLayout = new QVBoxLayout(leftPanel);
 
     leftLayout->addWidget(new QLabel("Signals", leftPanel));
@@ -263,6 +267,7 @@ GraphView::GraphView(SignalHistoryStore* history, QWidget* parent)
     rightLayout->setContentsMargins(0, 0, 0, 0);
 
     auto* toolbar = new QHBoxLayout();
+    toolbar->setSpacing(6);
     zoomSelectButton_ = new QPushButton(QString::fromUtf8("\xF0\x9F\x94\x8D"), rightPanel); // magnifier
     zoomSelectButton_->setCheckable(true);
     zoomSelectButton_->setToolTip("Drag a rectangle to zoom into it");
@@ -278,6 +283,12 @@ GraphView::GraphView(SignalHistoryStore* history, QWidget* parent)
     toolbar->addWidget(zoomSelectButton_);
     toolbar->addWidget(zoomResetButton_);
     toolbar->addWidget(cursorToolButton_);
+    // Shown in simple mode too - clears just this chart's plotted data,
+    // same as everywhere else. BusLoadView's own "Reset" button is a
+    // separate, wider action (stats + graph together); the two coexist
+    // fine now that clearGraphButton_ is a real toolbar member instead of
+    // an unmanaged orphan widget (that was the actual overlap bug, not
+    // its presence - see git history if this comment outlives the fix).
     toolbar->addWidget(clearGraphButton_);
     toolbar->addWidget(exportGraphButton_);
     toolbar->addStretch(1);
@@ -287,11 +298,21 @@ GraphView::GraphView(SignalHistoryStore* history, QWidget* parent)
     chartView_->setRenderHint(QPainter::Antialiasing);
     rightLayout->addWidget(chartView_, /*stretch=*/1);
 
-    splitter->addWidget(leftPanel);
+    // Simple mode: no signal-list/axis-tree panel at all - leftPanel still
+    // exists (signalList_/axisTree_/etc. are referenced unconditionally
+    // elsewhere in this class) but is never added to the splitter, so
+    // there's no user-visible way to add/remove/rename axes or signals.
+    // Explicitly hidden too, rather than relying on it just never being
+    // shown by default as a non-layout child.
+    if (!simpleMode_) {
+        splitter->addWidget(leftPanel);
+    } else {
+        leftPanel->setVisible(false);
+    }
     splitter->addWidget(rightPanel);
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
-    splitter->setSizes({250, 750});
+    if (!simpleMode_) splitter->setSizes({250, 750});
 
     root->addWidget(splitter);
 
@@ -330,6 +351,15 @@ GraphView::GraphView(SignalHistoryStore* history, QWidget* parent)
     connect(history_, &SignalHistoryStore::sampleAdded, this, &GraphView::onSampleAdded);
 
     for (const QString& name : history_->signalNames()) onSignalAdded(name);
+}
+
+void GraphView::configureSimpleModeAxis(const QString& axisName, const QString& qualifiedSignalName) {
+    addAxis(); // pushes a new AxisEntry onto axes_ and builds its (hidden) tree item
+    AxisEntry& entry = *axes_.back();
+    entry.name = axisName;
+    refreshAxisItemText(entry); // harmless with no visible axis tree, keeps state consistent
+
+    addSignalToAxis(entry, qualifiedSignalName);
 }
 
 void GraphView::reset() {

@@ -16,10 +16,11 @@
 #include <QTimer>
 #include <QTreeWidget>
 
-#include <dbcppp/Network.h>
-
 #include "../common/AVlabsCanBackend.h"
 #include "BusAutoDetector.h"
+#include "BusLoadTracker.h"
+#include "BusLoadView.h"
+#include "DbcDecoder.h"
 #include "GraphWindowContainer.h"
 #include "LogReplaySource.h"
 #include "LogWriter.h"
@@ -149,6 +150,7 @@ private:
     QPushButton* refreshButton_;
     QPushButton* canControllerButton_;
     QPushButton* autoDetectButton_;
+    QPushButton* busLoadButton_;
 
     // Analysis & Measurement tab
     QPushButton* importDbcButton_;
@@ -185,6 +187,8 @@ private:
     QTreeWidget* frameTree_;
     GraphWindowContainer* graphWindows_;
     StimulationView* stimulationView_;
+    BusLoadTracker busLoadTracker_;
+    BusLoadView* busLoadView_;
     SignalHistoryStore signalHistory_;
     MessageSender messageSender_;
     // MainWindow owns this rather than StimulationView since it's the real
@@ -196,15 +200,10 @@ private:
     QLabel* statusLabel_;
 
     std::vector<ChannelEntry> channels_;
-    std::unique_ptr<dbcppp::INetwork> dbcNetwork_;
-    // Built once in importDbc() so populateDecodedChildren() (called on
-    // every single received frame) doesn't have to linearly scan every
-    // message in the DBC to find the one matching a frame's ID - a real,
-    // measurable cost on a large real-world DBC at real bus rates.
-    std::unordered_map<uint32_t, const dbcppp::IMessage*> messageById_;
-    // Path of the currently-loaded DBC, if any - needed to populate
-    // RuneConfig::dbcPath on save; empty means no DBC is loaded.
-    QString dbcPath_;
+    // DBC load + signal decode - a plain, non-GUI class (see DbcDecoder.h)
+    // so the same logic is reusable from HeadlessRunner without a
+    // MainWindow to host it.
+    DbcDecoder dbcDecoder_;
     TsharkCapture capture_;
     int frameCount_ = 0;
 
