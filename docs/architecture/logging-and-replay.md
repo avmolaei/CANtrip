@@ -29,8 +29,7 @@ Log Replay loads a previously-saved file back and feeds it through
 behave completely identically whether the frame came from real hardware
 seconds ago or a log file from last week. This is the same non-GUI-class
 discipline followed throughout CANtrip - see
-[Future: CLI & Headless Mode](../future/cli-and-headless-mode.md) for where
-that discipline is heading next.
+[Headless Mode](../headless-mode.md), which relies on exactly this.
 
 ## Where signal-level decode lives
 
@@ -41,7 +40,7 @@ both only work with the raw `DecodedCanFrame`. The `MessageName` column
 `resolveMessageName()` (`app/DbcDecoder.h/.cpp`, see
 [Data Flow](data-flow.md#where-each-responsibility-actually-lives)) -
 either `MainWindow`'s own instance or, headless,
-[`HeadlessRunner`](../future/cli-and-headless-mode.md)'s. Full per-signal
+[`HeadlessRunner`](../headless-mode.md)'s. Full per-signal
 decode (`DbcDecoder::decodeSignals()`, used for the Trace view's expandable
 rows and Graph view plotting) is a separate call `MainWindow` makes for
 its own UI needs - logging was never coupled to that heavier path, and

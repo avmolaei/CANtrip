@@ -41,8 +41,7 @@ strictly on top of that, in `MainWindow`, not in `can2pcap.exe`.
 
 `can2pcap.exe` running independently and correctly is also what makes it
 possible to drive the whole capture pipeline from the command line with no
-Qt/GUI involved at all - see
-[Future: CLI & Headless Mode](../future/cli-and-headless-mode.md).
+Qt/GUI involved at all - see [Headless Mode](../headless-mode.md).
 
 ## The two Send Message paths
 

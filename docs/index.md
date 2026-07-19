@@ -26,11 +26,12 @@ you're contributing a change, go to [Architecture](architecture/overview.md).
   signal on screen, the [vendor-neutral backend abstraction](architecture/can-backend-abstraction.md),
   [how Send Message works](architecture/send-message-internals.md) for two
   very differently-behaved vendor SDKs, [logging & replay](architecture/logging-and-replay.md),
-  and the [Rune persistence format](architecture/rune-persistence.md).
+  the [Rune persistence format](architecture/rune-persistence.md), and
+  [how bus load is actually calculated](architecture/bus-load-calculation.md).
 
-- **Future** - [CLI & Headless Mode](future/cli-and-headless-mode.md), the
-  design for v1.5's automation-focused headless mode. **Not implemented
-  yet** - this is a design document, not user instructions.
+- **[Headless Mode](headless-mode.md)** - `cantrip.exe --headless`: every
+  flag, exit condition, and worked example for running a capture with no
+  GUI window, for CI pipelines and test-bench automation.
 
 ## Quick links
 
