@@ -3,9 +3,6 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
-#include <fstream>
-#include <iostream>
-#include <sstream>
 
 #include <QBrush>
 #include <QColor>
@@ -159,11 +156,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     graphWindows_ = new GraphWindowContainer(&signalHistory_, this);
     stimulationView_ = new StimulationView(this);
+    busLoadView_ = new BusLoadView(&busLoadTracker_, this);
 
     contentStack_ = new QStackedWidget(this);
     contentStack_->addWidget(frameTree_);
     contentStack_->addWidget(graphWindows_);
     contentStack_->addWidget(stimulationView_);
+    contentStack_->addWidget(busLoadView_);
 
     auto* central = new QWidget(this);
     auto* rootLayout = new QVBoxLayout(central);
@@ -190,6 +189,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(&replaySource_, &LogReplaySource::frameReceived, this, &MainWindow::onFrameReceived);
     connect(&replaySource_, &LogReplaySource::errorOccurred, this, &MainWindow::onCaptureError);
     connect(&replaySource_, &LogReplaySource::stopped, this, &MainWindow::onReplayStopped);
+
+    // Bus Load tracks real bus-occupying traffic only - live capture and
+    // CANtrip's own transmitted frames both really consume bus time.
+    // Deliberately NOT replaySource_: a replayed log isn't occupying the
+    // bus right now, so it must not count toward live bus load.
+    connect(&capture_, &TsharkCapture::frameReceived, &busLoadTracker_, &BusLoadTracker::recordFrame);
+    connect(&messageSender_, &MessageSender::frameSent, &busLoadTracker_, &BusLoadTracker::recordFrame);
+    connect(busLoadButton_, &QPushButton::clicked, this, [this]() { contentStack_->setCurrentWidget(busLoadView_); });
 
     // "Clear Graph" only clears plotted data/history, not axis layout -
     // GraphView doesn't own SignalHistoryStore, so it just requests this
@@ -344,14 +351,24 @@ QWidget* MainWindow::buildHardwareTab() {
     autoDetectButton_ = new QPushButton("Click to check", autoDetectGroup);
     autoDetectLayout->addWidget(autoDetectButton_);
 
+    auto* busLoadGroup = new QGroupBox("Bus Load", page);
+    auto* busLoadLayout = new QHBoxLayout(busLoadGroup);
+    busLoadButton_ = new QPushButton("Bus Load...", busLoadGroup);
+    busLoadLayout->addWidget(busLoadButton_);
+
     layout->addWidget(hwGroup);
     layout->addWidget(controllerGroup);
     layout->addWidget(autoDetectGroup);
+    layout->addWidget(busLoadGroup);
     layout->addStretch(1);
 
     connect(refreshButton_, &QPushButton::clicked, this, &MainWindow::refreshChannels);
     connect(canControllerButton_, &QPushButton::clicked, this, &MainWindow::openCanController);
     connect(autoDetectButton_, &QPushButton::clicked, this, &MainWindow::autoDetectBusConfig);
+    // busLoadButton_'s own click->contentStack_ swap is wired later in the
+    // constructor, once busLoadView_ actually exists (same reason
+    // clearReceivedButton_'s connect is deferred past buildStimulationTab()
+    // - this function runs before contentStack_'s pages are built).
 
     return page;
 }
@@ -516,14 +533,7 @@ QWidget* MainWindow::buildLoggingTab() {
 }
 
 QString MainWindow::resolveMessageName(const DecodedCanFrame& frame) const {
-    // Same DBC id convention as populateDecodedChildren() above - kept as
-    // its own small lookup rather than sharing code with that function,
-    // since populateDecodedChildren also needs the full IMessage* to walk
-    // ISignal::Decode() over, not just the name.
-    if (!dbcNetwork_) return QString();
-    const uint32_t dbcId = frame.extended ? (frame.id | 0x80000000u) : frame.id;
-    auto it = messageById_.find(dbcId);
-    return it != messageById_.end() ? QString::fromStdString(it->second->Name()) : QString();
+    return dbcDecoder_.resolveMessageName(frame);
 }
 
 QString MainWindow::currentLogExtension() const {
@@ -828,37 +838,7 @@ void MainWindow::refreshChannels() {
 }
 
 bool MainWindow::loadDbcFile(const QString& path, QString* error) {
-    std::ifstream is(path.toStdString());
-    if (!is) {
-        if (error) *error = "Could not open file:\n" + path;
-        return false;
-    }
-    // dbcppp's boost::spirit x3 grammar writes its only diagnostic (which
-    // line/token it choked on) to std::cerr, with no way to retrieve it
-    // through LoadDBCFromIs's return value - redirect cerr for the duration
-    // of the call so a parse failure can show the user *why*, not just that
-    // it failed.
-    std::ostringstream parseLog;
-    std::streambuf* prevCerr = std::cerr.rdbuf(parseLog.rdbuf());
-    auto net = dbcppp::INetwork::LoadDBCFromIs(is);
-    std::cerr.rdbuf(prevCerr);
-    if (!net) {
-        if (error) {
-            QString detail = QString::fromStdString(parseLog.str()).trimmed();
-            *error = "Failed to parse DBC file:\n" + path;
-            if (!detail.isEmpty()) *error += "\n\n" + detail;
-        }
-        return false;
-    }
-    dbcNetwork_ = std::move(net);
-    dbcPath_ = path;
-
-    // Built once here rather than linearly scanning dbcNetwork_->Messages()
-    // in populateDecodedChildren() on every single received frame.
-    messageById_.clear();
-    for (const dbcppp::IMessage& msg : dbcNetwork_->Messages()) {
-        messageById_[static_cast<uint32_t>(msg.Id())] = &msg;
-    }
+    if (!dbcDecoder_.loadFile(path, error)) return false;
 
     dbcStatusLabel_->setText(QFileInfo(path).fileName() + " loaded!");
     dbcStatusLabel_->setStyleSheet("color: green;");
@@ -884,7 +864,7 @@ void MainWindow::saveRune() {
     config.busConfig = busConfig_;
     config.displayMode = displayMode_ == DisplayMode::Periodic ? RuneDisplayMode::Periodic : RuneDisplayMode::Waterfall;
     config.displayRateMs = displayIntervalMs_;
-    config.dbcPath = dbcPath_;
+    config.dbcPath = dbcDecoder_.path();
     config.graphWindows = graphWindows_->exportLayout();
     config.transmitMessages = messageSender_.messages();
     config.traceHeaderState = frameTree_->header()->saveState();
@@ -993,6 +973,8 @@ void MainWindow::startCapture() {
     config.listenOnly = listenOnlyMode_;
 
     resetDisplay();
+    busLoadTracker_.setBusConfig(busConfig_);
+    busLoadTracker_.reset();
     statusLabel_->setText("Starting capture on " + channelCombo_->currentText() + "...");
     statusLed_->setCapturing(true);
     capture_.start(config);
@@ -1086,45 +1068,21 @@ void MainWindow::populateDecodedChildren(QTreeWidgetItem* item, const DecodedCan
     item->setData(3, Qt::UserRole, frame.dlc);
     item->setData(4, Qt::UserRole, frame.data);
 
-    // dbcppp requires the DBC message ID convention where extended-frame IDs
-    // have the 0x80000000 bit set (the format .dbc files themselves use for
-    // BO_ entries) - Wireshark's can.id field, in contrast, is just the bare
-    // 11/29-bit numeric ID with the extended-ness reported separately via
-    // can_can_flags_xtd, so we OR the bit back in before matching.
-    const uint32_t dbcId = frame.extended ? (frame.id | 0x80000000u) : frame.id;
-
-    const dbcppp::IMessage* message = nullptr;
-    if (dbcNetwork_) {
-        auto it = messageById_.find(dbcId);
-        if (it != messageById_.end()) message = it->second;
-    }
+    const QString messageName = dbcDecoder_.resolveMessageName(frame);
+    const std::vector<DbcDecoder::DecodedSignal> decodedSignals = dbcDecoder_.decodeSignals(frame);
 
     qDeleteAll(item->takeChildren());
-    item->setText(5, message ? QString::fromStdString(message->Name()) : QString());
+    item->setText(5, messageName);
     item->setText(6, QString());
 
-    if (message) {
-        // ISignal::Decode() requires at least 8 bytes and reads up to the
-        // signal's own byte range - pad rather than pass frame.data
-        // directly, since a short classic frame (dlc < 8) or a short FD
-        // frame both give a buffer smaller than that minimum.
-        uint8_t buf[64] = {};
-        std::memcpy(buf, frame.data.constData(), static_cast<size_t>(std::min<qsizetype>(frame.data.size(), 64)));
+    for (const DbcDecoder::DecodedSignal& sig : decodedSignals) {
+        auto* sigItem = new QTreeWidgetItem(item);
+        sigItem->setText(5, sig.name);
+        sigItem->setText(6, QString::number(sig.physicalValue) + " " + sig.unit);
 
-        for (const dbcppp::ISignal& sig : message->Signals()) {
-            const auto raw = sig.Decode(buf);
-            const double phys = sig.RawToPhys(raw);
-            auto* sigItem = new QTreeWidgetItem(item);
-            const QString signalName = QString::fromStdString(sig.Name());
-            const QString unit = QString::fromStdString(sig.Unit());
-            sigItem->setText(5, signalName);
-            sigItem->setText(6, QString::number(phys) + " " + unit);
-
-            // Feed the Graph view's data model - same decode work, just also
-            // retained over time instead of thrown away once the row updates.
-            const QString qualifiedName = QString::fromStdString(message->Name()) + "." + signalName;
-            signalHistory_.recordSample(qualifiedName, unit, frame.timestamp.toDouble(), phys);
-        }
+        // Feed the Graph view's data model - same decode work, just also
+        // retained over time instead of thrown away once the row updates.
+        signalHistory_.recordSample(sig.qualifiedName, sig.unit, frame.timestamp.toDouble(), sig.physicalValue);
     }
 }
 

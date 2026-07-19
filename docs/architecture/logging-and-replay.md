@@ -32,12 +32,17 @@ discipline followed throughout CANtrip - see
 [Future: CLI & Headless Mode](../future/cli-and-headless-mode.md) for where
 that discipline is heading next.
 
-## Where signal-level decode still lives
+## Where signal-level decode lives
 
-DBC decode itself (`populateDecodedChildren()`, `messageById_`,
-`resolveMessageName()`) currently lives inside `MainWindow`, not inside
-`ILogWriter` or `LogReplaySource` - both of those only work with the raw
-`DecodedCanFrame`, and rely on `MainWindow` having already been the one to
-call into dbcppp. This is the one piece of otherwise-plain-class logic
-that's still GUI-locked - see
-[Future: CLI & Headless Mode](../future/cli-and-headless-mode.md#open-design-questions).
+Neither `ILogWriter` nor `LogReplaySource` decode DBC signals themselves -
+both only work with the raw `DecodedCanFrame`. The `MessageName` column
+`CsvLogWriter`/`AscLogWriter` write comes from a small injected callback
+(`MessageNameResolver`, a `std::function`), backed by `DbcDecoder`'s
+`resolveMessageName()` (`app/DbcDecoder.h/.cpp`, see
+[Data Flow](data-flow.md#where-each-responsibility-actually-lives)) -
+either `MainWindow`'s own instance or, headless,
+[`HeadlessRunner`](../future/cli-and-headless-mode.md)'s. Full per-signal
+decode (`DbcDecoder::decodeSignals()`, used for the Trace view's expandable
+rows and Graph view plotting) is a separate call `MainWindow` makes for
+its own UI needs - logging was never coupled to that heavier path, and
+never needed `MainWindow` to have "already decoded" anything first.

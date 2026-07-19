@@ -9,6 +9,10 @@ add_executable(cantrip WIN32
     MainWindow.cpp
     BusAutoDetector.h
     BusAutoDetector.cpp
+    BusLoadTracker.h
+    BusLoadTracker.cpp
+    BusLoadView.h
+    BusLoadView.cpp
     CanControllerDialog.h
     CanControllerDialog.cpp
     GraphAxisDialog.h
@@ -17,10 +21,14 @@ add_executable(cantrip WIN32
     GraphView.cpp
     GraphWindowContainer.h
     GraphWindowContainer.cpp
+    HeadlessRunner.h
+    HeadlessRunner.cpp
     AscLogWriter.h
     AscLogWriter.cpp
     CsvLogWriter.h
     CsvLogWriter.cpp
+    DbcDecoder.h
+    DbcDecoder.cpp
     LogFilenameTemplate.h
     LogFilenameTemplate.cpp
     LoggingOptionsDialog.h

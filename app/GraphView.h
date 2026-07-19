@@ -55,7 +55,20 @@ public:
         std::vector<AxisLayoutSignal> plottedSignals;
     };
 
-    explicit GraphView(SignalHistoryStore* history, QWidget* parent = nullptr);
+    // simpleMode hides the signal-list/search panel and the "Add Y Axis"
+    // button/axis tree entirely - no user-visible way to add, remove, or
+    // rename axes/signals. Zoom (rectangle + wheel), the cursor tool, and
+    // Export stay fully functional. Used by BusLoadView, which locks this
+    // to exactly one programmatically-configured axis via
+    // configureSimpleModeAxis() - see its call site for why.
+    explicit GraphView(SignalHistoryStore* history, QWidget* parent = nullptr, bool simpleMode = false);
+
+    // Simple-mode-only: programmatically adds the one axis/signal pair a
+    // simple-mode GraphView will ever show - there's no UI to add another,
+    // so this is the only way one gets configured. Auto-scales like any
+    // other axis (the user can still zoom/pan normally). Call once, right
+    // after construction.
+    void configureSimpleModeAxis(const QString& axisName, const QString& qualifiedSignalName);
 
     // Clears every plotted axis/signal and the signal list, tearing down
     // axis structure entirely - use for a genuinely new capture (changing
@@ -168,6 +181,7 @@ private:
     void renderChartTo(QPaintDevice* device);
 
     SignalHistoryStore* history_;
+    bool simpleMode_;
 
     QLineEdit* searchEdit_;
     QListWidget* signalList_;
