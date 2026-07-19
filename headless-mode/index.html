@@ -1,0 +1,1944 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="An open-source, free alternative to Vector CANalyzer for CAN/CAN-FD bus analysis on Windows.">
+      
+      
+      
+        <link rel="canonical" href="https://avmolaei.github.io/CANtrip/headless-mode/">
+      
+      
+        <link rel="prev" href="../architecture/bus-load-calculation/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../images/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Headless Mode - CANtrip</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#headless-mode" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="CANtrip" class="md-header__button md-logo" aria-label="CANtrip" data-md-component="logo">
+      
+  <img src="../images/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            CANtrip
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Headless Mode
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/avmolaei/CANtrip" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    avmolaei/CANtrip
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../user-guide/getting-started/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../architecture/overview/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Headless Mode
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="CANtrip" class="md-nav__button md-logo" aria-label="CANtrip" data-md-component="logo">
+      
+  <img src="../images/logo.png" alt="logo">
+
+    </a>
+    CANtrip
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/avmolaei/CANtrip" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    avmolaei/CANtrip
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/home-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home Tab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/hardware-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hardware Tab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/analysis-and-measurement-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analysis & Measurement Tab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/logging-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging Tab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/stimulation-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stimulation Tab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/about-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About Tab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/runes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting & FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/data-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/can-backend-abstraction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The AVlabs CAN Backend
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/send-message-internals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Send Message Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/logging-and-replay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging & Replay
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/rune-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rune Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/bus-load-calculation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bus Load Calculation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Headless Mode
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Headless Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#goal-and-non-goal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goal and non-goal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-its-built-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it's built on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#synopsis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Synopsis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flag-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flag reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Flag reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#-headless" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --headless
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-rune-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --rune &lt;path&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-channel-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --channel &lt;name&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-bitrate-bps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --bitrate &lt;bps&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-fd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --fd
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-data-bitrate-bps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --data-bitrate &lt;bps&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-dbc-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --dbc &lt;path&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-log-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --log &lt;path&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-send" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --send
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-duration-seconds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --duration &lt;seconds&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config-resolution-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config resolution order
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exit-conditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit conditions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#worked-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Worked examples
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verified-vs-not-yet-independently-verified" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verified vs. not yet independently verified
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#still-open-not-built-yet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Still open / not built yet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#goal-and-non-goal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goal and non-goal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-its-built-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it's built on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#synopsis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Synopsis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flag-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flag reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Flag reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#-headless" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --headless
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-rune-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --rune &lt;path&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-channel-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --channel &lt;name&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-bitrate-bps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --bitrate &lt;bps&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-fd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --fd
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-data-bitrate-bps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --data-bitrate &lt;bps&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-dbc-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --dbc &lt;path&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-log-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --log &lt;path&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-send" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --send
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-duration-seconds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --duration &lt;seconds&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config-resolution-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config resolution order
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exit-conditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit conditions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#worked-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Worked examples
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verified-vs-not-yet-independently-verified" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verified vs. not yet independently verified
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#still-open-not-built-yet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Still open / not built yet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/avmolaei/CANtrip/edit/main/docs/headless-mode.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="headless-mode">Headless Mode<a class="headerlink" href="#headless-mode" title="Permanent link">&para;</a></h1>
+<p><code>cantrip.exe --headless</code> runs a capture (and optionally sends configured
+messages) with <strong>no GUI window at all</strong> - for CI pipelines and automated
+test benches. Built on <code>QCoreApplication</code>, not <code>QApplication</code>: nothing in
+this code path pulls in Qt Widgets, so there's no window to create even
+transiently.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cantrip --headless --channel &quot;PEAK PCAN_USBBUS1&quot; --duration 60 --log out.asc
+</code></pre></div>
+<h2 id="goal-and-non-goal">Goal and non-goal<a class="headerlink" href="#goal-and-non-goal" title="Permanent link">&para;</a></h2>
+<p>The goal: a CLI-drivable way to start a capture, configure the bus, send
+messages, and log to a file, entirely from a command line, for automated
+test rigs where nobody's watching a window.</p>
+<p>The explicit non-goal: this is <strong>not</strong> a general scripting/automation
+language. That is a separate, much larger piece of work planned for a
+later release (a CAPL-equivalent, alongside UDS/diagnostics support).
+Headless mode is deliberately scoped to "drive the existing capture/log/
+send pipeline from a command line," not "write arbitrary test logic." If
+you need conditional logic, retries, or multi-step orchestration, wrap
+<code>cantrip --headless</code> invocations in whatever scripting environment your
+CI already uses (PowerShell, Python, a Makefile, GitHub Actions steps) -
+that's the intended integration point today, not something headless mode
+tries to do internally.</p>
+<h2 id="what-its-built-on">What it's built on<a class="headerlink" href="#what-its-built-on" title="Permanent link">&para;</a></h2>
+<p>Every piece existed as a plain, non-GUI class before headless mode
+shipped - <code>HeadlessRunner</code> (<code>app/HeadlessRunner.h/.cpp</code>) is genuinely
+just CLI parsing and wiring on top of them, not new capture/log/send
+logic:</p>
+<ul>
+<li><strong><code>TsharkCapture</code></strong> - starts/stops a capture. Same class the GUI uses.</li>
+<li><strong><code>ILogWriter</code></strong> (<code>AscLogWriter</code>/<code>CsvLogWriter</code>) - writes frames to a
+  file, identical format to what the GUI's Logging tab produces.</li>
+<li><strong><code>MessageSender</code></strong> - the cyclic transmit scheduler and both Send
+  Message paths (see
+  <a href="../architecture/send-message-internals/">Architecture: Send Message Internals</a>).</li>
+<li><strong><code>DbcDecoder</code></strong> - DBC load + signal decode, extracted out of
+  <code>MainWindow</code> specifically to make headless mode possible (it was the
+  one real prerequisite - decoding needs to work without a window to
+  host it). See
+  <a href="../architecture/data-flow/#where-each-responsibility-actually-lives">Architecture: Data Flow</a>.</li>
+</ul>
+<p><code>can2pcap.exe</code> was already living proof the underlying capture pipeline
+works completely headless. Headless mode is <code>cantrip.exe</code> itself getting
+that same property, rather than a parallel reimplementation.</p>
+<h2 id="synopsis">Synopsis<a class="headerlink" href="#synopsis" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cantrip.exe --headless [OPTIONS]
+</code></pre></div>
+<p><code>--headless</code> must be present, or CANtrip launches its normal GUI and
+every other flag below is ignored. It's checked in <code>main.cpp</code> before
+either <code>QApplication</code> or <code>QCoreApplication</code> is constructed - this is what
+decides, at the very first line of <code>main()</code>, whether a window is even
+possible for this run.</p>
+<p>At minimum, one of <code>--channel</code> or <code>--rune</code> is required - a headless run
+has to know what to capture from. Everything else is optional.</p>
+<h2 id="flag-reference">Flag reference<a class="headerlink" href="#flag-reference" title="Permanent link">&para;</a></h2>
+<h3 id="-headless"><code>--headless</code><a class="headerlink" href="#-headless" title="Permanent link">&para;</a></h3>
+<p>Type: switch (no value). <strong>Required</strong> to enable headless mode at all.
+Without it, every flag below is silently ignored and CANtrip opens its
+normal GUI window instead.</p>
+<h3 id="-rune-path"><code>--rune &lt;path&gt;</code><a class="headerlink" href="#-rune-path" title="Permanent link">&para;</a></h3>
+<p>Type: file path. Optional.</p>
+<p>Loads channel display name, bus timing (nominal/data bitrate, FD on/off,
+full bit-timing register values), the DBC path, and any configured
+transmit messages from an existing <code>.rune</code> file - the exact same file
+format <a href="../user-guide/home-tab/#configuration-runes">Save Rune</a> in the GUI
+produces. See <a href="../user-guide/runes/">Runes</a> for what a rune contains and
+<a href="../architecture/rune-persistence/">Architecture: Rune Persistence</a> for
+its JSON shape.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>cantrip.exe --headless --rune C:\bench\vn1640a-500k.rune --duration 30 --log out.asc
+</code></pre></div>
+<p>If the file doesn't exist or fails to parse, <code>HeadlessRunner</code> reports the
+error to stderr and exits <code>1</code> immediately - no capture is attempted.
+Every value a rune supplies can still be overridden by the flags below,
+field by field (see <a href="#config-resolution-order">Config Resolution</a>).</p>
+<h3 id="-channel-name"><code>--channel &lt;name&gt;</code><a class="headerlink" href="#-channel-name" title="Permanent link">&para;</a></h3>
+<p>Type: string (exact match). Required if <code>--rune</code> isn't given; optional
+(as an override) if it is.</p>
+<p>The channel's <strong>display name</strong> - the same string shown in the GUI's
+Network Hardware dropdown and stored in <code>RuneConfig::channelDisplayName</code>.
+Matching is case-sensitive and exact, not a substring search. Two forms:</p>
+<ul>
+<li>The synthetic test source: exactly
+  <code>"CANtrip synthetic test source (no hardware needed)"</code> - always
+  available, needs no hardware or vendor driver installed. This is the
+  only path fully testable without real CAN hardware.</li>
+<li>A real vendor channel: <code>"&lt;vendor display name&gt; &lt;channel name&gt;"</code>, e.g.
+  <code>"PEAK PCAN_USBBUS1"</code> or <code>"Vector VN1640A Channel 1"</code> - built from
+  whatever <code>probeAvailableBackends()</code> finds installed on the machine.
+  Run the GUI once and check the Network Hardware dropdown to get the
+  exact string if you're not sure.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cantrip.exe --headless --channel &quot;CANtrip synthetic test source (no hardware needed)&quot; --duration 10
+</code></pre></div>
+<p>If no channel resolves (typo, hardware unplugged, driver not installed),
+<code>HeadlessRunner</code> reports <code>Channel not found: &lt;name&gt;</code> to stderr and exits
+<code>1</code>.</p>
+<h3 id="-bitrate-bps"><code>--bitrate &lt;bps&gt;</code><a class="headerlink" href="#-bitrate-bps" title="Permanent link">&para;</a></h3>
+<p>Type: unsigned integer, bits per second. Default: <code>500000</code> (500 kbit/s).</p>
+<p>Classic CAN nominal bitrate. Only takes effect when not overridden by a
+loaded rune, or explicitly to override one:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>cantrip.exe --headless --channel &quot;PEAK PCAN_USBBUS1&quot; --bitrate 250000 --duration 10
+</code></pre></div>
+<h3 id="-fd"><code>--fd</code><a class="headerlink" href="#-fd" title="Permanent link">&para;</a></h3>
+<p>Type: switch (no value). Default: off (classic CAN).</p>
+<p>Enables CAN FD. When combined with <code>--rune</code>, explicitly passing <code>--fd</code>
+overrides the rune's own FD setting (even to turn it <em>off</em> if the rune
+had it <em>on</em> - passing the flag at all counts as an explicit override,
+tracked separately from the rune's loaded value).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>cantrip.exe --headless --channel &quot;PEAK PCAN_USBBUS1&quot; --fd --data-bitrate 2000000 --duration 10
+</code></pre></div>
+<h3 id="-data-bitrate-bps"><code>--data-bitrate &lt;bps&gt;</code><a class="headerlink" href="#-data-bitrate-bps" title="Permanent link">&para;</a></h3>
+<p>Type: unsigned integer, bits per second. Default: <code>2000000</code> (2 Mbit/s).</p>
+<p>CAN FD data-phase bitrate - only meaningful alongside <code>--fd</code>. Same
+override rule as <code>--bitrate</code>.</p>
+<h3 id="-dbc-path"><code>--dbc &lt;path&gt;</code><a class="headerlink" href="#-dbc-path" title="Permanent link">&para;</a></h3>
+<p>Type: file path. Optional.</p>
+<p>Loads a DBC to decode against, via the same <code>DbcDecoder</code> the GUI uses.
+Supplements or overrides a rune's own <code>dbcPath</code> (if <code>--dbc</code> is given, it
+wins). Decoded message names appear in the log's <code>MessageName</code> column
+(see <a href="../user-guide/logging-tab/#format">Logging Tab: Format</a> for the
+full CSV column list); this flag does <strong>not</strong> control what gets logged
+otherwise (that's <code>--log</code>).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>cantrip.exe --headless --channel &quot;PEAK PCAN_USBBUS1&quot; --dbc C:\dbc\vehicle.dbc --log out.csv --duration 60
+</code></pre></div>
+<p>If the DBC fails to parse, the actual dbcppp parser diagnostic is
+included in the stderr message (same as the GUI's Import DBC error
+dialog), and the run exits <code>1</code> without starting a capture.</p>
+<h3 id="-log-path"><code>--log &lt;path&gt;</code><a class="headerlink" href="#-log-path" title="Permanent link">&para;</a></h3>
+<p>Type: file path. Optional (a run with no <code>--log</code> still captures and can
+still <code>--send</code>, it just doesn't write anything to disk).</p>
+<p>Output log file. Format is inferred purely from the extension: a path
+ending in <code>.csv</code> (case-insensitive) produces <code>CsvLogWriter</code> output;
+anything else produces <code>AscLogWriter</code> output (CANalyzer-compatible ASC).
+There is no separate <code>--format</code> flag - name the file with the extension
+you want.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>cantrip.exe --headless --channel &quot;...&quot; --log C:\logs\run.asc --duration 300
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>cantrip.exe --headless --channel &quot;...&quot; --log C:\logs\run.csv --duration 300
+</code></pre></div>
+<p>If the file can't be opened for writing (bad path, permissions), the run
+exits <code>1</code> before capturing anything. Both formats are byte-identical to
+what the GUI's Logging tab produces - same <code>ILogWriter</code> implementations,
+driven the same way. No headless-only log schema exists.</p>
+<h3 id="-send"><code>--send</code><a class="headerlink" href="#-send" title="Permanent link">&para;</a></h3>
+<p>Type: switch (no value). Default: off.</p>
+<p>Starts the cyclic transmit scheduler for whatever transmit messages the
+loaded <code>--rune</code> contains, using the exact same <code>MessageSender</code> the GUI's
+<a href="../user-guide/stimulation-tab/">Stimulation tab</a> uses (both the Vector
+listen-only-port path and PEAK's named-pipe path - see
+<a href="../architecture/send-message-internals/">Architecture: Send Message Internals</a>).</p>
+<p><strong>Requires <code>--rune</code>.</strong> A bare <code>--channel</code> run has no transmit messages
+configured anywhere to send - passing <code>--send</code> without <code>--rune</code> is a
+config error (exit <code>1</code>, reported before capturing starts).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>cantrip.exe --headless --rune C:\bench\with-messages.rune --send --duration 30 --log out.asc
+</code></pre></div>
+<p>Timing detail worth knowing: the transmit port doesn't open immediately.
+<code>HeadlessRunner</code> waits <strong>2 seconds</strong> after <code>capture_.start()</code> before
+attempting to open it (a fixed delay, not configurable) - this mirrors
+the GUI's own lazy-open behavior (<code>MainWindow::ensureSenderPortOpen()</code>),
+which exists because opening the transmit port immediately can race
+against <code>can2pcap.exe</code> still finishing its own startup. If opening the
+port fails after that delay, the failure is reported to stderr but the
+run <strong>keeps capturing and logging</strong> - a failed send never kills an
+otherwise-working capture (same graceful-degradation philosophy as the
+GUI).</p>
+<h3 id="-duration-seconds"><code>--duration &lt;seconds&gt;</code><a class="headerlink" href="#-duration-seconds" title="Permanent link">&para;</a></h3>
+<p>Type: integer, seconds. Optional - omit to run until Ctrl+C.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>cantrip.exe --headless --channel &quot;...&quot; --duration 120 --log out.asc
+</code></pre></div>
+<p>See <a href="#exit-conditions">Exit Conditions</a> below for the full shutdown
+sequence this triggers.</p>
+<h2 id="config-resolution-order">Config resolution order<a class="headerlink" href="#config-resolution-order" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Start from <code>--rune &lt;path&gt;</code> if given - it supplies channel, full bus
+   timing, DBC path, and transmit messages as the baseline.</li>
+<li>Apply <code>--channel</code>, <code>--bitrate</code>, <code>--fd</code>, <code>--data-bitrate</code>, <code>--dbc</code>
+   <strong>only if each was explicitly passed</strong> - each is tracked independently,
+   so passing <code>--bitrate</code> alone overrides just the bitrate, leaving FD
+   mode, data bitrate, and channel exactly as the rune specified them.</li>
+<li>With no <code>--rune</code>, flags are the only source, and <code>--channel</code> becomes
+   mandatory (there's nothing else to supply one). This was a deliberate
+   design decision: an earlier draft effectively required a rune to exist
+   first, which meant a genuinely fresh CI runner (one that's never had
+   CANtrip's GUI touch it) couldn't configure a run at all. Plain flags
+   fix that - both are first-class, neither is a fallback for the other.</li>
+<li>Channel resolution happens last, after all overrides are applied, and
+   is the first thing that can fail with "Channel not found."</li>
+</ol>
+<p>Every config problem - bad channel, unreadable rune, unparseable DBC,
+unopenable log file - fails fast with a clear stderr message and exit
+<code>1</code>, <strong>before</strong> the event loop ever starts. A headless run never begins
+capturing on a configuration it isn't sure about.</p>
+<h2 id="exit-conditions">Exit conditions<a class="headerlink" href="#exit-conditions" title="Permanent link">&para;</a></h2>
+<p>Whichever comes first:</p>
+<ul>
+<li><strong><code>--duration</code> elapses</strong> - a <code>QTimer::singleShot</code>-driven clean stop.</li>
+<li><strong>Ctrl+C, Ctrl+Break, or the console window closing</strong> - handled via
+  the Windows <code>SetConsoleCtrlHandler</code> API (not the portable C
+  <code>&lt;csignal&gt;</code>/<code>signal()</code> API, which didn't cooperate with this project's
+  Qt/MSVC toolchain combination; <code>SetConsoleCtrlHandler</code> is the more
+  correct native-Windows mechanism regardless, and this project is
+  Windows-only). The handler itself runs on a separate OS thread and
+  only sets an atomic flag - <code>HeadlessRunner</code> polls that flag from an
+  ordinary <code>QTimer</code> on the main thread every 200ms, rather than touching
+  Qt/GUI-thread state directly from the handler thread.</li>
+<li><strong>A fatal capture error</strong> - <code>TsharkCapture</code> stopping on its own (a real
+  startup failure) rather than via a stop headless mode itself requested
+  → exit code 1.</li>
+</ul>
+<p>On any of these, in order: the transmit port closes if <code>--send</code> had
+opened one, the capture stops, the log file (if any) is flushed and
+closed, a one-line summary prints to stdout, and the process exits.</p>
+<h2 id="exit-codes">Exit codes<a class="headerlink" href="#exit-codes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0</code></td>
+<td>Clean stop - <code>--duration</code> elapsed, or Ctrl+C/Ctrl+Break/console close was handled</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>Either a config problem that prevented starting at all (bad channel, unreadable rune, unparseable DBC, unopenable log file, <code>--send</code> without <code>--rune</code>, an unrecognized flag), or a fatal capture error partway through a run</td>
+</tr>
+</tbody>
+</table>
+<h2 id="output-reference">Output reference<a class="headerlink" href="#output-reference" title="Permanent link">&para;</a></h2>
+<p>Everything headless mode prints goes to stdout or stderr as plain text -
+there is no structured (JSON) output format today. Every message is
+prefixed <code>cantrip:</code>.</p>
+<p>On successful start (stdout):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>cantrip: capturing on &#39;&lt;channel display name&gt;&#39;[, logging to &lt;path&gt;]
+</code></pre></div>
+<p>The <code>, logging to &lt;path&gt;</code> clause only appears when <code>--log</code> was given. On
+any exit, the final line (stdout):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>cantrip: captured &lt;N&gt; frame(s) in &lt;S&gt;.&lt;D&gt;s
+</code></pre></div>
+<p><code>&lt;N&gt;</code> is the total frame count (every frame that reached
+<code>onFrameReceived</code>, both received and, if <code>--send</code> was active,
+transmitted). <code>&lt;S&gt;.&lt;D&gt;</code> is wall-clock elapsed time since <code>capture_.start()</code>,
+one decimal place.</p>
+<p>Config errors (stderr, before any capture starts) are a single line,
+followed immediately by exit <code>1</code> - for example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>cantrip: No channel specified - pass --channel &lt;name&gt; or --rune &lt;path&gt;.
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>cantrip: Unknown argument: --bogus
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>Usage: cantrip --headless [--rune &lt;path&gt;] [--channel &lt;name&gt;] [--bitrate &lt;bps&gt;] [--fd] [--data-bitrate &lt;bps&gt;] [--dbc &lt;path&gt;] [--log &lt;path&gt;] [--send] [--duration &lt;seconds&gt;]
+</code></pre></div>
+<p>Runtime warnings during a capture (tshark's own stderr chatter, e.g.
+driver diagnostics) also go to stderr, prefixed the same way, but do
+<strong>not</strong> by themselves stop the run or affect the exit code - only a
+genuinely fatal capture error does that.</p>
+<h2 id="worked-examples">Worked examples<a class="headerlink" href="#worked-examples" title="Permanent link">&para;</a></h2>
+<p><strong>Minimal - synthetic source, no hardware needed, no logging:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>cantrip.exe --headless --channel &quot;CANtrip synthetic test source (no hardware needed)&quot; --duration 5
+</code></pre></div>
+<p><strong>Real hardware, classic CAN, log to ASC:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>cantrip.exe --headless --channel &quot;PEAK PCAN_USBBUS1&quot; --bitrate 500000 --log C:\logs\bench01.asc --duration 300
+</code></pre></div>
+<p><strong>Real hardware, CAN FD, log to CSV with decoded signal names:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>cantrip.exe --headless --channel &quot;Vector VN1640A Channel 1&quot; --fd --data-bitrate 2000000 --dbc C:\dbc\vehicle.dbc --log C:\logs\fd-run.csv --duration 120
+</code></pre></div>
+<p><strong>Reuse a saved rune's full config, override just the log destination:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>cantrip.exe --headless --rune C:\bench\standard-setup.rune --log C:\logs\nightly-2026-07-19.asc --duration 3600
+</code></pre></div>
+<p><strong>Reuse a rune, and also transmit its configured test messages:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>cantrip.exe --headless --rune C:\bench\with-messages.rune --send --log C:\logs\stimulus-run.csv --duration 60
+</code></pre></div>
+<p><strong>Run until manually stopped (no <code>--duration</code>), for an interactive bench
+session you'll Ctrl+C when done:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>cantrip.exe --headless --channel &quot;PEAK PCAN_USBBUS1&quot; --log C:\logs\manual-session.asc
+</code></pre></div>
+<p><strong>In a CI script, checking the exit code (PowerShell):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="p">&amp;</span> <span class="n">cantrip</span><span class="p">.</span><span class="n">exe</span> <span class="p">-</span><span class="n">-headless</span> <span class="p">-</span><span class="n">-channel</span> <span class="s2">&quot;PEAK PCAN_USBBUS1&quot;</span> <span class="p">-</span><span class="n">-duration</span> <span class="n">60</span> <span class="p">-</span><span class="n">-log</span> <span class="nv">$env:LOG_PATH</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="k">if</span> <span class="p">(</span><span class="nv">$LASTEXITCODE</span> <span class="o">-ne</span> <span class="n">0</span><span class="p">)</span> <span class="p">{</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>    <span class="nb">Write-Error</span> <span class="s2">&quot;CANtrip capture failed&quot;</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>    <span class="n">exit</span> <span class="n">1</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="p">}</span>
+</code></pre></div>
+<h2 id="verified-vs-not-yet-independently-verified">Verified vs. not yet independently verified<a class="headerlink" href="#verified-vs-not-yet-independently-verified" title="Permanent link">&para;</a></h2>
+<p>Confirmed working for real, in this environment:</p>
+<ul>
+<li>The no-args/bad-config error path (clean message, exit 1, no window
+  ever appears).</li>
+<li>A full capture + log run against the synthetic source, both <code>.asc</code> and
+  <code>.csv</code>, <code>--duration</code>-triggered clean exit - producing a complete, valid
+  log file with the exact frame count reported in the summary.</li>
+<li><code>--dbc</code> against the synthetic source - the log's MessageName column
+  resolves correctly with zero <code>MainWindow</code> in the process at all.</li>
+</ul>
+<p>Not independently verified in this environment:</p>
+<ul>
+<li><strong>Real OS-level Ctrl+C delivery specifically.</strong> Console attachment
+  doesn't carry over cleanly through this project's own test tooling.
+  The shutdown logic itself (<code>stopAndFinish()</code>) is exercised identically
+  by the <code>--duration</code> path above - confirmed correct - only the
+  <em>trigger</em> differs for Ctrl+C. If you hit something odd here on a real
+  terminal, that's the part to look at first.</li>
+<li><strong><code>--send</code> against real hardware.</strong> Reuses <code>MessageSender</code>, already
+  verified working on real Vector and PEAK hardware for the GUI's own
+  Send Message feature - but the headless wiring around it (the port-open
+  timing specifically) is new and hasn't had the same real-hardware pass.</li>
+</ul>
+<h2 id="still-open-not-built-yet">Still open / not built yet<a class="headerlink" href="#still-open-not-built-yet" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Structured (JSON) status output.</li>
+<li><code>--send</code> as an independent second file/path, rather than requiring the
+  same <code>--rune</code> that supplies bus config.</li>
+<li>Any exit condition beyond duration/Ctrl+C/fatal-error - e.g. "stop on
+  seeing frame ID X" is arguably shaped like the future scripting
+  feature (v3.0), not something headless mode itself should grow.</li>
+</ul>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../architecture/overview/">Architecture: Overview</a> for how the capture
+  pipeline is structured.</li>
+<li><a href="../architecture/rune-persistence/">Architecture: Rune Persistence</a> for
+  the <code>.rune</code> JSON shape <code>--rune</code> loads.</li>
+<li><a href="../user-guide/runes/">Runes</a> for how to actually produce a <code>.rune</code> file
+  in the first place (today, always via the GUI's Save Rune).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.tracking", "toc.follow", "search.suggest", "content.code.copy", "content.action.edit"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
