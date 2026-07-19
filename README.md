@@ -7,10 +7,8 @@ CAN-FD bus traffic on Windows, decoding it against DBC files, and graphing signa
 
 <p align="center"><img src="docs/images/hero.png" alt="CANtrip main window"></p>
 
-**[Read the full documentation site](https://avmolaei.github.io/CANtrip/)**
-for a complete user guide (every tab and dialog, with screenshots), the
-system architecture (with diagrams), and the v1.5 CLI/headless mode design.
-This README is just a quick start.
+**[Read the full documentation site here](https://avmolaei.github.io/CANtrip/)**
+
 
 ## Why CANtrip
 
