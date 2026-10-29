@@ -1,5 +1,11 @@
 # CANtrip
 
+<div class="cantrip-film">
+  <iframe src="media/tech-demo.html#embed" title="CANtrip tech demo" loading="lazy" allow="fullscreen" allowfullscreen></iframe>
+</div>
+<p class="cantrip-film-caption">An 86-second tech demo: why CANtrip exists, how it's built and where it's going.
+<a href="media/tech-demo.html">Open it full page</a> for chapters and a transcript.</p>
+
 CANtrip is an open-source, free alternative to Vector CANalyzer for viewing
 and decoding CAN / CAN-FD bus traffic on Windows, licensed GPLv3.
 

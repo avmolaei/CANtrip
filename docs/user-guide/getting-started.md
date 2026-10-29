@@ -1,5 +1,12 @@
 # Getting Started
 
+<div class="cantrip-film">
+  <iframe src="../../media/how-to.html#embed" title="How to use CANtrip" loading="lazy" allow="fullscreen" allowfullscreen></iframe>
+</div>
+<p class="cantrip-film-caption">A two-minute walkthrough of everything on this page and the rest of the User Guide,
+using the synthetic source so you can follow along with no hardware.
+<a href="../../media/how-to.html">Open it full page</a> for chapters and a transcript.</p>
+
 ## Prerequisites
 
 - **[Wireshark](https://www.wireshark.org/)** installed. CANtrip doesn't
