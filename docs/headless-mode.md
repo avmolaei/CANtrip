@@ -1,5 +1,11 @@
 # Headless Mode
 
+<div class="cantrip-film">
+  <iframe src="../media/headless.html#embed" title="CANtrip headless mode, by example" loading="lazy" allow="fullscreen" allowfullscreen></iframe>
+</div>
+<p class="cantrip-film-caption">Headless mode by example: real terminal sessions for every flag, from a first run on the synthetic source to CI.
+<a href="../media/headless.html">Open it full page</a> for chapters and a transcript.</p>
+
 `cantrip.exe --headless` runs a capture (and optionally sends configured
 messages) with **no GUI window at all** - for CI pipelines and automated
 test benches. Built on `QCoreApplication`, not `QApplication`: nothing in
