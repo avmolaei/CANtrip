@@ -1,5 +1,12 @@
 # Process Architecture
 
+<div class="cantrip-film">
+  <iframe src="../../media/architecture.html#embed" title="How CANtrip is built" loading="lazy" allow="fullscreen" allowfullscreen></iframe>
+</div>
+<p class="cantrip-film-caption">A three-minute walkthrough of everything in this section: the three processes, the vendor-neutral backend,
+the pcap wire format, the frame pipeline, transmit internals and the bugs that shaped them.
+<a href="../../media/architecture.html">Open it full page</a> for chapters and a transcript.</p>
+
 CANtrip does not reimplement CAN capture or low-level frame dissection.
 Instead it reuses Wireshark's own capture pipeline end to end: `tshark`
 launches `can2pcap.exe` as an [extcap](https://www.wireshark.org/docs/wsdg_html_chunked/ChCaptureExtcap.html)
