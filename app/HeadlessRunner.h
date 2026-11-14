@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include <QElapsedTimer>
 #include <QObject>
@@ -16,6 +17,7 @@
 #include <QTimer>
 
 #include "../common/AVlabsCanBackend.h"
+#include "BusTimeAligner.h"
 #include "DbcDecoder.h"
 #include "LogWriter.h"
 #include "MessageSender.h"
@@ -54,7 +56,11 @@ private:
     bool resolveChannel(const QString& displayName, QString* interfaceId, QString* error) const;
     void stopAndFinish(int exitCode);
 
-    TsharkCapture capture_;
+    TsharkCapture capture_; // bus 1
+    // Buses 2 to 4, when --bus was given. Bus 1 keeps its own member so a
+    // plain single-bus run goes through exactly the code it always did.
+    std::vector<std::unique_ptr<TsharkCapture>> extraCaptures_;
+    BusTimeAligner timeAligner_;
     std::unique_ptr<ILogWriter> logWriter_;
     DbcDecoder dbcDecoder_;
     MessageSender messageSender_;

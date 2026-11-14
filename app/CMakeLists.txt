@@ -12,6 +12,7 @@ add_library(cantrip_app STATIC
     BusAutoDetector.h
     BusAutoDetector.cpp
     BusLoadTracker.h
+    BusTimeAligner.h
     BusLoadTracker.cpp
     BusLoadView.h
     BusLoadView.cpp

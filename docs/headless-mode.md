@@ -238,6 +238,31 @@ cantrip.exe --headless --channel "..." --duration 120 --log out.asc
 See [Exit Conditions](#exit-conditions) below for the full shutdown
 sequence this triggers.
 
+### `--bus <number>`
+
+Type: integer, 2 to 4. Optional. Captures a second, third or fourth bus in
+the same run.
+
+`--bus N` switches which bus the `--channel`, `--bitrate`, `--fd` and
+`--data-bitrate` flags after it apply to. Flags before the first `--bus`
+configure bus 1, exactly as in a single-bus run:
+
+```
+cantrip.exe --headless --channel "PEAK-System PCAN-Basic PCAN-USB FD" --bitrate 500000 --bus 2 --channel "Vector XL Driver Library VN1640A Channel 1" --bitrate 250000 --log both.asc --duration 60
+```
+
+- Every bus needs its own `--channel`. All of them are checked before any
+  capture starts, so a mistake on one bus doesn't leave the others running.
+- The log holds all buses in one file. The bus number is the channel
+  column of an ASC or CSV log, and replaying the log brings it back.
+- With more than one bus, timestamps are put on one shared clock that
+  starts at the first frame seen on any bus. Spacing between frames of the
+  same bus is exactly what the adapter reported. Alignment between buses
+  comes from when each bus's first frame arrived, so allow a few
+  milliseconds when comparing times across buses.
+- `--rune`, `--dbc` and `--send` still apply to bus 1 only. The same DBC
+  names messages on every bus in the log.
+
 ## Config resolution order
 
 1. Start from `--rune <path>` if given - it supplies channel, full bus

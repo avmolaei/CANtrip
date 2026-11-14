@@ -68,6 +68,7 @@ void TsharkCapture::start(const Config& config) {
     if (process_.state() != QProcess::NotRunning) return;
     pendingStdout_.clear();
     tsharkPath_ = config.tsharkPath;
+    bus_ = config.bus;
 
     PcapPipeFeeder::Config feed;
     feed.interfaceId = config.interfaceId.toStdString();
@@ -221,6 +222,7 @@ void TsharkCapture::processLine(const QByteArray& line) {
     if (can.isEmpty()) return;
 
     DecodedCanFrame frame;
+    frame.bus = bus_;
 
     // Error frames (always classic-length, never under "canfd") carry no
     // real CAN ID/DLC/payload - can_can_flags_err is Wireshark's own flag

@@ -82,15 +82,48 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
     bool haveDuration = false;
     int durationSec = 0;
 
+    // --bus N switches which bus the channel and bitrate flags after it
+    // apply to. Without it everything is bus 1, as it always was.
+    struct ExtraBus {
+        int bus = 0;
+        QString channelName;
+        uint32_t bitrate = 500000, dataBitrate = 2000000;
+        bool fd = false;
+    };
+    std::vector<ExtraBus> extraBuses;
+    ExtraBus* current = nullptr; // null while the flags apply to bus 1
+
     for (int i = 0; i < args.size(); ++i) {
         const QString& a = args[i];
         auto nextArg = [&]() -> QString { return (i + 1 < args.size()) ? args[++i] : QString(); };
 
         if (a == "--rune") runePath = nextArg();
-        else if (a == "--channel") channelName = nextArg();
-        else if (a == "--bitrate") { bitrate = nextArg().toUInt(); bitrateGiven = true; }
-        else if (a == "--fd") { fd = true; fdGiven = true; }
-        else if (a == "--data-bitrate") { dataBitrate = nextArg().toUInt(); dataBitrateGiven = true; }
+        else if (a == "--bus") {
+            const int bus = nextArg().toInt();
+            if (bus < 1 || bus > 4) {
+                if (error) *error = "--bus takes a bus number from 1 to 4.";
+                return false;
+            }
+            current = nullptr;
+            if (bus != 1) {
+                for (ExtraBus& b : extraBuses) if (b.bus == bus) current = &b;
+                if (!current) {
+                    extraBuses.reserve(4); // keeps `current` valid across push_back
+                    extraBuses.push_back(ExtraBus{bus});
+                    current = &extraBuses.back();
+                }
+            }
+        }
+        else if (a == "--channel") { if (current) current->channelName = nextArg(); else channelName = nextArg(); }
+        else if (a == "--bitrate") {
+            if (current) current->bitrate = nextArg().toUInt();
+            else { bitrate = nextArg().toUInt(); bitrateGiven = true; }
+        }
+        else if (a == "--fd") { if (current) current->fd = true; else { fd = true; fdGiven = true; } }
+        else if (a == "--data-bitrate") {
+            if (current) current->dataBitrate = nextArg().toUInt();
+            else { dataBitrate = nextArg().toUInt(); dataBitrateGiven = true; }
+        }
         else if (a == "--dbc") dbcPath = nextArg();
         else if (a == "--log") logPath = nextArg();
         else if (a == "--send") send = true;
@@ -99,7 +132,8 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
             if (error) *error = "Unknown argument: " + a + "\n\nUsage: cantrip --headless "
                 "[--rune <path>] [--channel <name>] [--bitrate <bps>] [--fd] "
                 "[--data-bitrate <bps>] [--dbc <path>] [--log <path>] [--send] "
-                "[--duration <seconds>]";
+                "[--duration <seconds>] "
+                "[--bus <2-4> --channel <name> [--bitrate <bps>] [--fd] [--data-bitrate <bps>]]...";
             return false;
         }
     }
@@ -178,17 +212,49 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
     config.dataSjw = busConfig.dataTiming.sjw;
     config.listenOnly = false;
 
+    // Everything about the extra buses is checked before any capture starts,
+    // so a typo in bus 3's channel doesn't leave buses 1 and 2 running.
+    std::vector<TsharkCapture::Config> extraConfigs;
+    for (const ExtraBus& extra : extraBuses) {
+        if (extra.channelName.isEmpty()) {
+            if (error) *error = QString("--bus %1 has no --channel.").arg(extra.bus);
+            return false;
+        }
+        TsharkCapture::Config extraConfig;
+        extraConfig.tsharkPath = config.tsharkPath;
+        extraConfig.bus = extra.bus;
+        extraConfig.nominalBitrateBps = extra.bitrate;
+        extraConfig.dataBitrateBps = extra.dataBitrate;
+        extraConfig.fd = extra.fd;
+        if (!resolveChannel(extra.channelName, &extraConfig.interfaceId, error)) return false;
+        if (extraConfig.interfaceId == interfaceId && interfaceId != kTestInterfaceId) {
+            if (error) *error = QString("Bus %1 uses the same channel as bus 1.").arg(extra.bus);
+            return false;
+        }
+        extraConfigs.push_back(extraConfig);
+    }
+
     SetConsoleCtrlHandler(consoleCtrlHandler, TRUE);
 
     runClock_.start();
+    timeAligner_.reset();
     capture_.start(config);
     fprintf(stdout, "cantrip: capturing on '%s'%s%s\n", qUtf8Printable(channelName),
             logWriter_ ? ", logging to " : "", logWriter_ ? qUtf8Printable(logPath) : "");
+    for (size_t i = 0; i < extraConfigs.size(); ++i) {
+        auto capture = std::make_unique<TsharkCapture>();
+        connect(capture.get(), &TsharkCapture::frameReceived, this, &HeadlessRunner::onFrameReceived);
+        connect(capture.get(), &TsharkCapture::errorOccurred, this, &HeadlessRunner::onCaptureError);
+        connect(capture.get(), &TsharkCapture::stopped, this, &HeadlessRunner::onCaptureStopped);
+        capture->start(extraConfigs[i]);
+        extraCaptures_.push_back(std::move(capture));
+        fprintf(stdout, "cantrip: bus %d capturing on '%s'\n", extraBuses[i].bus, qUtf8Printable(extraBuses[i].channelName));
+    }
     fflush(stdout);
 
     if (send) {
         // Lazy-open, same reasoning as MainWindow::ensureSenderPortOpen():
-        // opening immediately would race against can2pcap.exe actually
+        // opening immediately would race against the capture thread actually
         // finishing its own startup. A short delay after capture_.start()
         // is close enough for a scripted/CI run - there's no GUI click to
         // naturally provide the same delay headless has here for free.
@@ -216,7 +282,17 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
 
 void HeadlessRunner::onFrameReceived(const DecodedCanFrame& frame) {
     ++frameCount_;
-    if (logWriter_) logWriter_->writeFrame(1, frame);
+    if (!logWriter_) return;
+    if (extraCaptures_.empty()) {
+        logWriter_->writeFrame(frame.bus, frame);
+        return;
+    }
+    // Several buses: each capture counts time from its own first frame, so
+    // put them on one clock before they share a log (see BusTimeAligner.h).
+    DecodedCanFrame aligned = frame;
+    const double t = timeAligner_.align(frame.bus, frame.timestamp.toDouble(), runClock_.nsecsElapsed() / 1e9);
+    aligned.timestamp = QString::number(t, 'f', 6);
+    logWriter_->writeFrame(aligned.bus, aligned);
 }
 
 void HeadlessRunner::onCaptureError(const QString& message) {
@@ -247,6 +323,9 @@ void HeadlessRunner::stopAndFinish(int exitCode) {
     durationTimer_.stop();
     if (sending_) messageSender_.closePort();
     if (capture_.isRunning()) capture_.stop();
+    for (auto& capture : extraCaptures_) {
+        if (capture->isRunning()) capture->stop();
+    }
     if (logWriter_) logWriter_->close();
 
     const double elapsedSec = runClock_.elapsed() / 1000.0;

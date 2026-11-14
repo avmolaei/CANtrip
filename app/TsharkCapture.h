@@ -24,6 +24,9 @@ enum class FrameDirection { Rx, Tx };
 
 struct DecodedCanFrame {
     QString timestamp;
+    // Which bus (1 to 4) the frame was seen on. Written to logs as the
+    // channel number.
+    int bus = 1;
     FrameDirection direction = FrameDirection::Rx;
     uint32_t id = 0;
     bool extended = false;
@@ -51,6 +54,8 @@ public:
     struct Config {
         QString tsharkPath = "tshark";
         QString interfaceId;
+        // Stamped on every frame this capture produces.
+        int bus = 1;
         uint32_t nominalBitrateBps = 500000;
         uint32_t dataBitrateBps = 2000000;
         bool fd = false;
@@ -93,6 +98,7 @@ private:
     QProcess process_;
     QByteArray pendingStdout_;
     QString tsharkPath_;
+    int bus_ = 1;
     // Declared after process_ so it is destroyed first: its thread must be
     // gone before anything it reports to is.
     PcapPipeFeeder feeder_;

@@ -1099,7 +1099,7 @@ void MainWindow::onFrameReceived(const DecodedCanFrame& frame) {
     // "never throttled" treatment for the same reason, a few lines down).
     // Channel hardcoded to 1 until multi-bus exists - see LogWriter.h.
     if (logging_) {
-        logWriter_->writeFrame(1, frame);
+        logWriter_->writeFrame(frame.bus, frame);
         rotateLogFileIfNeeded();
     }
 

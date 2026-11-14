@@ -136,6 +136,7 @@ bool LogReplaySource::loadAsc(const QString& path, QString* error) {
             // [0]=ts [1]=CANFD [2]=channel [3]=dir [4]=id [5]=name-or-brs ...
             if (tokens.size() < 9) continue;
             frame.fd = true;
+            frame.bus = std::max(1, tokens[2].toInt());
             parseFrameId(tokens[4], &frame.id, &frame.extended);
 
             int idx = 5;
@@ -154,6 +155,7 @@ bool LogReplaySource::loadAsc(const QString& path, QString* error) {
             frame.data = parseSpaceHex(tokens.mid(idx).join(' '));
         } else {
             // [0]=ts [1]=channel [2]=id [3]=dir [4]=frametype(d/r) [5]=dlc(hex) [6..]=data
+            frame.bus = std::max(1, tokens[1].toInt());
             parseFrameId(tokens[2], &frame.id, &frame.extended);
             frame.rtr = tokens[4] == "r";
             frame.dlc = static_cast<uint8_t>(tokens[5].toInt(nullptr, 16));
@@ -180,6 +182,7 @@ bool LogReplaySource::loadCsv(const QString& path, QString* error) {
     // before and after that change both load this way.
     const QStringList header = splitCsvRow(stream.readLine());
     const int colTime = header.indexOf("Time");
+    const int colChannel = header.indexOf("Channel");
     const int colId = header.indexOf("ID");
     const int colExtended = header.indexOf("Extended");
     const int colFd = header.indexOf("FD");
@@ -201,6 +204,7 @@ bool LogReplaySource::loadCsv(const QString& path, QString* error) {
 
         DecodedCanFrame frame;
         frame.timestamp = field(colTime);
+        frame.bus = std::max(1, field(colChannel).toInt());
 
         if (!field(colError).isEmpty()) {
             frame.error = true;
