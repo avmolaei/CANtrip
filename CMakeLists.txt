@@ -13,6 +13,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CANtripCompilerOptions)
 
 option(CANTRIP_BUILD_APP "Build the CANtrip Qt desktop app (requires Qt6)" ON)
+option(CANTRIP_BUILD_TESTS "Build the unit tests (requires the app and Qt6 Test), run with ctest" ON)
 
 # dbcppp's NS_: (new symbols) grammar (third_party/dbcppp/src/DBCX3.cpp) only
 # recognizes a fixed, case-sensitive whitelist of keyword strings - it accepts
@@ -54,4 +55,8 @@ add_subdirectory(extcap)
 
 if(CANTRIP_BUILD_APP)
     add_subdirectory(app)
+    if(CANTRIP_BUILD_TESTS)
+        enable_testing()
+        add_subdirectory(test/unit)
+    endif()
 endif()
