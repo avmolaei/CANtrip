@@ -13,7 +13,7 @@ this code path pulls in Qt Widgets, so there's no window to create even
 transiently.
 
 ```
-cantrip --headless --channel "PEAK PCAN_USBBUS1" --duration 60 --log out.asc
+cantrip --headless --channel "PEAK-System PCAN-Basic PCAN-USB FD" --duration 60 --log out.asc
 ```
 
 ## Goal and non-goal
@@ -114,7 +114,7 @@ Matching is case-sensitive and exact, not a substring search. Two forms:
   available, needs no hardware or vendor driver installed. This is the
   only path fully testable without real CAN hardware.
 - A real vendor channel: `"<vendor display name> <channel name>"`, e.g.
-  `"PEAK PCAN_USBBUS1"` or `"Vector VN1640A Channel 1"` - built from
+  `"PEAK-System PCAN-Basic PCAN-USB FD"` or `"Vector XL Driver Library VN1640A Channel 1"` - built from
   whatever `probeAvailableBackends()` finds installed on the machine.
   Run the GUI once and check the Network Hardware dropdown to get the
   exact string if you're not sure.
@@ -135,7 +135,7 @@ Classic CAN nominal bitrate. Only takes effect when not overridden by a
 loaded rune, or explicitly to override one:
 
 ```
-cantrip.exe --headless --channel "PEAK PCAN_USBBUS1" --bitrate 250000 --duration 10
+cantrip.exe --headless --channel "PEAK-System PCAN-Basic PCAN-USB FD" --bitrate 250000 --duration 10
 ```
 
 ### `--fd`
@@ -148,7 +148,7 @@ had it *on* - passing the flag at all counts as an explicit override,
 tracked separately from the rune's loaded value).
 
 ```
-cantrip.exe --headless --channel "PEAK PCAN_USBBUS1" --fd --data-bitrate 2000000 --duration 10
+cantrip.exe --headless --channel "PEAK-System PCAN-Basic PCAN-USB FD" --fd --data-bitrate 2000000 --duration 10
 ```
 
 ### `--data-bitrate <bps>`
@@ -170,7 +170,7 @@ full CSV column list); this flag does **not** control what gets logged
 otherwise (that's `--log`).
 
 ```
-cantrip.exe --headless --channel "PEAK PCAN_USBBUS1" --dbc C:\dbc\vehicle.dbc --log out.csv --duration 60
+cantrip.exe --headless --channel "PEAK-System PCAN-Basic PCAN-USB FD" --dbc C:\dbc\vehicle.dbc --log out.csv --duration 60
 ```
 
 If the DBC fails to parse, the actual dbcppp parser diagnostic is
@@ -221,7 +221,7 @@ Timing detail worth knowing: the transmit port doesn't open immediately.
 attempting to open it (a fixed delay, not configurable) - this mirrors
 the GUI's own lazy-open behavior (`MainWindow::ensureSenderPortOpen()`),
 which exists because opening the transmit port immediately can race
-against `can2pcap.exe` still finishing its own startup. If opening the
+against the capture thread still finishing its own startup. If opening the
 port fails after that delay, the failure is reported to stderr but the
 run **keeps capturing and logging** - a failed send never kills an
 otherwise-working capture (same graceful-degradation philosophy as the
@@ -342,13 +342,13 @@ cantrip.exe --headless --channel "CANtrip synthetic test source (no hardware nee
 **Real hardware, classic CAN, log to ASC:**
 
 ```
-cantrip.exe --headless --channel "PEAK PCAN_USBBUS1" --bitrate 500000 --log C:\logs\bench01.asc --duration 300
+cantrip.exe --headless --channel "PEAK-System PCAN-Basic PCAN-USB FD" --bitrate 500000 --log C:\logs\bench01.asc --duration 300
 ```
 
 **Real hardware, CAN FD, log to CSV with decoded signal names:**
 
 ```
-cantrip.exe --headless --channel "Vector VN1640A Channel 1" --fd --data-bitrate 2000000 --dbc C:\dbc\vehicle.dbc --log C:\logs\fd-run.csv --duration 120
+cantrip.exe --headless --channel "Vector XL Driver Library VN1640A Channel 1" --fd --data-bitrate 2000000 --dbc C:\dbc\vehicle.dbc --log C:\logs\fd-run.csv --duration 120
 ```
 
 **Reuse a saved rune's full config, override just the log destination:**
@@ -367,13 +367,13 @@ cantrip.exe --headless --rune C:\bench\with-messages.rune --send --log C:\logs\s
 session you'll Ctrl+C when done:**
 
 ```
-cantrip.exe --headless --channel "PEAK PCAN_USBBUS1" --log C:\logs\manual-session.asc
+cantrip.exe --headless --channel "PEAK-System PCAN-Basic PCAN-USB FD" --log C:\logs\manual-session.asc
 ```
 
 **In a CI script, checking the exit code (PowerShell):**
 
 ```powershell
-& cantrip.exe --headless --channel "PEAK PCAN_USBBUS1" --duration 60 --log $env:LOG_PATH
+& cantrip.exe --headless --channel "PEAK-System PCAN-Basic PCAN-USB FD" --duration 60 --log $env:LOG_PATH
 if ($LASTEXITCODE -ne 0) {
     Write-Error "CANtrip capture failed"
     exit 1

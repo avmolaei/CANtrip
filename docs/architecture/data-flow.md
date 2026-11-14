@@ -1,13 +1,5 @@
 # Data Flow
 
-!!! note "The capture loop moved into cantrip.exe"
-    This page still describes `can2pcap.exe` as a separate process. The same
-    capture code now runs as a thread inside `cantrip.exe` and feeds `tshark`
-    over a named pipe (`common/PcapCapture.h`), so nothing has to be installed
-    into Wireshark. `can2pcap.exe` remains as an optional Wireshark extcap
-    built from that same code. Everything below about what the capture loop
-    does still holds, only where it runs has changed.
-
 How one CAN frame actually gets from a bit on the wire to a decoded signal
 on screen (or a logged line, or a plotted point):
 
@@ -15,7 +7,7 @@ on screen (or a logged line, or a plotted point):
 sequenceDiagram
     participant HW as CAN hardware
     participant BE as IAvlabsCanBackend
-    participant CP as can2pcap.exe
+    participant CP as capture thread (cantrip.exe)
     participant TS as tshark -T ek
     participant App as TsharkCapture (cantrip.exe)
     participant MW as MainWindow
@@ -23,7 +15,7 @@ sequenceDiagram
     HW->>BE: raw frame (vendor SDK event)
     BE->>CP: readFrame() -> CanFrame
     CP->>CP: serializeFrame() -> SocketCAN pcap record
-    CP->>TS: written to fifo
+    CP->>TS: written to a named pipe
     TS->>TS: SocketCAN dissector decodes ID/DLC/data/FD flags
     TS->>App: JSON (Elastic/ek output format), one object per frame
     App->>App: parse -> DecodedCanFrame
@@ -34,11 +26,11 @@ sequenceDiagram
 
 ## Where each responsibility actually lives
 
-- **Backend → `can2pcap.exe`**: `readFrame()` is documented and used as
+- **Backend → the capture thread**: `readFrame()` is documented and used as
   non-blocking - it returns immediately whether or not a frame arrived,
-  and `can2pcap.exe`'s capture loop sleeps briefly when idle rather than
+  and the capture thread's capture loop sleeps briefly when idle rather than
   blocking. See [The AVlabs CAN Backend](can-backend-abstraction.md).
-- **`can2pcap.exe`**: the *only* place that knows about the SocketCAN wire
+- **The capture thread** (`common/PcapCapture.cpp`): the *only* place that knows about the SocketCAN wire
   format. This is also where the CAN FD DLC-code-to-byte-length
   translation happens - see the note on `CanFrame::dlc` in
   [The AVlabs CAN Backend](can-backend-abstraction.md#the-dlc-code-vs-byte-length-trap).
