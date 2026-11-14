@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <QString>
+#include <QStringList>
 
 #include <dbcppp/Network.h>
 
@@ -45,6 +46,12 @@ public:
     // its matched message's signals or contributes nothing.
     std::vector<DecodedSignal> decodeSignals(const DecodedCanFrame& frame) const;
 
+    // How many signals decodeSignals() would return, without decoding.
+    int signalCount(const DecodedCanFrame& frame) const;
+    // Names of the frame's signals, null when no message matches it. Kept
+    // from load time, so checking every frame against them stays cheap.
+    const QStringList* signalNames(const DecodedCanFrame& frame) const;
+
 private:
     const dbcppp::IMessage* messageFor(const DecodedCanFrame& frame) const;
 
@@ -53,6 +60,7 @@ private:
     // network_->Messages() on every single received frame - a real,
     // measurable cost on a large real-world DBC at real bus rates.
     std::unordered_map<uint32_t, const dbcppp::IMessage*> messageById_;
+    std::unordered_map<const dbcppp::IMessage*, QStringList> signalNames_;
     QString path_;
 };
 

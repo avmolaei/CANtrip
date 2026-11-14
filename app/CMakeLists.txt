@@ -46,6 +46,10 @@ add_executable(cantrip WIN32
     StatusLed.cpp
     StimulationView.h
     StimulationView.cpp
+    TraceHeaderView.h
+    TraceHeaderView.cpp
+    TraceModel.h
+    TraceModel.cpp
     TransmitMessage.h
     TransmitMessageDialog.h
     TransmitMessageDialog.cpp

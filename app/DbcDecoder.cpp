@@ -35,8 +35,11 @@ bool DbcDecoder::loadFile(const QString& path, QString* error) {
     path_ = path;
 
     messageById_.clear();
+    signalNames_.clear();
     for (const dbcppp::IMessage& msg : network_->Messages()) {
         messageById_[static_cast<uint32_t>(msg.Id())] = &msg;
+        QStringList& names = signalNames_[&msg];
+        for (const dbcppp::ISignal& sig : msg.Signals()) names << QString::fromStdString(sig.Name());
     }
     return true;
 }
@@ -56,6 +59,16 @@ const dbcppp::IMessage* DbcDecoder::messageFor(const DecodedCanFrame& frame) con
 QString DbcDecoder::resolveMessageName(const DecodedCanFrame& frame) const {
     const dbcppp::IMessage* message = messageFor(frame);
     return message ? QString::fromStdString(message->Name()) : QString();
+}
+
+int DbcDecoder::signalCount(const DecodedCanFrame& frame) const {
+    const QStringList* names = signalNames(frame);
+    return names ? static_cast<int>(names->size()) : 0;
+}
+
+const QStringList* DbcDecoder::signalNames(const DecodedCanFrame& frame) const {
+    auto it = signalNames_.find(messageFor(frame));
+    return it != signalNames_.end() ? &it->second : nullptr;
 }
 
 std::vector<DbcDecoder::DecodedSignal> DbcDecoder::decodeSignals(const DecodedCanFrame& frame) const {

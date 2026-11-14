@@ -14,6 +14,7 @@
 #include <QStackedWidget>
 #include <QTabWidget>
 #include <QTimer>
+#include <QTreeView>
 #include <QTreeWidget>
 
 #include "../common/AVlabsCanBackend.h"
@@ -30,6 +31,8 @@
 #include "SignalHistory.h"
 #include "StatusLed.h"
 #include "StimulationView.h"
+#include "TraceHeaderView.h"
+#include "TraceModel.h"
 #include "TransmitMessage.h"
 #include "TsharkCapture.h"
 
@@ -109,8 +112,8 @@ private:
 
     static QString findTsharkExe();
     static QString findCan2pcapExe();
-    static uint64_t frameKey(const DecodedCanFrame& frame);
     bool loadDbcFile(const QString& path, QString* error);
+    void applyRune(const RuneConfig& config);
     void resetDisplay();
     QString resolveMessageName(const DecodedCanFrame& frame) const;
     QString currentBusNameForFilename() const;
@@ -121,10 +124,9 @@ private:
     void setOutputFileLabel(const QString& path);
     void setCaptureControlsEnabledForReplay(bool replaying);
     void populateDecodedChildren(QTreeWidgetItem* item, const DecodedCanFrame& frame);
-    void handleWaterfallFrame(const DecodedCanFrame& frame);
-    void handlePeriodicFrame(const DecodedCanFrame& frame);
-    void addErrorRow(const DecodedCanFrame& frame);
-    void handlePeriodicErrorFrame(const DecodedCanFrame& frame);
+    void showFrame(const DecodedCanFrame& frame);
+    void applyDefaultTraceSort();
+    void updateFrameCountStatus();
     void handleStimWaterfallFrame(const DecodedCanFrame& frame);
     void handleStimPeriodicFrame(const DecodedCanFrame& frame);
     void addStimErrorRow(const DecodedCanFrame& frame);
@@ -177,14 +179,16 @@ private:
     QRadioButton* stimWaterfallRadio_;
     QRadioButton* stimPeriodicRadio_;
     DisplayMode stimDisplayMode_ = DisplayMode::Periodic;
-    // Mirrors periodicRows_/periodicErrorRows_ but for the Stimulation
-    // tab's own received pane - kept separate since its display mode is
+    // Row bookkeeping for the Stimulation tab's own received pane - kept
+    // separate from the Trace view since its display mode is
     // independent of the Home tab's (see stimDisplayMode_).
     std::unordered_map<uint64_t, PeriodicRowState> stimPeriodicRows_;
     QHash<QString, PeriodicRowState> stimPeriodicErrorRows_;
 
     QStackedWidget* contentStack_;
-    QTreeWidget* frameTree_;
+    QTreeView* frameTree_;
+    TraceModel* traceModel_;
+    TraceHeaderView* traceHeader_;
     GraphWindowContainer* graphWindows_;
     StimulationView* stimulationView_;
     BusLoadTracker busLoadTracker_;
@@ -216,13 +220,6 @@ private:
     bool listenOnlyMode_ = false;
 
     DisplayMode displayMode_ = DisplayMode::Waterfall;
-    std::unordered_map<uint64_t, PeriodicRowState> periodicRows_;
-    // Bus errors have no CAN ID to key a periodic row on, so they get their
-    // own map keyed by error description instead (one row per distinct
-    // error type, e.g. "Stuff Error", updated in place same as a data ID).
-    // QHash rather than std::unordered_map since Qt doesn't provide
-    // std::hash<QString> (it does provide qHash, which QHash uses).
-    QHash<QString, PeriodicRowState> periodicErrorRows_;
     QTimer staleTimer_;
 
     // A row with no new frame for this long is grayed out in periodic mode -

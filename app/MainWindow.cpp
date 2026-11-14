@@ -62,24 +62,6 @@ QString interfaceIdFor(const IAvlabsCanBackend& backend, const CanChannelInfo& c
 
 constexpr const char* kTestInterfaceId = "cantrip_test";
 
-QString flagsString(const DecodedCanFrame& f) {
-    QStringList flags;
-    flags << (f.extended ? "EXT" : "STD");
-    if (f.fd) flags << "FD";
-    if (f.brs) flags << "BRS";
-    if (f.esi) flags << "ESI";
-    if (f.rtr) flags << "RTR";
-    if (f.direction == FrameDirection::Tx) flags << "TX";
-    return flags.join(" ");
-}
-
-// Light blue, distinct from the plain default text color and from the red
-// used for bus errors - MessageSender's own sends flow through the exact
-// same onFrameReceived pipeline as real captured traffic (see its class
-// comment), so without this a frame CANtrip itself put on the bus is
-// visually indistinguishable from one actually received off the wire.
-const QBrush kTxBrush = QBrush(QColor(100, 181, 246));
-
 void setItemGrayed(QTreeWidgetItem* item, bool grayed) {
     const QBrush brush = grayed ? QBrush(QColor(Qt::gray)) : QBrush();
     for (int col = 0; col < item->columnCount(); ++col) {
@@ -91,30 +73,6 @@ void setItemGrayed(QTreeWidgetItem* item, bool grayed) {
         }
     }
 }
-
-// QTreeWidgetItem's default operator< compares column text as plain
-// strings, which sorts "10" before "2" - wrong for numeric columns like DLC.
-// ID/DLC/Data get their real values stashed in Qt::UserRole (see
-// populateDecodedChildren) precisely so this can compare them properly;
-// every other column (Time, Flags, Message/Signal) falls back to the
-// default text compare, which is already correct for those.
-class FrameTreeItem : public QTreeWidgetItem {
-public:
-    using QTreeWidgetItem::QTreeWidgetItem;
-
-    bool operator<(const QTreeWidgetItem& other) const override {
-        const int column = treeWidget() ? treeWidget()->sortColumn() : 0;
-        switch (column) {
-            case 1: // ID
-            case 3: // DLC
-                return data(column, Qt::UserRole).toUInt() < other.data(column, Qt::UserRole).toUInt();
-            case 4: // Data
-                return data(column, Qt::UserRole).toByteArray() < other.data(column, Qt::UserRole).toByteArray();
-            default:
-                return text(column) < other.text(column);
-        }
-    }
-};
 
 } // namespace
 
@@ -138,21 +96,24 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     // switching tabs first.
     ribbon_->setCornerWidget(buildPinnedToolbar(), Qt::TopLeftCorner);
 
-    frameTree_ = new QTreeWidget(this);
-    frameTree_->setColumnCount(7);
-    frameTree_->setHeaderLabels({"Time", "ID", "Flags", "DLC", "Data", "Message/Signal", "Value"});
-    frameTree_->setColumnWidth(0, 90);
-    frameTree_->setColumnWidth(1, 80);
-    frameTree_->setColumnWidth(2, 100);
-    frameTree_->setColumnWidth(4, 220);
-    frameTree_->setColumnWidth(5, 160);
-    // Click any header to sort by that column; click again to flip
-    // ascending/descending (built into QTreeWidget once enabled - the arrow
-    // indicator in the header is drawn automatically). Default to newest
-    // timestamp first, matching Waterfall mode's original always-on-top
-    // behavior, until the user actually clicks a header.
-    frameTree_->setSortingEnabled(true);
-    frameTree_->sortByColumn(0, Qt::DescendingOrder);
+    traceModel_ = new TraceModel(&dbcDecoder_, this);
+    traceHeader_ = new TraceHeaderView(this);
+    frameTree_ = new QTreeView(this);
+    frameTree_->setHeader(traceHeader_);
+    frameTree_->setModel(traceModel_);
+    traceHeader_->applyBehavior(); // setHeader() turns section clicks off
+    frameTree_->setUniformRowHeights(true);
+    frameTree_->setColumnWidth(TraceModel::Time, 90);
+    frameTree_->setColumnWidth(TraceModel::Id, 80);
+    frameTree_->setColumnWidth(TraceModel::Flags, 100);
+    frameTree_->setColumnWidth(TraceModel::Data, 220);
+    frameTree_->setColumnWidth(TraceModel::Message, 160);
+    connect(traceHeader_, &TraceHeaderView::sortRequested, traceModel_, &TraceModel::sort);
+    connect(traceHeader_, &TraceHeaderView::filterEdited, this, [this](int column, const QString& text) {
+        traceModel_->setColumnFilter(column, text);
+        updateFrameCountStatus();
+    });
+    applyDefaultTraceSort();
 
     graphWindows_ = new GraphWindowContainer(&signalHistory_, this);
     stimulationView_ = new StimulationView(this);
@@ -839,6 +800,7 @@ void MainWindow::refreshChannels() {
 
 bool MainWindow::loadDbcFile(const QString& path, QString* error) {
     if (!dbcDecoder_.loadFile(path, error)) return false;
+    traceModel_->decoderChanged();
 
     dbcStatusLabel_->setText(QFileInfo(path).fileName() + " loaded!");
     dbcStatusLabel_->setStyleSheet("color: green;");
@@ -886,37 +848,40 @@ void MainWindow::loadRune() {
         QMessageBox::warning(this, "Load Rune", error);
         return;
     }
+    applyRune(*config);
+}
 
-    const int channelIndex = channelCombo_->findText(config->channelDisplayName);
+void MainWindow::applyRune(const RuneConfig& config) {
+    const int channelIndex = channelCombo_->findText(config.channelDisplayName);
     if (channelIndex < 0) {
         QMessageBox::warning(this, "Load Rune",
-            "Channel not found among currently available hardware:\n" + config->channelDisplayName +
+            "Channel not found among currently available hardware:\n" + config.channelDisplayName +
             "\n\nLeaving the current channel selection as-is.");
     } else {
         channelCombo_->setCurrentIndex(channelIndex);
     }
 
-    busConfig_ = config->busConfig;
+    busConfig_ = config.busConfig;
 
-    displayMode_ = config->displayMode == RuneDisplayMode::Periodic ? DisplayMode::Periodic : DisplayMode::Waterfall;
+    displayMode_ = config.displayMode == RuneDisplayMode::Periodic ? DisplayMode::Periodic : DisplayMode::Waterfall;
     periodicRadio_->setChecked(displayMode_ == DisplayMode::Periodic);
     waterfallRadio_->setChecked(displayMode_ == DisplayMode::Waterfall);
 
-    const int rateIndex = displayRateCombo_->findData(config->displayRateMs);
+    const int rateIndex = displayRateCombo_->findData(config.displayRateMs);
     if (rateIndex >= 0) displayRateCombo_->setCurrentIndex(rateIndex);
 
-    if (!config->dbcPath.isEmpty()) {
+    if (!config.dbcPath.isEmpty()) {
         QString dbcError;
-        if (!loadDbcFile(config->dbcPath, &dbcError)) {
+        if (!loadDbcFile(config.dbcPath, &dbcError)) {
             QMessageBox::warning(this, "Load Rune", "Could not reload the DBC referenced by this rune:\n" + dbcError);
         }
     }
 
     graphWindows_->reset();
-    graphWindows_->importLayout(config->graphWindows);
+    graphWindows_->importLayout(config.graphWindows);
 
     messageSender_.clearMessages();
-    for (const TransmitMessage& message : config->transmitMessages) {
+    for (const TransmitMessage& message : config.transmitMessages) {
         messageSender_.addMessage(message);
     }
     refreshTransmitList();
@@ -925,8 +890,10 @@ void MainWindow::loadRune() {
     // QHeaderView::restoreState() on an empty/invalid byte array is a
     // documented no-op, so the header is simply left as whatever it
     // currently is rather than needing an explicit "if saved" check.
-    frameTree_->header()->restoreState(config->traceHeaderState);
-    listenOnlyMode_ = config->listenOnly;
+    traceHeader_->restoreState(config.traceHeaderState);
+    traceHeader_->applyBehavior();
+    traceModel_->sort(traceHeader_->sortIndicatorSection(), traceHeader_->sortIndicatorOrder());
+    listenOnlyMode_ = config.listenOnly;
 }
 
 QString MainWindow::findTsharkExe() {
@@ -1026,12 +993,22 @@ void MainWindow::stopCapture() {
 void MainWindow::onDisplayModeChanged() {
     displayMode_ = periodicRadio_->isChecked() ? DisplayMode::Periodic : DisplayMode::Waterfall;
     resetDisplay();
+    applyDefaultTraceSort();
+}
+
+void MainWindow::applyDefaultTraceSort() {
+    // Periodic's Time column is each row's period, which changes on every
+    // frame. Sorting on it by default would keep rows jumping around and
+    // re-sort constantly, so Periodic starts out in stable ID order.
+    const bool periodic = displayMode_ == DisplayMode::Periodic;
+    traceHeader_->setSortIndicator(periodic ? TraceModel::Id : TraceModel::Time, periodic ? Qt::AscendingOrder : Qt::DescendingOrder);
+    // Direct too: the header starts out on Time descending, so setting that
+    // at startup changes nothing and sends no signal.
+    traceModel_->sort(traceHeader_->sortIndicatorSection(), traceHeader_->sortIndicatorOrder());
 }
 
 void MainWindow::resetDisplay() {
-    frameTree_->clear();
-    periodicRows_.clear();
-    periodicErrorRows_.clear();
+    traceModel_->clear();
     pendingPeriodicFrames_.clear();
     pendingWaterfallFrames_.clear();
     frameCount_ = 0;
@@ -1044,29 +1021,19 @@ void MainWindow::resetDisplay() {
     graphWindows_->clearAllData();
 }
 
-uint64_t MainWindow::frameKey(const DecodedCanFrame& frame) {
-    return (static_cast<uint64_t>(frame.extended ? 1 : 0) << 32) | frame.id;
-}
-
 void MainWindow::populateDecodedChildren(QTreeWidgetItem* item, const DecodedCanFrame& frame) {
-    const QString idText = QString("0x%1").arg(frame.id, frame.extended ? 8 : 3, 16, QChar('0')).toUpper();
     const QString dataText = QString::fromLatin1(frame.data.toHex(' ').toUpper());
 
-    item->setText(1, idText);
-    item->setText(2, flagsString(frame));
+    item->setText(1, TraceModel::idText(frame));
+    item->setText(2, TraceModel::flagsText(frame));
     item->setText(3, QString::number(frame.dlc));
     item->setText(4, dataText);
     // Reset (or apply) the TX tint every call, not just on first creation -
     // periodic mode reuses the same item across many frames, and a row that
     // was never Tx must not keep a stale color from some earlier state.
     for (int col = 0; col < item->columnCount(); ++col) {
-        item->setForeground(col, frame.direction == FrameDirection::Tx ? kTxBrush : QBrush());
+        item->setForeground(col, frame.direction == FrameDirection::Tx ? TraceModel::txBrush() : QBrush());
     }
-    // Real values for FrameTreeItem::operator< to sort on numerically/
-    // byte-wise rather than as display text (see its definition above).
-    item->setData(1, Qt::UserRole, frame.id);
-    item->setData(3, Qt::UserRole, frame.dlc);
-    item->setData(4, Qt::UserRole, frame.data);
 
     const QString messageName = dbcDecoder_.resolveMessageName(frame);
     const std::vector<DbcDecoder::DecodedSignal> decodedSignals = dbcDecoder_.decodeSignals(frame);
@@ -1079,103 +1046,31 @@ void MainWindow::populateDecodedChildren(QTreeWidgetItem* item, const DecodedCan
         auto* sigItem = new QTreeWidgetItem(item);
         sigItem->setText(5, sig.name);
         sigItem->setText(6, QString::number(sig.physicalValue) + " " + sig.unit);
-
-        // Feed the Graph view's data model - same decode work, just also
-        // retained over time instead of thrown away once the row updates.
-        signalHistory_.recordSample(sig.qualifiedName, sig.unit, frame.timestamp.toDouble(), sig.physicalValue);
     }
 }
 
-void MainWindow::handleWaterfallFrame(const DecodedCanFrame& frame) {
-    auto* item = new FrameTreeItem();
-    item->setText(0, frame.timestamp);
-    populateDecodedChildren(item, frame);
-    // Newest-first is just the default sort (see the constructor's
-    // sortByColumn call) - insertTopLevelItem's index here doesn't actually
-    // matter once sorting is enabled, since Qt re-sorts on every insert.
-    frameTree_->insertTopLevelItem(0, item);
-}
-
-void MainWindow::handlePeriodicFrame(const DecodedCanFrame& frame) {
-    const uint64_t key = frameKey(frame);
-    const qint64 now = QDateTime::currentMSecsSinceEpoch();
-
-    auto it = periodicRows_.find(key);
-    if (it == periodicRows_.end()) {
-        auto* item = new FrameTreeItem();
-        item->setText(0, "--");
-        frameTree_->addTopLevelItem(item);
-        it = periodicRows_.emplace(key, PeriodicRowState{item, now, -1, false}).first;
-    } else {
-        const qint64 period = now - it->second.lastArrivalMs;
-        it->second.periodMs = period;
-        it->second.lastArrivalMs = now;
-        it->second.item->setText(0, QString::number(period / 1000.0, 'f', 3) + " s");
-    }
-
-    if (it->second.stale) {
-        it->second.stale = false;
-        setItemGrayed(it->second.item, false);
-    }
-
-    populateDecodedChildren(it->second.item, frame);
-}
-
-void MainWindow::addErrorRow(const DecodedCanFrame& frame) {
-    auto* item = new FrameTreeItem();
-    item->setText(0, frame.timestamp);
-    item->setText(5, "BUS ERROR: " + frame.errorDescription);
-    for (int col = 0; col < item->columnCount(); ++col) {
-        item->setForeground(col, QBrush(QColor(Qt::red)));
-    }
-    // Waterfall mode: every occurrence is its own row, newest first, exactly
-    // like a data frame would be treated in this mode.
-    frameTree_->insertTopLevelItem(0, item);
-}
-
-void MainWindow::handlePeriodicErrorFrame(const DecodedCanFrame& frame) {
-    // Periodic mode: one row per distinct error type (there's no CAN ID to
-    // key on the way data frames do), updated in place instead of spawning
-    // a new row per occurrence - a chattering bus fault would otherwise
-    // flood the exact same way the old plain waterfall log did.
-    const QString key = frame.errorDescription;
-    const qint64 now = QDateTime::currentMSecsSinceEpoch();
-
-    auto it = periodicErrorRows_.find(key);
-    if (it == periodicErrorRows_.end()) {
-        auto* item = new FrameTreeItem();
-        item->setText(0, "--");
-        item->setText(5, "BUS ERROR: " + frame.errorDescription);
-        frameTree_->addTopLevelItem(item);
-        it = periodicErrorRows_.insert(key, PeriodicRowState{item, now, -1, false});
-    } else {
-        const qint64 period = now - it->lastArrivalMs;
-        it->periodMs = period;
-        it->lastArrivalMs = now;
-        it->item->setText(0, QString::number(period / 1000.0, 'f', 3) + " s");
-    }
-
-    it->stale = false;
-    for (int col = 0; col < it->item->columnCount(); ++col) {
-        it->item->setForeground(col, QBrush(QColor(Qt::red)));
+void MainWindow::showFrame(const DecodedCanFrame& frame) {
+    if (displayMode_ == DisplayMode::Waterfall) traceModel_->appendFrames({frame});
+    else {
+        traceModel_->upsertPeriodic(frame, QDateTime::currentMSecsSinceEpoch());
+        traceModel_->endPeriodicBatch();
     }
 }
 
-// Stimulation tab's received pane, own Waterfall/Periodic dedup mirroring
-// handleWaterfallFrame/handlePeriodicFrame/addErrorRow/handlePeriodicErrorFrame
-// above exactly, just against stimulationView_->receivedTree() and the
-// stimPeriodicRows_/stimPeriodicErrorRows_ maps instead of frameTree_'s own.
+// Stimulation tab's received pane, own Waterfall/Periodic dedup. Runs against
+// stimulationView_->receivedTree() and the stimPeriodicRows_/
+// stimPeriodicErrorRows_ maps, independent of the Trace view's TraceModel.
 void MainWindow::handleStimWaterfallFrame(const DecodedCanFrame& frame) {
     populateDecodedChildren(stimulationView_->addReceivedRow(frame.timestamp), frame);
 }
 
 void MainWindow::handleStimPeriodicFrame(const DecodedCanFrame& frame) {
-    const uint64_t key = frameKey(frame);
+    const uint64_t key = TraceModel::frameKey(frame);
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
 
     auto it = stimPeriodicRows_.find(key);
     if (it == stimPeriodicRows_.end()) {
-        auto* item = new FrameTreeItem();
+        auto* item = new QTreeWidgetItem();
         item->setText(0, "--");
         stimulationView_->receivedTree()->addTopLevelItem(item);
         it = stimPeriodicRows_.emplace(key, PeriodicRowState{item, now, -1, false}).first;
@@ -1208,7 +1103,7 @@ void MainWindow::handleStimPeriodicErrorFrame(const DecodedCanFrame& frame) {
 
     auto it = stimPeriodicErrorRows_.find(key);
     if (it == stimPeriodicErrorRows_.end()) {
-        auto* item = new FrameTreeItem();
+        auto* item = new QTreeWidgetItem();
         item->setText(0, "--");
         item->setText(5, "BUS ERROR: " + frame.errorDescription);
         stimulationView_->receivedTree()->addTopLevelItem(item);
@@ -1250,9 +1145,18 @@ void MainWindow::onFrameReceived(const DecodedCanFrame& frame) {
         rotateLogFileIfNeeded();
     }
 
+    // The Graph view also sees every frame, here rather than where rows are
+    // drawn: display throttling must not thin out plotted data.
+    if (!frame.error && dbcDecoder_.isLoaded()) {
+        const double timeSec = frame.timestamp.toDouble();
+        for (const DbcDecoder::DecodedSignal& sig : dbcDecoder_.decodeSignals(frame)) {
+            signalHistory_.recordSample(sig.qualifiedName, sig.unit, timeSec, sig.physicalValue);
+        }
+    }
+
     // Stimulation view's received pane gets every frame too (Rx and Tx
     // alike, since MessageSender's transmitted frames flow through this same
-    // slot - marked and colored distinctly, see flagsString()/kTxBrush) -
+    // slot - marked and colored distinctly, see TraceModel::txBrush()) -
     // only while it's actually the visible page, same spirit as the
     // display-rate throttle not doing UI work nobody's looking at. Uses its
     // own Waterfall/Periodic toggle (stimDisplayMode_), same reasoning as
@@ -1275,51 +1179,50 @@ void MainWindow::onFrameReceived(const DecodedCanFrame& frame) {
     if (frame.error) {
         // Bus errors are comparatively rare and important - always shown
         // immediately, never subject to the display-rate throttle below.
-        if (displayMode_ == DisplayMode::Waterfall) {
-            addErrorRow(frame);
-        } else {
-            handlePeriodicErrorFrame(frame);
-        }
-        statusLabel_->setText(QString("Captured %1 frame(s)").arg(frameCount_));
+        showFrame(frame);
+        updateFrameCountStatus();
         return;
     }
 
     if (displayIntervalMs_ <= 0) {
-        // Unlimited: exact previous behavior, no buffering.
-        if (displayMode_ == DisplayMode::Waterfall) {
-            handleWaterfallFrame(frame);
-        } else {
-            handlePeriodicFrame(frame);
-        }
-        statusLabel_->setText(QString("Captured %1 frame(s)").arg(frameCount_));
+        // Unlimited: no buffering, one model update per frame.
+        showFrame(frame);
+        updateFrameCountStatus();
         return;
     }
 
     // Throttled: keep only the latest frame per row (Periodic) or queue it
     // (Waterfall) and let displayFlushTimer_ apply them at a bounded rate -
-    // see flushPendingDisplay(). Full decode still happens for whichever
-    // frame ends up displayed, just not for every single one on a fast bus.
+    // see flushPendingDisplay().
     if (displayMode_ == DisplayMode::Waterfall) {
         pendingWaterfallFrames_.push_back(frame);
     } else {
-        pendingPeriodicFrames_[frameKey(frame)] = frame;
+        pendingPeriodicFrames_[TraceModel::frameKey(frame)] = frame;
     }
 }
 
 void MainWindow::flushPendingDisplay() {
     if (pendingPeriodicFrames_.empty() && pendingWaterfallFrames_.empty()) return;
 
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
     for (auto& [key, frame] : pendingPeriodicFrames_) {
-        handlePeriodicFrame(frame);
+        traceModel_->upsertPeriodic(frame, now);
     }
+    traceModel_->endPeriodicBatch();
     pendingPeriodicFrames_.clear();
 
-    for (const DecodedCanFrame& frame : pendingWaterfallFrames_) {
-        handleWaterfallFrame(frame);
-    }
+    traceModel_->appendFrames(pendingWaterfallFrames_);
     pendingWaterfallFrames_.clear();
 
-    statusLabel_->setText(QString("Captured %1 frame(s)").arg(frameCount_));
+    updateFrameCountStatus();
+}
+
+void MainWindow::updateFrameCountStatus() {
+    QString text = QString("Captured %1 frame(s)").arg(frameCount_);
+    if (traceModel_->hasFilter()) {
+        text += QString(", showing %1 of %2 row(s)").arg(traceModel_->rowCount()).arg(traceModel_->totalRows());
+    }
+    statusLabel_->setText(text);
 }
 
 void MainWindow::onDisplayRateChanged() {
@@ -1336,23 +1239,10 @@ void MainWindow::onDisplayRateChanged() {
 void MainWindow::checkStaleRows() {
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
 
-    if (displayMode_ == DisplayMode::Periodic) {
-        for (auto& [key, state] : periodicRows_) {
-            if (!state.stale && (now - state.lastArrivalMs) > kStaleTimeoutMs) {
-                state.stale = true;
-                setItemGrayed(state.item, true);
-            }
-        }
-        for (auto it = periodicErrorRows_.begin(); it != periodicErrorRows_.end(); ++it) {
-            if (!it->stale && (now - it->lastArrivalMs) > kStaleTimeoutMs) {
-                it->stale = true;
-                setItemGrayed(it->item, true);
-            }
-        }
-    }
+    traceModel_->markStaleRows(now, kStaleTimeoutMs);
 
-    // Independent of displayMode_ above - the Stimulation tab's received
-    // pane has its own Waterfall/Periodic toggle (stimDisplayMode_).
+    // The Stimulation tab's received pane has its own Waterfall/Periodic
+    // toggle (stimDisplayMode_).
     if (stimDisplayMode_ == DisplayMode::Periodic) {
         for (auto& [key, state] : stimPeriodicRows_) {
             if (!state.stale && (now - state.lastArrivalMs) > kStaleTimeoutMs) {
