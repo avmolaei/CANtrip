@@ -1,5 +1,13 @@
 # Process Architecture
 
+!!! note "The capture loop moved into cantrip.exe"
+    This page still describes `can2pcap.exe` as a separate process. The same
+    capture code now runs as a thread inside `cantrip.exe` and feeds `tshark`
+    over a named pipe (`common/PcapCapture.h`), so nothing has to be installed
+    into Wireshark. `can2pcap.exe` remains as an optional Wireshark extcap
+    built from that same code. Everything below about what the capture loop
+    does still holds, only where it runs has changed.
+
 <div class="cantrip-film">
   <iframe src="../../media/architecture.html#embed" title="How CANtrip is built" loading="lazy" allow="fullscreen" allowfullscreen></iframe>
 </div>

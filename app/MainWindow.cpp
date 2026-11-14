@@ -36,31 +36,7 @@ namespace cantrip {
 
 namespace {
 
-// Must match can2pcap.cpp's sanitizeId()/interfaceIdFor() exactly - this is
-// how the app tells tshark/can2pcap which backend+channel to open. Every
-// non-alphanumeric character collapses to a single underscore: the ID is
-// used both as a tshark -i argument and as a preference NAME in
-// `-o extcap.<id>.<key>:<value>`, and tshark's preference parser breaks on
-// a raw space in that name (hit this for real with PEAK's "PCAN-USB FD").
-std::string sanitizeId(const std::string& name) {
-    std::string out;
-    out.reserve(name.size());
-    for (char c : name) {
-        if (std::isalnum(static_cast<unsigned char>(c))) {
-            out += static_cast<char>(tolower(static_cast<unsigned char>(c)));
-        } else if (!out.empty() && out.back() != '_') {
-            out += '_';
-        }
-    }
-    while (!out.empty() && out.back() == '_') out.pop_back();
-    return out;
-}
-
-QString interfaceIdFor(const IAvlabsCanBackend& backend, const CanChannelInfo& channel) {
-    return QString::fromStdString(backend.id() + "_" + sanitizeId(channel.name));
-}
-
-constexpr const char* kTestInterfaceId = "cantrip_test";
+constexpr const char* kTestInterfaceId = kSyntheticInterfaceId;
 
 void setItemGrayed(QTreeWidgetItem* item, bool grayed) {
     const QBrush brush = grayed ? QBrush(QColor(Qt::gray)) : QBrush();
@@ -747,13 +723,6 @@ void MainWindow::autoDetectBusConfig() {
         return;
     }
 
-    const QString can2pcapPath = findCan2pcapExe();
-    if (can2pcapPath.isEmpty()) {
-        QMessageBox::warning(this, "Autodetect Bus Config",
-            "can2pcap.exe isn't installed in Wireshark's extcap folder - see the README.");
-        return;
-    }
-
     autoDetectButton_->setText("Checking...");
     autoDetectButton_->setEnabled(false);
     // BusAutoDetector::detectClassicBitrate() blocks synchronously for
@@ -762,7 +731,7 @@ void MainWindow::autoDetectBusConfig() {
     autoDetectButton_->repaint();
 
     const QString interfaceId = channelCombo_->currentData().toString();
-    const std::optional<uint32_t> bitrate = BusAutoDetector::detectClassicBitrate(can2pcapPath, interfaceId);
+    const std::optional<uint32_t> bitrate = BusAutoDetector::detectClassicBitrate(interfaceId);
 
     if (bitrate) {
         busConfig_.fd = false;
@@ -784,7 +753,7 @@ void MainWindow::refreshChannels() {
     for (auto& backend : probeAvailableBackends()) {
         for (const CanChannelInfo& ch : backend->enumerateChannels()) {
             ChannelEntry entry;
-            entry.interfaceId = interfaceIdFor(*backend, ch);
+            entry.interfaceId = QString::fromStdString(interfaceIdFor(*backend, ch));
             entry.displayName = QString::fromStdString(backend->displayName()) + " " + QString::fromStdString(ch.name);
             channels_.push_back(entry);
         }
@@ -902,17 +871,6 @@ QString MainWindow::findTsharkExe() {
     const QString defaultInstall = "C:/Program Files/Wireshark/tshark.exe";
     if (QFileInfo::exists(defaultInstall)) return defaultInstall;
     return "tshark"; // let QProcess try PATH and fail with a clear error if not found
-}
-
-QString MainWindow::findCan2pcapExe() {
-    // can2pcap.exe must already be installed in Wireshark's personal extcap
-    // folder for CANtrip to capture at all (see README) - reusing that exact
-    // path here (rather than looking next to cantrip.exe, which only holds
-    // true in a packaged release, not the raw build tree) means autodetect
-    // fails the same way capturing itself would if that step was skipped,
-    // instead of needing its own separate "can't find it" case.
-    const QString extcapPath = qEnvironmentVariable("APPDATA") + "/Wireshark/extcap/can2pcap.exe";
-    return QFileInfo::exists(extcapPath) ? extcapPath : QString();
 }
 
 void MainWindow::startCapture() {

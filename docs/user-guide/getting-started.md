@@ -9,11 +9,11 @@ using the synthetic source so you can follow along with no hardware.
 
 ## Prerequisites
 
-- **[Wireshark](https://www.wireshark.org/)** installed. CANtrip doesn't
-  capture CAN traffic itself, it reuses Wireshark's own capture pipeline
-  (`tshark`/`dumpcap`) - see [Architecture: Overview](../architecture/overview.md)
-  for why. Npcap is **not** required; it only gates normal network-interface
-  capture, not the extcap-based capture CANtrip uses.
+- **[Wireshark](https://www.wireshark.org/)** installed. CANtrip reads your
+  CAN hardware itself and hands the frames to Wireshark's `tshark` to
+  dissect - see [Architecture: Overview](../architecture/overview.md)
+  for why. A plain Wireshark install is all it needs: nothing is copied
+  into it, and Npcap is **not** required.
 - A driver package for whichever CAN hardware you're using (PEAK's
   PCAN-Basic, Vector's XL Driver Library, etc.). If you don't have any yet,
   you don't need one to try CANtrip, it ships with a synthetic CAN source.
@@ -24,20 +24,10 @@ Prebuilt binaries are published under
 [Releases](https://github.com/avmolaei/CANtrip/releases).
 
 1. Download and extract the zip anywhere.
-2. Copy `can2pcap.exe` (sitting right next to `cantrip.exe` in the extracted
-   folder) into Wireshark's personal extcap folder:
+2. Launch `cantrip.exe`.
 
-   ```powershell
-   copy can2pcap.exe "$env:APPDATA\Wireshark\extcap\"
-   ```
-
-   This is a **manual, one-time step per install**, and it's the single most
-   common source of "it's not working" - see
-   [Troubleshooting: the extcap deploy trap](troubleshooting.md#the-extcap-deploy-trap)
-   if you ever rebuild or update CANtrip and things stop reflecting new
-   behavior.
-
-3. Launch `cantrip.exe`.
+The zip also contains `can2pcap.exe`. CANtrip doesn't use it: it is only
+there for capturing from Wireshark's own window, see the README.
 
 Building from source instead is documented in the repository's
 [README](https://github.com/avmolaei/CANtrip#building-cantrip).

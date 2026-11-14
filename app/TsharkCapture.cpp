@@ -51,11 +51,49 @@ TsharkCapture::TsharkCapture(QObject* parent) : QObject(parent) {
     connect(&process_, &QProcess::readyReadStandardOutput, this, &TsharkCapture::onReadyReadStandardOutput);
     connect(&process_, &QProcess::readyReadStandardError, this, &TsharkCapture::onReadyReadStandardError);
     connect(&process_, &QProcess::finished, this, &TsharkCapture::onFinished);
+    connect(&process_, &QProcess::errorOccurred, this, &TsharkCapture::onProcessError);
+}
+
+TsharkCapture::~TsharkCapture() {
+    // tshark first: a feeder blocked writing to it only wakes once it exits.
+    feeder_.requestStop();
+    if (process_.state() != QProcess::NotRunning) {
+        process_.kill();
+        process_.waitForFinished(2000);
+    }
+    feeder_.join();
 }
 
 void TsharkCapture::start(const Config& config) {
     if (process_.state() != QProcess::NotRunning) return;
     pendingStdout_.clear();
+    tsharkPath_ = config.tsharkPath;
+
+    PcapPipeFeeder::Config feed;
+    feed.interfaceId = config.interfaceId.toStdString();
+    feed.requestOwnership = !config.listenOnly;
+    feed.bitrate.nominalBitrateBps = config.nominalBitrateBps;
+    feed.bitrate.dataBitrateBps = config.dataBitrateBps;
+    feed.bitrate.fd = config.fd;
+    feed.bitrate.nominalTiming = {config.nomBrp, config.nomTseg1, config.nomTseg2, config.nomSjw};
+    feed.bitrate.dataTiming = {config.dataBrp, config.dataTseg1, config.dataTseg2, config.dataSjw};
+
+    // Called from the feeder's thread, hence the queued hop onto this one.
+    const auto onMessage = [this](const std::string& message) {
+        const QString text = QString::fromStdString(message);
+        QMetaObject::invokeMethod(this, [this, text]() { emit errorOccurred(text); }, Qt::QueuedConnection);
+    };
+    std::string feedError;
+    if (!feeder_.start(feed, onMessage, &feedError)) {
+        // Queued, so callers that set up their "capturing" state right after
+        // start() returns see the stop afterwards, not before.
+        const QString text = QString::fromStdString(feedError);
+        QMetaObject::invokeMethod(this, [this, text]() {
+            emit errorOccurred(text);
+            emit stopped();
+        }, Qt::QueuedConnection);
+        return;
+    }
 
     QStringList args;
     // -l: flush tshark's stdout after every packet. Without it, tshark
@@ -64,7 +102,7 @@ void TsharkCapture::start(const Config& config) {
     // this showed up as wildly inconsistent measured periods in Periodic
     // mode (0.2-0.7s instead of the synthetic source's actual steady 0.4s
     // per ID) even though the underlying capture timing was fine.
-    args << "-i" << config.interfaceId << "-T" << "ek" << "-l";
+    args << "-i" << QString::fromStdString(feeder_.pipeName()) << "-T" << "ek" << "-l";
 
     // Wireshark's autosar-nm dissector claims CAN ID 0 by default
     // (autosar-nm.can_id/can_id_mask default to 0/0xffffffff), which is a
@@ -80,42 +118,21 @@ void TsharkCapture::start(const Config& config) {
     // payload bytes instead of being swallowed into "autosar-nm".
     args << "--disable-protocol" << "autosar-nm";
 
-    // Preference key = the extcap's --call-name with the leading dashes and
-    // every internal dash stripped (confirmed against a real tshark: our
-    // can2pcap's --data-bitrate option shows up as extcap.<if>.databitrate
-    // in `tshark -G defaultprefs`, not extcap.<if>.data-bitrate).
-    auto setOpt = [&](const QString& key, const QString& value) {
-        args << "-o" << QString("extcap.%1.%2:%3").arg(config.interfaceId, key, value);
-    };
-    setOpt("bitrate", QString::number(config.nominalBitrateBps));
-    if (config.fd) {
-        // boolflag options only appear in the extcap's argv when set to the
-        // literal lowercase string "true" - "TRUE" is silently ignored.
-        setOpt("fd", "true");
-        setOpt("databitrate", QString::number(config.dataBitrateBps));
-        setOpt("nombrp", QString::number(config.nomBrp));
-        setOpt("nomtseg1", QString::number(config.nomTseg1));
-        setOpt("nomtseg2", QString::number(config.nomTseg2));
-        setOpt("nomsjw", QString::number(config.nomSjw));
-        setOpt("databrp", QString::number(config.dataBrp));
-        setOpt("datatseg1", QString::number(config.dataTseg1));
-        setOpt("datatseg2", QString::number(config.dataTseg2));
-        setOpt("datasjw", QString::number(config.dataSjw));
-    }
-    if (config.listenOnly) {
-        setOpt("listenonly", "true");
-    }
-
     process_.start(config.tsharkPath, args);
 }
 
 void TsharkCapture::stop() {
-    if (process_.state() == QProcess::NotRunning) return;
-    process_.terminate();
-    if (!process_.waitForFinished(2000)) {
-        process_.kill();
-        process_.waitForFinished(2000);
+    feeder_.requestStop();
+    if (process_.state() != QProcess::NotRunning) {
+        // The feeder closing its end of the pipe is how tshark is told the
+        // capture is over: it sees the end of its input and exits by itself.
+        // Killing is only for a tshark that doesn't.
+        if (!process_.waitForFinished(2000)) {
+            process_.kill();
+            process_.waitForFinished(2000);
+        }
     }
+    feeder_.join();
 }
 
 bool TsharkCapture::isRunning() const {
@@ -165,6 +182,21 @@ void TsharkCapture::onReadyReadStandardError() {
 void TsharkCapture::onFinished(int exitCode, QProcess::ExitStatus status) {
     Q_UNUSED(exitCode);
     Q_UNUSED(status);
+    // tshark is gone, so the feeder's writes fail and it winds down on its
+    // own. Waiting for it here means the channel is free again by the time
+    // anyone hears the capture has stopped.
+    feeder_.requestStop();
+    feeder_.join();
+    emit stopped();
+}
+
+void TsharkCapture::onProcessError(QProcess::ProcessError error) {
+    // Every other error is followed by finished(). A process that never
+    // started is not, and would leave the capture looking like it is running.
+    if (error != QProcess::FailedToStart) return;
+    feeder_.requestStop();
+    feeder_.join();
+    emit errorOccurred("Could not start tshark (" + tsharkPath_ + "). Is Wireshark installed?");
     emit stopped();
 }
 
@@ -182,8 +214,8 @@ void TsharkCapture::processLine(const QByteArray& line) {
 
     // Wireshark's SocketCAN dissector names the layer "can" for classic
     // frames (16-byte records) and "canfd" for CAN FD ones (72-byte
-    // records) - which one can2pcap emits follows directly from
-    // CanFrame::fd, see serializeFrame() in can2pcap.cpp.
+    // records) - which one the capture thread emits follows directly from
+    // CanFrame::fd, see serializeFrame() in common/PcapCapture.cpp.
     const bool fd = layers.contains("canfd");
     const QJsonObject can = layers.value(fd ? "canfd" : "can").toObject();
     if (can.isEmpty()) return;

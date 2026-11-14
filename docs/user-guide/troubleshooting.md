@@ -5,22 +5,11 @@ these actually happened during development and cost real debugging time.
 
 ## The extcap deploy trap
 
-**Symptom**: you rebuilt CANtrip (or updated to a new release) and a fix
-that should be there "still doesn't work", with no obvious error.
-
-**Cause**: `can2pcap.exe`, the process Wireshark/`tshark` actually invokes
-for capture, lives at `%APPDATA%\Wireshark\extcap\can2pcap.exe` - a
-manually-installed copy (see [Getting Started](getting-started.md#installing)).
-Rebuilding CANtrip only updates the copy in the build output folder (or a
-new release zip); the deployed copy in Wireshark's extcap folder is a
-**separate file that never updates itself**. `cantrip.exe` is launched
-directly from wherever you extracted/built it, so it's always current -
-this specifically only bites `can2pcap.exe`-side changes.
-
-**Fix**: re-copy the fresh `can2pcap.exe` over the one in
-`%APPDATA%\Wireshark\extcap\` after every update, same as the
-[install step](getting-started.md#installing). If in doubt, compare file
-modified timestamps between the two copies.
+This one no longer applies. CANtrip used to capture through a
+`can2pcap.exe` that had to be copied by hand into Wireshark's extcap
+folder, and a stale copy there made fixes look like they weren't working.
+CANtrip now reads the hardware itself, so there is nothing to copy and
+nothing that can go stale.
 
 ## PEAK: capture stops immediately after Start
 
@@ -28,12 +17,9 @@ Two different real causes have produced this exact symptom:
 
 1. **A second process is still holding the channel.** PCAN-Basic (PEAK's
    driver) does not allow a second handle to initialize a channel another
-   process already has open - a leftover `can2pcap.exe`/`tshark.exe`/
-   `dumpcap.exe` process from a previous session (for example, one that
-   got orphaned by force-killing `cantrip.exe` rather than clicking Stop
-   first) can hold the handle open indefinitely. Check for and close any
-   lingering `can2pcap.exe`/`tshark.exe`/`dumpcap.exe` processes and try
-   again.
+   process already has open - another tool using the adapter, or a
+   second CANtrip window on the same channel. Close whatever else has the
+   channel open and try again.
 2. **Something else on the machine already has the channel open** with
    exclusive configuration rights, and [Request bus configuration](hardware-tab.md#request-bus-configuration)
    is checked. Uncheck it to join as listen-only instead, assuming that

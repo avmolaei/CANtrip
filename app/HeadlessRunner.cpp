@@ -15,29 +15,7 @@ namespace cantrip {
 
 namespace {
 
-// Must match can2pcap.cpp's / MainWindow.cpp's own copies exactly - see
-// MainWindow.cpp's comment on why this is duplicated rather than shared
-// (it's how the app tells any backend consumer which vendor+channel an
-// interfaceId string refers to).
-std::string sanitizeId(const std::string& name) {
-    std::string out;
-    out.reserve(name.size());
-    for (char c : name) {
-        if (std::isalnum(static_cast<unsigned char>(c))) {
-            out += static_cast<char>(tolower(static_cast<unsigned char>(c)));
-        } else if (!out.empty() && out.back() != '_') {
-            out += '_';
-        }
-    }
-    while (!out.empty() && out.back() == '_') out.pop_back();
-    return out;
-}
-
-QString interfaceIdFor(const IAvlabsCanBackend& backend, const CanChannelInfo& channel) {
-    return QString::fromStdString(backend.id() + "_" + sanitizeId(channel.name));
-}
-
-constexpr const char* kTestInterfaceId = "cantrip_test";
+constexpr const char* kTestInterfaceId = kSyntheticInterfaceId;
 
 // Ctrl+C handling: Windows delivers console control events (Ctrl+C,
 // Ctrl+Break, console close) to a handler running on its own separate
@@ -87,7 +65,7 @@ bool HeadlessRunner::resolveChannel(const QString& displayName, QString* interfa
         for (const CanChannelInfo& ch : backend->enumerateChannels()) {
             const QString name = QString::fromStdString(backend->displayName()) + " " + QString::fromStdString(ch.name);
             if (name == displayName) {
-                *interfaceId = interfaceIdFor(*backend, ch);
+                *interfaceId = QString::fromStdString(interfaceIdFor(*backend, ch));
                 return true;
             }
         }

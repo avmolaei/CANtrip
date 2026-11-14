@@ -6,6 +6,8 @@ add_library(cantrip_common STATIC
     CanBackendRegistry.cpp
     CanBitTiming.h
     CanBitTiming.cpp
+    PcapCapture.h
+    PcapCapture.cpp
     PeakBackend.h
     PeakBackend.cpp
     VectorBackend.h

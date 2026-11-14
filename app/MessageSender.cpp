@@ -1,4 +1,5 @@
 #include "MessageSender.h"
+#include "../common/PcapCapture.h"
 
 #include <algorithm>
 #include <cctype>
@@ -8,28 +9,6 @@
 namespace cantrip {
 
 namespace {
-
-// Must match can2pcap.cpp's sanitizeId()/interfaceIdFor() and
-// MainWindow.cpp's own copy exactly - see MainWindow.cpp's comment on why
-// this is duplicated rather than shared (it's how the app tells any backend
-// consumer which vendor+channel an interfaceId string refers to).
-std::string sanitizeId(const std::string& name) {
-    std::string out;
-    out.reserve(name.size());
-    for (char c : name) {
-        if (std::isalnum(static_cast<unsigned char>(c))) {
-            out += static_cast<char>(tolower(static_cast<unsigned char>(c)));
-        } else if (!out.empty() && out.back() != '_') {
-            out += '_';
-        }
-    }
-    while (!out.empty() && out.back() == '_') out.pop_back();
-    return out;
-}
-
-QString interfaceIdFor(const IAvlabsCanBackend& backend, const CanChannelInfo& channel) {
-    return QString::fromStdString(backend.id() + "_" + sanitizeId(channel.name));
-}
 
 // Fine enough for cyclic test messages (10/20/50/100 ms are the common real
 // cases) without spinning a timer per message - matches the single-shared-
@@ -68,7 +47,7 @@ bool MessageSender::openPort(const QString& interfaceId, const CanBitrateConfig&
 
     for (auto& candidate : probeAvailableBackends()) {
         for (const CanChannelInfo& ch : candidate->enumerateChannels()) {
-            if (interfaceIdFor(*candidate, ch) != interfaceId) continue;
+            if (QString::fromStdString(interfaceIdFor(*candidate, ch)) != interfaceId) continue;
 
             if (candidate->id() == "peak") {
                 // PCAN-Basic has no listen-only equivalent - a second

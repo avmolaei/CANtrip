@@ -10,12 +10,12 @@
 //    (see IAvlabsCanBackend::initialize's requestOwnership) and calls
 //    writeFrame() on it directly.
 //  - PEAK: PCAN-Basic has no equivalent to Vector's permission-mask
-//    concept - a second handle can't join a channel can2pcap.exe already
+//    concept - a second handle can't join a channel the capture already
 //    initialized (confirmed for real: CAN_Initialize on an already-active
 //    channel returns PCAN_ERROR_INITIALIZE). Instead this connects to a
-//    named pipe can2pcap.exe itself creates and writes raw CanFrame bytes
-//    to it - can2pcap.exe transmits on the handle it already owns (see
-//    extcap/can2pcap.cpp's createTxPipe()/tryReadTxPipe()).
+//    named pipe the capture thread creates and writes raw CanFrame bytes
+//    to it - the capture thread transmits on the handle it already owns
+//    (see common/PcapCapture.cpp's createTxPipe()/tryReadTxPipe()).
 #pragma once
 
 #include <memory>

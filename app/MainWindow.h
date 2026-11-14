@@ -111,7 +111,6 @@ private:
     QWidget* buildAboutTab();
 
     static QString findTsharkExe();
-    static QString findCan2pcapExe();
     bool loadDbcFile(const QString& path, QString* error);
     void applyRune(const RuneConfig& config);
     void resetDisplay();

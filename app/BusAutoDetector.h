@@ -1,8 +1,7 @@
 // Tries a fixed set of classic CAN bitrates against a given interface by
-// briefly running can2pcap.exe directly (bypassing tshark entirely - the
-// same isolation technique used throughout this project to diagnose real
-// hardware behavior), and inspecting the raw SocketCAN pcap output for
-// error frames. Classic CAN only for now - CAN FD's extra nominal/data/
+// briefly opening the channel through its backend at each one and looking
+// at what arrives: clean data frames mean a match, bus errors or silence
+// mean it isn't. Classic CAN only for now - CAN FD's extra nominal/data/
 // sample-point dimensions make that a separate, harder scan.
 #pragma once
 
@@ -23,14 +22,12 @@ public:
     // (see TsharkCapture's display-rate throttle) - there's no risk of it
     // running away, so the extra complexity of making it async isn't
     // justified here.
-    static std::optional<uint32_t> detectClassicBitrate(
-        const QString& can2pcapPath, const QString& interfaceId);
+    static std::optional<uint32_t> detectClassicBitrate(const QString& interfaceId);
 
 private:
     // Returns true if this bitrate produced at least one real data record
     // with zero error records within probeMs.
-    static bool probeBitrate(const QString& can2pcapPath, const QString& interfaceId,
-                              uint32_t bitrateBps, int probeMs);
+    static bool probeBitrate(const QString& interfaceId, uint32_t bitrateBps, int probeMs);
 };
 
 } // namespace cantrip

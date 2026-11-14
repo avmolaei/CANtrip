@@ -32,7 +32,7 @@ that's simple to pick up, powerful, free to use, and licensed GPLv3.
 Prebuilt binaries are also published under
 [Releases](https://github.com/avmolaei/CANtrip/releases) if you'd rather skip
 building from source. 
-Grab the zip, extract it anywhere, and copy the `can2pcap.exe` from CANtrip in your `$env:APPDATA\Wireshark\extcap\` Wireshark directory.
+Install Wireshark, grab the zip, extract it anywhere and run `cantrip.exe`. Nothing has to be copied into Wireshark.
 
 CANtrip's menu is a ribbon: each tab across the top shows a
 different group of controls.
@@ -105,7 +105,7 @@ different group of controls.
 ## How it works
 
 CANtrip does not reimplement CAN capture or low-level frame dissection.
-Instead it reuses Wireshark's own capture pipeline (`tshark`/`can2pcap`),
+Instead it reads the hardware and hands the frames to Wireshark's `tshark`,
 talking to hardware through a vendor-neutral interface, **the AVlabs CAN
 backend** ([`common/AVlabsCanBackend.h`](common/AVlabsCanBackend.h)) - one
 bus to sniff them all, with `PeakBackend`/`VectorBackend` as the two
@@ -129,22 +129,18 @@ This produces:
 - `build\extcap\Debug\can2pcap.exe`
 - `build\app\Debug\cantrip.exe`
 
-### Installing the extcap into Wireshark
+### Optional: capturing from Wireshark itself
 
-After installing Wireshark and downloading CANtrip, copy `can2pcap.exe` into Wireshark's personal extcap folder
-so both Wireshark and `tshark` (and therefore CANtrip) can see it:
+CANtrip does not need this. `can2pcap.exe` is the same capture code packaged
+as a Wireshark [extcap](https://www.wireshark.org/docs/wsdg_html_chunked/ChCaptureExtcap.html),
+for when you want your CAN adapter to show up in Wireshark's own interface
+list. Copy it into Wireshark's personal extcap folder:
 
 ```powershell
 copy build\extcap\Debug\can2pcap.exe "$env:APPDATA\Wireshark\extcap\"
 ```
 
-Verify it's picked up:
-
-```powershell
-tshark -D
-```
-
-You should see a `can2pcap` interface listed.
+`tshark -D` should then list a `can2pcap` interface.
 
 
 ## Contributing

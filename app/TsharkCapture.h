@@ -10,6 +10,8 @@
 #include <QByteArray>
 #include <QObject>
 #include <QProcess>
+
+#include "../common/PcapCapture.h"
 #include <QString>
 
 namespace cantrip {
@@ -44,6 +46,7 @@ class TsharkCapture : public QObject {
     Q_OBJECT
 public:
     explicit TsharkCapture(QObject* parent = nullptr);
+    ~TsharkCapture() override;
 
     struct Config {
         QString tsharkPath = "tshark";
@@ -52,8 +55,7 @@ public:
         uint32_t dataBitrateBps = 2000000;
         bool fd = false;
         // Bit-timing tick values, used only when fd is true (see
-        // CanBitTiming.h - computed once in the app, then threaded through
-        // this CLI to can2pcap.exe, a separate process).
+        // CanBitTiming.h).
         uint32_t nomBrp = 0, nomTseg1 = 0, nomTseg2 = 0, nomSjw = 0;
         uint32_t dataBrp = 0, dataTseg1 = 0, dataTseg2 = 0, dataSjw = 0;
         // Join the channel without requesting exclusive bus-configuration
@@ -63,20 +65,19 @@ public:
         bool listenOnly = false;
     };
 
-    // Starts `tshark -i <interfaceId> -T ek`, forwarding config via
-    // `-o extcap.<interfaceId>.<option>:<value>` - tshark's CLI does NOT
-    // accept an extcap's declared options as its own long options directly
-    // (verified against a real install: `tshark -i x --fd` fails with
-    // "unrecognized option"). The `-o extcap.*` preference route is the only
-    // one that actually reaches the extcap subprocess's argv.
+    // Opens the channel in a thread of this process (PcapPipeFeeder), which
+    // serves what it reads as pcap on a named pipe, and starts
+    // `tshark -i <that pipe> -T ek` to dissect it. Nothing has to be
+    // installed into Wireshark for this: a stock tshark reads the pipe.
     void start(const Config& config);
     void stop();
     bool isRunning() const;
 
 signals:
     void frameReceived(const DecodedCanFrame& frame);
-    // Raw stderr text from tshark/the extcap - surfaced as-is rather than
-    // parsed, since it's meant for a human (e.g. "PCANBasic.dll not found").
+    // Text from tshark's stderr or from the capture thread - surfaced as-is
+    // rather than parsed, since it's meant for a human (e.g. "initialize
+    // failed: ...").
     void errorOccurred(const QString& message);
     void stopped();
 
@@ -84,12 +85,17 @@ private slots:
     void onReadyReadStandardOutput();
     void onReadyReadStandardError();
     void onFinished(int exitCode, QProcess::ExitStatus status);
+    void onProcessError(QProcess::ProcessError error);
 
 private:
     void processLine(const QByteArray& line);
 
     QProcess process_;
     QByteArray pendingStdout_;
+    QString tsharkPath_;
+    // Declared after process_ so it is destroyed first: its thread must be
+    // gone before anything it reports to is.
+    PcapPipeFeeder feeder_;
 };
 
 } // namespace cantrip
