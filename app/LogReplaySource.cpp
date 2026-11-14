@@ -21,6 +21,31 @@ QByteArray parseSpaceHex(const QString& hex) {
     return out;
 }
 
+// Splits one CSV row, undoing CsvLogWriter's csvEscape(): a field wrapped in
+// double quotes may contain commas, and "" inside one is a literal quote.
+QStringList splitCsvRow(const QString& line) {
+    QStringList fields;
+    QString current;
+    bool quoted = false;
+    for (qsizetype i = 0; i < line.size(); ++i) {
+        const QChar c = line[i];
+        if (quoted) {
+            if (c != '"') current += c;
+            else if (i + 1 < line.size() && line[i + 1] == '"') { current += '"'; ++i; }
+            else quoted = false;
+        } else if (c == '"') {
+            quoted = true;
+        } else if (c == ',') {
+            fields << current;
+            current.clear();
+        } else {
+            current += c;
+        }
+    }
+    fields << current;
+    return fields;
+}
+
 // AscLogWriter's ID field is uppercase hex with an optional trailing "x"
 // for extended IDs (see AscLogWriter.cpp's formatFrameId()).
 void parseFrameId(const QString& idToken, uint32_t* id, bool* extended) {
@@ -148,32 +173,50 @@ bool LogReplaySource::loadCsv(const QString& path, QString* error) {
     }
 
     QTextStream stream(&file);
-    if (!stream.atEnd()) stream.readLine(); // header row
+
+    // Columns are looked up by name in the header row, never by position:
+    // v1.4 added a Direction column in the middle, and reading by fixed
+    // position then took every later field from its neighbor. Logs from
+    // before and after that change both load this way.
+    const QStringList header = splitCsvRow(stream.readLine());
+    const int colTime = header.indexOf("Time");
+    const int colId = header.indexOf("ID");
+    const int colExtended = header.indexOf("Extended");
+    const int colFd = header.indexOf("FD");
+    const int colBrs = header.indexOf("BRS");
+    const int colEsi = header.indexOf("ESI");
+    const int colRtr = header.indexOf("RTR");
+    const int colDlc = header.indexOf("DLC");
+    const int colData = header.indexOf("Data");
+    const int colError = header.indexOf("Error");
+    if (colTime < 0 || colId < 0 || colDlc < 0 || colData < 0) {
+        if (error) *error = "Not a CANtrip CSV log (no Time/ID/DLC/Data header row): " + path;
+        return false;
+    }
 
     while (!stream.atEnd()) {
-        const QStringList f = stream.readLine().split(',');
-        // Time,Channel,ID,Extended,FD,BRS,ESI,RTR,DLC,Data,MessageName,Error
-        if (f.size() < 12) continue;
+        const QStringList f = splitCsvRow(stream.readLine());
+        auto field = [&f](int column) { return column >= 0 && column < f.size() ? f[column] : QString(); };
+        if (field(colTime).isEmpty()) continue;
 
         DecodedCanFrame frame;
-        frame.timestamp = f[0];
+        frame.timestamp = field(colTime);
 
-        if (!f[11].isEmpty()) {
+        if (!field(colError).isEmpty()) {
             frame.error = true;
-            frame.errorDescription = f[11];
-            frame.errorDescription.remove('"');
+            frame.errorDescription = field(colError);
             frames_.push_back(frame);
             continue;
         }
 
-        frame.id = f[2].toUInt(nullptr, 16);
-        frame.extended = f[3] == "1";
-        frame.fd = f[4] == "1";
-        frame.brs = f[5] == "1";
-        frame.esi = f[6] == "1";
-        frame.rtr = f[7] == "1";
-        frame.dlc = static_cast<uint8_t>(f[8].toInt());
-        frame.data = parseSpaceHex(f[9]);
+        frame.id = field(colId).toUInt(nullptr, 16);
+        frame.extended = field(colExtended) == "1";
+        frame.fd = field(colFd) == "1";
+        frame.brs = field(colBrs) == "1";
+        frame.esi = field(colEsi) == "1";
+        frame.rtr = field(colRtr) == "1";
+        frame.dlc = static_cast<uint8_t>(field(colDlc).toInt());
+        frame.data = parseSpaceHex(field(colData));
         frames_.push_back(frame);
     }
     return true;
