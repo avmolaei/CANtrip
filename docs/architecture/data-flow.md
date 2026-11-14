@@ -45,11 +45,16 @@ sequenceDiagram
   a plain, non-GUI class (extracted out of `MainWindow` specifically so
   [headless mode](../headless-mode.md) could reuse it
   without a `MainWindow` to host it).
-- **`MainWindow`**: calls `DbcDecoder` from `populateDecodedChildren()`
-  and fans the result out to every view/writer that cares about it
-  (Trace, Graph, log file) - the GUI-specific part (building
-  `QTreeWidgetItem`s, feeding `SignalHistoryStore`) is all that's left
-  here now.
+- **`MainWindow`**: `onFrameReceived()` fans each frame out to everything
+  that cares about it: the log file, `SignalHistoryStore` for the Graph
+  view, and the Trace view. Logging and the Graph view get every frame
+  there, before any display throttling.
+- **`TraceModel`** (`app/TraceModel.h/.cpp`): the Trace view's data, raw
+  frames in a buffer capped at 100,000 rows. Text is only formatted for
+  rows on screen, and signals are only decoded when a row is expanded, so
+  its cost doesn't grow with the length of a capture. It applies the
+  column filters and the sort itself, because a `QSortFilterProxyModel`
+  on top missed a 30 Hz refresh at the row cap.
 
 ## The transmit side feeds the same pipeline
 
