@@ -49,6 +49,12 @@ namespace cantrip {
 
 namespace {
 
+// How often plotted points are rebuilt from the signal history.
+constexpr int kRefreshIntervalMs = 33;
+// With a long stretch of time on screen, new samples barely move the picture,
+// so redrawing for them alone is spaced out, up to this far apart.
+constexpr qint64 kMaxLiveRedrawIntervalMs = 500;
+
 // A small fixed palette cycled as new signals are plotted, so multiple
 // series sharing one axis are distinguishable before the user customizes
 // anything via GraphSignalStyleDialog.
@@ -348,7 +354,10 @@ GraphView::GraphView(SignalHistoryStore* history, QWidget* parent, bool simpleMo
     connect(static_cast<GraphChartView*>(chartView_), &GraphChartView::chartMouseRelease, this, &GraphView::onChartMouseRelease);
 
     connect(history_, &SignalHistoryStore::signalAdded, this, &GraphView::onSignalAdded);
-    connect(history_, &SignalHistoryStore::sampleAdded, this, &GraphView::onSampleAdded);
+    connect(timeAxis_, &QValueAxis::rangeChanged, this, [this]() { ++viewGeneration_; });
+    connect(chart_, &QChart::plotAreaChanged, this, [this]() { ++viewGeneration_; });
+    connect(&refreshTimer_, &QTimer::timeout, this, &GraphView::refreshPlot);
+    refreshTimer_.start(kRefreshIntervalMs);
 
     for (const QString& name : history_->signalNames()) onSignalAdded(name);
 }
@@ -391,6 +400,7 @@ void GraphView::clearData() {
     for (auto& axisPtr : axes_) {
         for (auto& sig : axisPtr->plottedSignals) {
             sig.series->clear();
+            sig.drawnViewGeneration = 0;
         }
         axisPtr->dataMin = 0.0;
         axisPtr->dataMax = 1.0;
@@ -404,6 +414,7 @@ void GraphView::clearData() {
     timeZoomed_ = false;
     zoomSelectButton_->setChecked(false);
     timeAxis_->setRange(0, 1);
+    ++viewGeneration_;
     // The series themselves survive clearData() (unlike reset()), but their
     // point data doesn't - any in-progress delta measurement no longer
     // means anything against emptied series.
@@ -494,21 +505,67 @@ void GraphView::flushPendingSignalAdds() {
     for (const QString& name : pending) onSignalAdded(name);
 }
 
-void GraphView::onSampleAdded(const QString& qualifiedName, SignalSample sample) {
-    if (sample.timeSec > timeDataMax_) timeDataMax_ = sample.timeSec;
-    if (!timeZoomed_ && sample.timeSec > timeAxis_->max()) timeAxis_->setMax(sample.timeSec);
+void GraphView::refreshPlot() {
+    // A hidden window does no work at all; it catches up on its first tick
+    // once shown, since nothing below is incremental.
+    if (!isVisible()) return;
+    const quint64 storeRevision = history_->revision();
+    if (storeRevision == drawnStoreRevision_ && viewGeneration_ == drawnViewGeneration_) return;
+
+    if (viewGeneration_ == drawnViewGeneration_ && sinceLastDraw_.isValid()) {
+        // Only new samples arrived. Wait until they are worth half a pixel
+        // of time before redrawing: with two hours on screen that turns 30
+        // full redraws a second into two, for the same picture.
+        const double secondsPerPixel = (timeAxis_->max() - timeAxis_->min()) / std::max(1.0, chart_->plotArea().width());
+        const qint64 waitMs = std::min(kMaxLiveRedrawIntervalMs, static_cast<qint64>(secondsPerPixel * 500.0));
+        if (sinceLastDraw_.elapsed() < waitMs) return;
+    }
+    sinceLastDraw_.start();
+
+    timeDataMax_ = std::max(timeDataMax_, history_->latestTimeSec());
+    if (!timeZoomed_ && timeDataMax_ > timeAxis_->max()) timeAxis_->setMax(timeDataMax_);
+
+    // Captured before drawing: setting a Y range below can change the label
+    // widths and with them the plot area, which bumps viewGeneration_ again.
+    // That later generation must stay undrawn so the next tick picks it up.
+    const quint64 generation = viewGeneration_;
+    const double tMin = timeAxis_->min();
+    const double tMax = timeAxis_->max();
+    const int columns = std::max(1, static_cast<int>(chart_->plotArea().width()));
 
     for (auto& axisPtr : axes_) {
-        bool touched = false;
-        for (auto& sig : axisPtr->plottedSignals) {
-            if (sig.qualifiedName != qualifiedName) continue;
-            sig.series->append(sample.timeSec, sample.value);
-            touched = true;
+        AxisEntry& entry = *axisPtr;
+        bool hasData = false;
+        double lo = 0.0, hi = 0.0;
+        for (PlottedSignal& sig : entry.plottedSignals) {
+            // Looked up by name every time: reset() frees every series.
+            const SignalSeries* samples = history_->series(sig.qualifiedName);
+            if (samples && samples->size() > 0) {
+                lo = hasData ? std::min(lo, samples->valueMin()) : samples->valueMin();
+                hi = hasData ? std::max(hi, samples->valueMax()) : samples->valueMax();
+                hasData = true;
+            }
+
+            if (entry.hidden) continue; // toggleAxisVisibility() forces a redraw when shown
+            const quint64 revision = samples ? samples->revision() : 0;
+            if (sig.drawnRevision == revision && sig.drawnViewGeneration == generation) continue;
+            if (samples) samples->decimate(tMin, tMax, columns, &scratchPoints_);
+            else scratchPoints_.clear();
+            sig.series->replace(scratchPoints_);
+            sig.drawnRevision = revision;
+            sig.drawnViewGeneration = generation;
         }
-        if (!touched) continue;
-        trackAxisDataBounds(*axisPtr, sample.value);
-        if (axisPtr->autoScale) applyAxisRange(*axisPtr);
+
+        if (hasData && (!entry.hasData || lo != entry.dataMin || hi != entry.dataMax)) {
+            entry.dataMin = lo;
+            entry.dataMax = hi;
+            entry.hasData = true;
+            if (entry.autoScale) applyAxisRange(entry);
+        }
     }
+
+    drawnStoreRevision_ = storeRevision;
+    drawnViewGeneration_ = generation;
 }
 
 void GraphView::onSearchTextChanged(const QString& text) {
@@ -615,6 +672,7 @@ void GraphView::toggleAxisVisibility(AxisEntry& entry) {
     for (auto& sig : entry.plottedSignals) {
         sig.series->setVisible(!entry.hidden);
     }
+    ++viewGeneration_; // a hidden axis' series aren't kept up to date
 
     const QBrush brush = entry.hidden ? QBrush(QColor(Qt::gray)) : QBrush();
     entry.item->setForeground(0, brush);
@@ -624,16 +682,6 @@ void GraphView::toggleAxisVisibility(AxisEntry& entry) {
 
     if (entry.eyeButton) {
         entry.eyeButton->setToolTip(entry.hidden ? "Show this axis" : "Hide this axis");
-    }
-}
-
-void GraphView::trackAxisDataBounds(AxisEntry& entry, double value) {
-    if (!entry.hasData) {
-        entry.dataMin = entry.dataMax = value;
-        entry.hasData = true;
-    } else {
-        entry.dataMin = std::min(entry.dataMin, value);
-        entry.dataMax = std::max(entry.dataMax, value);
     }
 }
 
@@ -658,25 +706,12 @@ void GraphView::buildSeriesForSignal(AxisEntry& entry, PlottedSignal& sig) {
     }
     sig.series->setName(sig.qualifiedName);
 
-    // Snapshot (a real copy, not a reference) rather than iterate
-    // samplesFor()'s result directly: this backfill loop runs synchronously
-    // from within AxisTreeWidget::dropEvent(), which - for a drag sourced
-    // from signalList_ - executes while still nested inside QDrag::exec()'s
-    // own event loop. Live capture decoding keeps running during that nested
-    // loop, and SignalHistoryStore::recordSample() appends to this exact
-    // signal's QVector on every new sample - if that reallocates while a
-    // live reference into it is mid-iteration here, it's a real use-after-
-    // free (the actual crash reported when dropping a signal during a live
-    // capture). QVector is copy-on-write, so this copy is cheap and stays
-    // valid even if recordSample() appends to the "live" vector afterward -
-    // Qt detaches the live side instead of mutating shared data in place.
-    const QVector<SignalSample> snapshot = history_->samplesFor(sig.qualifiedName);
-    for (const SignalSample& s : snapshot) {
-        sig.series->append(s.timeSec, s.value);
-        if (s.timeSec > timeDataMax_) timeDataMax_ = s.timeSec;
-        if (!timeZoomed_ && s.timeSec > timeAxis_->max()) timeAxis_->setMax(s.timeSec);
-        trackAxisDataBounds(entry, s.value);
-    }
+    // No points yet: the next refreshPlot() fills the series in from the
+    // signal's whole history. Nothing here reads history_, which matters
+    // because this can run nested inside a drag's own event loop while a
+    // live capture keeps appending to it.
+    sig.drawnViewGeneration = 0;
+    ++viewGeneration_;
 
     chart_->addSeries(sig.series);
     applyAxisRange(entry);
@@ -722,6 +757,7 @@ void GraphView::removeSignal(AxisEntry& entry, PlottedSignal& sig) {
             break;
         }
     }
+    ++viewGeneration_; // the axis' auto-scale bounds no longer include this signal
 }
 
 void GraphView::onAxisItemDoubleClicked(QTreeWidgetItem* item, int /*column*/) {
@@ -927,15 +963,16 @@ double GraphView::timeValueAt(double chartX) const {
 }
 
 std::optional<QPointF> GraphView::nearestSampleOnSeries(QXYSeries* series, double timeValue) const {
-    const QList<QPointF> pts = series->points();
-    if (pts.isEmpty()) return std::nullopt;
-    auto it = std::lower_bound(pts.begin(), pts.end(), timeValue,
-        [](const QPointF& p, double t) { return p.x() < t; });
-    if (it == pts.begin()) return *it;
-    if (it == pts.end()) return *(it - 1);
-    const QPointF& after = *it;
-    const QPointF& before = *(it - 1);
-    return (timeValue - before.x() <= after.x() - timeValue) ? before : after;
+    // From the stored samples, not the series' own points: those are thinned
+    // to what the plot can show, and a readout has to be a real sample.
+    const SignalSeries* samples = history_->series(series->name());
+    if (!samples || samples->size() == 0) return std::nullopt;
+    auto point = [samples](size_t i) { return QPointF(samples->at(i).timeSec, samples->at(i).value); };
+    const size_t after = samples->lowerBound(timeValue);
+    if (after == 0) return point(0);
+    if (after == samples->size()) return point(after - 1);
+    const double before = samples->at(after - 1).timeSec;
+    return (timeValue - before <= samples->at(after).timeSec - timeValue) ? point(after - 1) : point(after);
 }
 
 QXYSeries* GraphView::nearestVisibleSeries(const QPointF& chartPos, QPointF* outSampleValue) const {

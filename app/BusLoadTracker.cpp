@@ -190,8 +190,7 @@ void BusLoadTracker::onTick() {
     ++percentSampleCount_;
 
     // One history point per second, decimated from the 250ms tick, so the
-    // Bus Load History graph stays compact over a long capture (matches
-    // SignalHistoryStore's own bounded-samples-per-signal cap).
+    // Bus Load History graph stays compact over a long capture.
     if (now - lastHistorySampleSec_ >= 1.0) {
         history_.recordSample("BusLoad.Percent", "%", now, instantPercent);
         lastHistorySampleSec_ = now;

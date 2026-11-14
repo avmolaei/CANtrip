@@ -9,9 +9,12 @@
 #include <vector>
 
 #include <QColor>
+#include <QElapsedTimer>
+#include <QList>
 #include <QPointF>
 #include <QRectF>
 #include <QStringList>
+#include <QTimer>
 #include <QVector>
 #include <QWidget>
 
@@ -102,7 +105,7 @@ signals:
 
 private slots:
     void onSignalAdded(const QString& qualifiedName);
-    void onSampleAdded(const QString& qualifiedName, SignalSample sample);
+    void refreshPlot();
     void onSearchTextChanged(const QString& text);
     void addAxis();
     void onAxisItemDoubleClicked(QTreeWidgetItem* item, int column);
@@ -123,6 +126,9 @@ private:
         QColor color;
         GraphLineStyle style = GraphLineStyle::Solid;
         QTreeWidgetItem* item = nullptr;
+        // What the series' points were last built from - see refreshPlot().
+        quint64 drawnRevision = 0;
+        quint64 drawnViewGeneration = 0;
     };
 
     struct AxisEntry {
@@ -135,7 +141,8 @@ private:
         bool autoScale = true;
         double min = 0.0;   // manual bounds, used only when autoScale == false
         double max = 100.0;
-        // Observed data bounds across every signal plotted on this axis -
+        // Data bounds across every signal plotted on this axis, over the
+        // whole capture -
         // tracked ourselves so "Auto" is fully under our control rather
         // than relying on QValueAxis's own implicit auto-range behavior,
         // which can't be re-enabled cleanly once setRange() has been
@@ -153,7 +160,6 @@ private:
     void buildSeriesForSignal(AxisEntry& entry, PlottedSignal& sig);
     void applySeriesStyle(PlottedSignal& sig);
     void applyAxisRange(AxisEntry& entry);
-    void trackAxisDataBounds(AxisEntry& entry, double value);
     void toggleAxisVisibility(AxisEntry& entry);
     QColor nextPaletteColor();
     AxisEntry* axisForItem(QTreeWidgetItem* item);
@@ -224,6 +230,18 @@ private:
     // happened to be overwritten to.
     double timeDataMax_ = 1.0;
     bool timeZoomed_ = false;
+
+    // Plotted points are rebuilt from history_ at most once per tick, and
+    // only for what changed: new samples (the store's revision) or a
+    // different view (viewGeneration_: time range, plot width, visibility).
+    // Appending to the chart per sample instead cost a chart update and two
+    // axis layouts each, thousands of times a second on a busy bus.
+    QTimer refreshTimer_;
+    quint64 viewGeneration_ = 1;
+    quint64 drawnViewGeneration_ = 0;
+    quint64 drawnStoreRevision_ = 0;
+    QElapsedTimer sinceLastDraw_;
+    QList<QPointF> scratchPoints_;
 
     std::vector<std::unique_ptr<AxisEntry>> axes_;
     int axisCounter_ = 0;

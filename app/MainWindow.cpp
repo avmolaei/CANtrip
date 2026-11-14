@@ -1222,6 +1222,9 @@ void MainWindow::updateFrameCountStatus() {
     if (traceModel_->hasFilter()) {
         text += QString(", showing %1 of %2 row(s)").arg(traceModel_->rowCount()).arg(traceModel_->totalRows());
     }
+    if (signalHistory_.coarsened()) {
+        text += ", graph history is over 2 GB: its oldest data is now kept at lower detail";
+    }
     statusLabel_->setText(text);
 }
 

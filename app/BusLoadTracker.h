@@ -70,7 +70,7 @@ public:
     // Dedicated store, not MainWindow's shared signalHistory_ - keeps this
     // synthetic "BusLoad.Percent" pseudo-signal out of the general Graph
     // view's signal list. BusLoadView's embedded GraphView (simple mode)
-    // plots straight from this via the normal signalAdded/sampleAdded path.
+    // plots straight from this via the normal signalAdded/refresh path.
     SignalHistoryStore* history() { return &history_; }
 
 public slots:
