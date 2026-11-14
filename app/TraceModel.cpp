@@ -32,7 +32,7 @@ QString TraceModel::idText(const DecodedCanFrame& f) {
 }
 
 uint64_t TraceModel::frameKey(const DecodedCanFrame& f) {
-    return (static_cast<uint64_t>(f.extended ? 1 : 0) << 32) | f.id;
+    return (static_cast<uint64_t>(f.bus - 1) << 33) | (static_cast<uint64_t>(f.extended ? 1 : 0) << 32) | f.id;
 }
 
 TraceModel::TraceModel(const DbcDecoder* decoder, QObject* parent)
@@ -96,7 +96,7 @@ QVariant TraceModel::data(const QModelIndex& index, int role) const {
 }
 
 QVariant TraceModel::headerData(int section, Qt::Orientation orientation, int role) const {
-    static const char* const kNames[kColumnCount] = {"Time", "ID", "Flags", "DLC", "Data", "Message/Signal", "Value"};
+    static const char* const kNames[kColumnCount] = {"Time", "ID", "Flags", "DLC", "Data", "Message/Signal", "Value", "Bus"};
     if (orientation != Qt::Horizontal || section < 0 || section >= kColumnCount) return QVariant();
     if (role == Qt::UserRole) return filters_[section];
     if (role != Qt::DisplayRole) return QVariant();
@@ -166,8 +166,10 @@ void TraceModel::appendFrames(const std::vector<DecodedCanFrame>& frames) {
 void TraceModel::upsertPeriodic(const DecodedCanFrame& frame, qint64 nowMs) {
     quintptr uid;
     bool known;
+    // Bus errors have no ID to key on: one row per kind of error, per bus.
+    const QString errorKey = frame.bus > 1 ? QString("%1|%2").arg(frame.bus).arg(frame.errorDescription) : frame.errorDescription;
     if (frame.error) {
-        auto it = periodicErrorRows_.constFind(frame.errorDescription);
+        auto it = periodicErrorRows_.constFind(errorKey);
         known = it != periodicErrorRows_.constEnd();
         uid = known ? it.value() : firstUid_ + rows_.size();
     } else {
@@ -181,7 +183,7 @@ void TraceModel::upsertPeriodic(const DecodedCanFrame& frame, qint64 nowMs) {
         row.periodic = true;
         row.lastArrivalMs = nowMs;
         rows_.push_back(std::move(row));
-        if (frame.error) periodicErrorRows_.insert(frame.errorDescription, uid);
+        if (frame.error) periodicErrorRows_.insert(errorKey, uid);
         else periodicRows_[frameKey(frame)] = uid;
         periodicDirty_.push_back(uid);
         return;
@@ -318,6 +320,8 @@ bool TraceModel::sortKeyLess(const Row& a, const Row& b) const {
             return a.frame.dlc < b.frame.dlc;
         case Data:
             return a.frame.data < b.frame.data;
+        case Bus:
+            return a.frame.bus < b.frame.bus;
         default:
             return cellText(a, sortColumn_) < cellText(b, sortColumn_);
     }
@@ -446,6 +450,7 @@ QString TraceModel::cellText(const Row& row, int column) const {
         if (!row.periodic) return f.timestamp;
         return row.periodMs < 0 ? QStringLiteral("--") : QString::number(row.periodMs / 1000.0, 'f', 3) + " s";
     }
+    if (column == Bus) return QString("CAN %1").arg(f.bus);
     if (f.error) return column == Message ? "BUS ERROR: " + f.errorDescription : QString();
 
     switch (column) {

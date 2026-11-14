@@ -7,7 +7,11 @@
 #include <QBrush>
 #include <QColor>
 #include <QDateTime>
+#include <QCheckBox>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QGridLayout>
 #include <QDir>
 #include <QFileDialog>
 #include <QFont>
@@ -90,6 +94,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         updateFrameCountStatus();
     });
     applyDefaultTraceSort();
+    frameTree_->setColumnHidden(TraceModel::Bus, true); // shown once a second bus is in play
 
     graphWindows_ = new GraphWindowContainer(&signalHistory_, this);
     stimulationView_ = new StimulationView(this);
@@ -275,8 +280,11 @@ QWidget* MainWindow::buildHardwareTab() {
     channelCombo_ = new QComboBox(hwGroup);
     channelCombo_->setMinimumWidth(260);
     refreshButton_ = new QPushButton("Refresh", hwGroup);
+    moreBusesButton_ = new QPushButton("More buses...", hwGroup);
+    moreBusesButton_->setToolTip("Capture up to three more buses alongside this one");
     hwLayout->addWidget(channelCombo_);
     hwLayout->addWidget(refreshButton_);
+    hwLayout->addWidget(moreBusesButton_);
 
     auto* controllerGroup = new QGroupBox("Bus Configuration", page);
     auto* controllerLayout = new QHBoxLayout(controllerGroup);
@@ -300,6 +308,7 @@ QWidget* MainWindow::buildHardwareTab() {
     layout->addStretch(1);
 
     connect(refreshButton_, &QPushButton::clicked, this, &MainWindow::refreshChannels);
+    connect(moreBusesButton_, &QPushButton::clicked, this, &MainWindow::openMoreBuses);
     connect(canControllerButton_, &QPushButton::clicked, this, &MainWindow::openCanController);
     connect(autoDetectButton_, &QPushButton::clicked, this, &MainWindow::autoDetectBusConfig);
     // busLoadButton_'s own click->contentStack_ swap is wired later in the
@@ -799,6 +808,10 @@ void MainWindow::saveRune() {
     config.graphWindows = graphWindows_->exportLayout();
     config.transmitMessages = messageSender_.messages();
     config.traceHeaderState = frameTree_->header()->saveState();
+    for (size_t i = 0; i < extraBuses_.size(); ++i) {
+        if (!extraBuses_[i].enabled) continue;
+        config.extraBuses.push_back({static_cast<int>(i) + 2, extraBuses_[i].channelDisplayName, extraBuses_[i].bitrateBps});
+    }
     config.listenOnly = listenOnlyMode_;
 
     QString error;
@@ -863,6 +876,74 @@ void MainWindow::applyRune(const RuneConfig& config) {
     traceHeader_->applyBehavior();
     traceModel_->sort(traceHeader_->sortIndicatorSection(), traceHeader_->sortIndicatorOrder());
     listenOnlyMode_ = config.listenOnly;
+
+    extraBuses_ = {};
+    for (const RuneExtraBus& extra : config.extraBuses) {
+        extraBuses_[extra.bus - 2] = {true, extra.channelDisplayName, extra.bitrateBps};
+    }
+    updateMoreBusesButton();
+}
+
+void MainWindow::updateMoreBusesButton() {
+    int enabled = 0;
+    for (const ExtraBus& extra : extraBuses_) enabled += extra.enabled ? 1 : 0;
+    moreBusesButton_->setText(enabled > 0 ? QString("More buses (%1)...").arg(enabled) : QString("More buses..."));
+}
+
+void MainWindow::openMoreBuses() {
+    QDialog dialog(this);
+    dialog.setWindowTitle("More buses");
+    auto* layout = new QGridLayout(&dialog);
+    auto* intro = new QLabel("Capture up to three more buses alongside the one selected on the Hardware tab (CAN 1).\n"
+                             "These are classic CAN for now. CAN FD stays on CAN 1.", &dialog);
+    layout->addWidget(intro, 0, 0, 1, 3);
+
+    static const uint32_t kBitrates[] = {125000, 250000, 500000, 1000000};
+    std::array<QCheckBox*, 3> checks{};
+    std::array<QComboBox*, 3> channelCombos{};
+    std::array<QComboBox*, 3> bitrateCombos{};
+    for (int i = 0; i < 3; ++i) {
+        checks[i] = new QCheckBox(QString("CAN %1").arg(i + 2), &dialog);
+        channelCombos[i] = new QComboBox(&dialog);
+        channelCombos[i]->setMinimumWidth(320);
+        for (const ChannelEntry& entry : channels_) channelCombos[i]->addItem(entry.displayName);
+        bitrateCombos[i] = new QComboBox(&dialog);
+        for (uint32_t bitrate : kBitrates) bitrateCombos[i]->addItem(QString("%1 kbit/s").arg(bitrate / 1000), bitrate);
+
+        const ExtraBus& extra = extraBuses_[i];
+        checks[i]->setChecked(extra.enabled);
+        // A saved channel that isn't plugged in right now is kept, not
+        // silently swapped for whatever happens to be first in the list.
+        if (!extra.channelDisplayName.isEmpty() && channelCombos[i]->findText(extra.channelDisplayName) < 0) {
+            channelCombos[i]->addItem(extra.channelDisplayName);
+        }
+        if (!extra.channelDisplayName.isEmpty()) channelCombos[i]->setCurrentText(extra.channelDisplayName);
+        bitrateCombos[i]->setCurrentIndex(std::max(0, bitrateCombos[i]->findData(extra.bitrateBps)));
+
+        auto syncEnabled = [channel = channelCombos[i], bitrate = bitrateCombos[i]](bool on) {
+            channel->setEnabled(on);
+            bitrate->setEnabled(on);
+        };
+        syncEnabled(extra.enabled);
+        connect(checks[i], &QCheckBox::toggled, &dialog, syncEnabled);
+
+        layout->addWidget(checks[i], i + 1, 0);
+        layout->addWidget(channelCombos[i], i + 1, 1);
+        layout->addWidget(bitrateCombos[i], i + 1, 2);
+    }
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons, 4, 0, 1, 3);
+
+    if (dialog.exec() != QDialog::Accepted) return;
+    for (int i = 0; i < 3; ++i) {
+        extraBuses_[i].enabled = checks[i]->isChecked();
+        extraBuses_[i].channelDisplayName = channelCombos[i]->currentText();
+        extraBuses_[i].bitrateBps = bitrateCombos[i]->currentData().toUInt();
+    }
+    updateMoreBusesButton();
 }
 
 QString MainWindow::findTsharkExe() {
@@ -897,12 +978,63 @@ void MainWindow::startCapture() {
     config.dataSjw = busConfig_.dataTiming.sjw;
     config.listenOnly = listenOnlyMode_;
 
+    // Every extra bus is checked before anything starts, so a problem with
+    // bus 3 doesn't leave buses 1 and 2 running.
+    std::vector<TsharkCapture::Config> extraConfigs;
+    for (size_t i = 0; i < extraBuses_.size(); ++i) {
+        const ExtraBus& extra = extraBuses_[i];
+        if (!extra.enabled) continue;
+        const int bus = static_cast<int>(i) + 2;
+        const int channelIndex = channelCombo_->findText(extra.channelDisplayName);
+        if (channelIndex < 0) {
+            QMessageBox::warning(this, "Start Capture",
+                QString("Bus %1's channel isn't available:\n%2\n\nPick another in More buses, or turn that bus off.")
+                    .arg(bus).arg(extra.channelDisplayName));
+            return;
+        }
+        TsharkCapture::Config extraConfig;
+        extraConfig.tsharkPath = config.tsharkPath;
+        extraConfig.interfaceId = channelCombo_->itemData(channelIndex).toString();
+        extraConfig.bus = bus;
+        extraConfig.nominalBitrateBps = extra.bitrateBps;
+        bool channelTaken = extraConfig.interfaceId == config.interfaceId;
+        for (const TsharkCapture::Config& other : extraConfigs) channelTaken = channelTaken || other.interfaceId == extraConfig.interfaceId;
+        if (channelTaken && extraConfig.interfaceId != kTestInterfaceId) {
+            QMessageBox::warning(this, "Start Capture",
+                QString("Bus %1 uses a channel another bus already uses:\n%2").arg(bus).arg(extra.channelDisplayName));
+            return;
+        }
+        extraConfigs.push_back(extraConfig);
+    }
+
     resetDisplay();
     busLoadTracker_.setBusConfig(busConfig_);
     busLoadTracker_.reset();
     statusLabel_->setText("Starting capture on " + channelCombo_->currentText() + "...");
     statusLed_->setCapturing(true);
     capture_.start(config);
+
+    extraCaptures_.clear();
+    timeAligner_.reset();
+    sessionClock_.start();
+    for (const TsharkCapture::Config& extraConfig : extraConfigs) {
+        auto capture = std::make_unique<TsharkCapture>();
+        const int bus = extraConfig.bus;
+        connect(capture.get(), &TsharkCapture::frameReceived, this, &MainWindow::onFrameReceived);
+        connect(capture.get(), &TsharkCapture::errorOccurred, this, [this, bus](const QString& message) {
+            statusLabel_->setText(QString("Bus %1: %2").arg(bus).arg(message.trimmed()));
+        });
+        // An extra bus ending on its own doesn't end the session: the other
+        // buses keep capturing, and the status bar says which one stopped.
+        connect(capture.get(), &TsharkCapture::stopped, this, [this, bus]() {
+            if (capture_.isRunning()) statusLabel_->setText(QString("Bus %1 stopped").arg(bus));
+        });
+        capture->start(extraConfig);
+        extraCaptures_.push_back(std::move(capture));
+    }
+    frameTree_->setColumnHidden(TraceModel::Bus, extraCaptures_.empty());
+    moreBusesButton_->setEnabled(false);
+
     startButton_->setEnabled(false);
     stopButton_->setEnabled(true);
     channelCombo_->setEnabled(false);
@@ -945,6 +1077,7 @@ void MainWindow::startCapture() {
 
 void MainWindow::stopCapture() {
     if (!capture_.isRunning()) return;
+    for (auto& capture : extraCaptures_) capture->stop();
     capture_.stop();
 }
 
@@ -1090,7 +1223,22 @@ void MainWindow::onClearReceived() {
     stimPeriodicErrorRows_.clear();
 }
 
-void MainWindow::onFrameReceived(const DecodedCanFrame& frame) {
+void MainWindow::onFrameReceived(const DecodedCanFrame& received) {
+    // With several buses, each capture counts time from its own first frame.
+    // Put them on one clock before anything below sees them (see
+    // BusTimeAligner.h). A single-bus session is passed through untouched.
+    DecodedCanFrame aligned;
+    const bool align = !extraCaptures_.empty() && capture_.isRunning() && received.direction == FrameDirection::Rx;
+    if (align) {
+        aligned = received;
+        const double t = timeAligner_.align(received.bus, received.timestamp.toDouble(), sessionClock_.nsecsElapsed() / 1e9);
+        aligned.timestamp = QString::number(t, 'f', 6);
+    }
+    const DecodedCanFrame& frame = align ? aligned : received;
+
+    // A replayed multi-bus log brings its bus numbers with it.
+    if (frame.bus > 1 && frameTree_->isColumnHidden(TraceModel::Bus)) frameTree_->setColumnHidden(TraceModel::Bus, false);
+
     ++frameCount_;
 
     // Logging always sees every frame, regardless of the display-rate
@@ -1108,7 +1256,9 @@ void MainWindow::onFrameReceived(const DecodedCanFrame& frame) {
     if (!frame.error && dbcDecoder_.isLoaded()) {
         const double timeSec = frame.timestamp.toDouble();
         for (const DbcDecoder::DecodedSignal& sig : dbcDecoder_.decodeSignals(frame)) {
-            signalHistory_.recordSample(sig.qualifiedName, sig.unit, timeSec, sig.physicalValue);
+            // The same message on two buses is two different sets of signals.
+            const QString name = frame.bus > 1 ? QString("CAN%1.%2").arg(frame.bus).arg(sig.qualifiedName) : sig.qualifiedName;
+            signalHistory_.recordSample(name, sig.unit, timeSec, sig.physicalValue);
         }
     }
 
@@ -1225,6 +1375,12 @@ void MainWindow::onCaptureError(const QString& message) {
 }
 
 void MainWindow::onCaptureStopped() {
+    // Bus 1 ended, by Stop or by itself. The session is one thing, so the
+    // other buses end with it.
+    for (auto& capture : extraCaptures_) {
+        if (capture->isRunning()) capture->stop();
+    }
+    moreBusesButton_->setEnabled(true);
     startButton_->setEnabled(true);
     stopButton_->setEnabled(false);
     channelCombo_->setEnabled(true);

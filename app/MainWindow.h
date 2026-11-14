@@ -1,11 +1,13 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
 #include <vector>
 
 #include <QComboBox>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QLabel>
 #include <QMainWindow>
@@ -21,6 +23,7 @@
 #include "BusAutoDetector.h"
 #include "BusLoadTracker.h"
 #include "BusLoadView.h"
+#include "BusTimeAligner.h"
 #include "DbcDecoder.h"
 #include "GraphWindowContainer.h"
 #include "LogReplaySource.h"
@@ -51,6 +54,7 @@ private slots:
     void saveRune();
     void loadRune();
     void startCapture();
+    void openMoreBuses();
     void stopCapture();
     void onFrameReceived(const DecodedCanFrame& frame);
     void onCaptureError(const QString& message);
@@ -149,6 +153,7 @@ private:
     // Hardware tab
     QComboBox* channelCombo_;
     QPushButton* refreshButton_;
+    QPushButton* moreBusesButton_;
     QPushButton* canControllerButton_;
     QPushButton* autoDetectButton_;
     QPushButton* busLoadButton_;
@@ -207,7 +212,23 @@ private:
     // so the same logic is reusable from HeadlessRunner without a
     // MainWindow to host it.
     DbcDecoder dbcDecoder_;
-    TsharkCapture capture_;
+    TsharkCapture capture_; // bus 1, the channel picked on the Hardware tab
+
+    // Buses 2 to 4, set up in the More buses dialog. Classic CAN only for
+    // now: the CAN Controller dialog and its FD timing still belong to bus 1.
+    struct ExtraBus {
+        bool enabled = false;
+        QString channelDisplayName;
+        uint32_t bitrateBps = 500000;
+    };
+    std::array<ExtraBus, 3> extraBuses_;
+    // One capture per enabled extra bus, alive from Start until the next
+    // Start. Bus 1 keeps its own member so a single-bus session runs
+    // exactly the code it always did.
+    std::vector<std::unique_ptr<TsharkCapture>> extraCaptures_;
+    BusTimeAligner timeAligner_;
+    QElapsedTimer sessionClock_;
+    void updateMoreBusesButton();
     int frameCount_ = 0;
 
     // Populated by the CAN Controller dialog; applied the next time a

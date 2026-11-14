@@ -13,6 +13,36 @@ CANtrip isn't tied to one CAN adapter vendor - see
 [Architecture: The AVlabs CAN Backend](../architecture/can-backend-abstraction.md)
 for how that actually works.
 
+### More buses
+
+The dropdown picks **CAN 1**. **More buses...** adds up to three more,
+captured at the same time in the same window:
+
+- Tick **CAN 2**, **CAN 3** or **CAN 4**, pick a channel for each, and a
+  bitrate. Every bus needs its own channel.
+- **Start** then starts all of them, and **Stop** stops all of them. If an
+  extra bus's channel isn't available, nothing starts and a message says
+  which bus is the problem.
+- The Trace view gains a **Bus** column, which you can filter and sort like
+  any other. The same ID on two buses is two separate rows in Periodic
+  mode.
+- Signals from CAN 2 to 4 are offered to the Graph view with the bus in
+  front, for example `CAN2.EngineData.EngineSpeed`.
+- Logs hold all buses in one file. The bus number is the channel column of
+  an ASC or CSV log, and a replayed log brings its buses back.
+- All buses share one timeline that starts at the first frame seen on any
+  of them. Spacing between frames of the same bus is exactly what the
+  adapter reported. Alignment between buses comes from when each bus's
+  first frame arrived, so allow a few milliseconds when comparing times
+  across buses.
+- Extra buses are saved in [runes](runes.md).
+
+What still belongs to CAN 1 only, for now: CAN FD and the
+[CAN Controller](#can-controller) dialog (extra buses are classic CAN),
+[Autodetect](#autodetect-bus-config), [Bus Load](#bus-load-statistics),
+and transmitting from the [Stimulation tab](stimulation-tab.md). One DBC
+names the messages on every bus.
+
 ## CAN Controller
 
 Click **CAN Controller...** to configure bus timing. Three modes:

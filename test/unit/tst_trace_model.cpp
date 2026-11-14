@@ -1,5 +1,7 @@
 #include <QtTest>
 #include <QLineEdit>
+#include <QSet>
+#include <QStandardItemModel>
 #include <QTreeView>
 
 #include "DbcDecoder.h"
@@ -278,6 +280,54 @@ private slots:
         QCOMPARE(r.model.rowCount(), 0);
         r.model.setColumnFilter(TraceModel::Data, QString());
         QCOMPARE(r.model.rowCount(), 3);
+    }
+
+    void theSameIdOnTwoBusesIsTwoRows() {
+        Rig r(/*periodic=*/true);
+        DecodedCanFrame onBus2 = frame(0x100, 1);
+        onBus2.bus = 2;
+        DecodedCanFrame errorOnBus2 = errorFrame(1, "Form Error");
+        errorOnBus2.bus = 2;
+        r.model.upsertPeriodic(frame(0x100, 1), 1000);
+        r.model.upsertPeriodic(onBus2, 1000);
+        r.model.upsertPeriodic(errorFrame(1, "Form Error"), 1000);
+        r.model.upsertPeriodic(errorOnBus2, 1000);
+        r.model.upsertPeriodic(onBus2, 1100);
+        r.model.endPeriodicBatch();
+        QCOMPARE(r.model.rowCount(), 4);
+
+        r.model.setColumnFilter(TraceModel::Bus, "can 2");
+        QCOMPARE(r.model.rowCount(), 2);
+        QCOMPARE(r.column(TraceModel::Bus), (QStringList{"CAN 2", "CAN 2"}));
+        r.model.setColumnFilter(TraceModel::Bus, QString());
+
+        r.sortBy(TraceModel::Bus, Qt::DescendingOrder);
+        QCOMPARE(r.cell(0, TraceModel::Bus), QString("CAN 2"));
+        QCOMPARE(r.cell(3, TraceModel::Bus), QString("CAN 1"));
+    }
+
+    void aHeaderSavedBeforeTheBusColumnStillRestores() {
+        // Runes saved by earlier versions hold a 7 column header state.
+        QTreeView oldView;
+        QStandardItemModel sevenColumns(1, 7);
+        oldView.setModel(&sevenColumns);
+        oldView.header()->moveSection(2, 4);
+        oldView.header()->resizeSection(1, 123);
+        const QByteArray oldState = oldView.header()->saveState();
+
+        Rig r;
+        r.header->restoreState(oldState);
+        r.header->applyBehavior();
+        QCOMPARE(r.header->count(), int(TraceModel::kColumnCount));
+        QSet<int> visual;
+        for (int i = 0; i < r.header->count(); ++i) visual.insert(r.header->visualIndex(i));
+        QCOMPARE(visual.size(), int(TraceModel::kColumnCount)); // every column has its own place
+        QCOMPARE(r.header->sectionSize(1), 123);
+        QCOMPARE(r.header->visualIndex(2), 4);
+
+        r.model.appendFrames(mixedFrames());
+        QCOMPARE(r.cell(5, TraceModel::Id).toUpper(), QString("0X100"));
+        QCOMPARE(r.cell(5, TraceModel::Bus), QString("CAN 1"));
     }
 
     void loadingADbcRenamesExistingRows() {

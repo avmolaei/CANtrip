@@ -149,6 +149,16 @@ bool saveRuneFile(const QString& path, const RuneConfig& config, QString* error)
     root["traceHeaderState"] = QString::fromLatin1(config.traceHeaderState.toHex());
     root["listenOnly"] = config.listenOnly;
 
+    QJsonArray extraBuses;
+    for (const RuneExtraBus& extra : config.extraBuses) {
+        QJsonObject o;
+        o["bus"] = extra.bus;
+        o["channelDisplayName"] = extra.channelDisplayName;
+        o["nominalBitrateBps"] = static_cast<int>(extra.bitrateBps);
+        extraBuses.append(o);
+    }
+    root["extraBuses"] = extraBuses;
+
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
         if (error) *error = "Could not open file for writing:\n" + path;
@@ -216,6 +226,16 @@ std::optional<RuneConfig> loadRuneFile(const QString& path, QString* error) {
 
     config.traceHeaderState = QByteArray::fromHex(root["traceHeaderState"].toString().toLatin1());
     config.listenOnly = root["listenOnly"].toBool(false);
+
+    // Absent in runes saved before multi-bus existed: no extra buses.
+    for (const QJsonValue& v : root["extraBuses"].toArray()) {
+        const QJsonObject o = v.toObject();
+        RuneExtraBus extra;
+        extra.bus = o["bus"].toInt(0);
+        extra.channelDisplayName = o["channelDisplayName"].toString();
+        extra.bitrateBps = static_cast<uint32_t>(o["nominalBitrateBps"].toInt(500000));
+        if (extra.bus >= 2 && extra.bus <= 4) config.extraBuses.push_back(extra);
+    }
 
     return config;
 }

@@ -29,7 +29,9 @@ namespace cantrip {
 class TraceModel : public QAbstractItemModel {
     Q_OBJECT
 public:
-    enum Column { Time, Id, Flags, Dlc, Data, Message, Value, kColumnCount };
+    // Bus is last so that column numbers saved in older runes keep their
+    // meaning. The Trace view hides it while only one bus is in use.
+    enum Column { Time, Id, Flags, Dlc, Data, Message, Value, Bus, kColumnCount };
 
     // Waterfall keeps this many newest rows, about 25 s of a full 500 kbit/s
     // bus. Periodic never gets near it, it has one row per ID.
@@ -39,7 +41,8 @@ public:
     static QString idText(const DecodedCanFrame& frame);
     static QString flagsText(const DecodedCanFrame& frame);
     static QBrush txBrush();
-    // One Periodic row per this key: a CAN ID, kept apart by standard/extended.
+    // One Periodic row per this key: a CAN ID, kept apart by standard/extended
+    // and by bus, since the same ID on two buses is two different messages.
     static uint64_t frameKey(const DecodedCanFrame& frame);
 
     explicit TraceModel(const DbcDecoder* decoder, QObject* parent = nullptr);

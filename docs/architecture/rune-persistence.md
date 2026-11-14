@@ -14,7 +14,8 @@ disk.
   "graph": { "windows": [ { "axes": [...] } ] },
   "transmitMessages": [ { "id": 0, "extended": false, "fd": false, "dlc": 8, "data": "hex...", "cycleTimeMs": 0, ... } ],
   "traceHeaderState": "hex-encoded QHeaderView::saveState() bytes",
-  "listenOnly": false
+  "listenOnly": false,
+  "extraBuses": [ { "bus": 2, "channelDisplayName": "...", "nominalBitrateBps": 500000 } ]
 }
 ```
 

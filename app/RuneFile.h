@@ -22,6 +22,13 @@ namespace cantrip {
 // need to depend on MainWindow.h just to describe a file format.
 enum class RuneDisplayMode { Waterfall, Periodic };
 
+// A bus beyond the first: buses 2 to 4.
+struct RuneExtraBus {
+    int bus = 2;
+    QString channelDisplayName;
+    uint32_t bitrateBps = 500000;
+};
+
 struct RuneConfig {
     // Matched back to a channel by display name (not interfaceId, which is
     // backend-namespaced and can shift if hardware changes) - empty/not-found
@@ -50,6 +57,7 @@ struct RuneConfig {
     // MainWindow::listenOnlyMode_) - false (request ownership, today's
     // longstanding default) for a rune saved before this field existed.
     bool listenOnly = false;
+    std::vector<RuneExtraBus> extraBuses;
 };
 
 // Returns false (with *error set to a human-readable message) on any

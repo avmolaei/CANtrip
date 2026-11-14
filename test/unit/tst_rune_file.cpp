@@ -43,6 +43,7 @@ private slots:
         message.paused = true;
         message.comment = "tester present, with \"quotes\"";
         saved.transmitMessages = {message, TransmitMessage{}};
+        saved.extraBuses = {{2, "PEAK-System PCAN-Basic PCAN-USB FD", 250000}, {4, "Vector XL Driver Library VN1640A Channel 2", 1000000}};
 
         QTemporaryDir dir;
         const QString path = dir.filePath("config.rune");
@@ -85,6 +86,13 @@ private slots:
         QVERIFY(gotAxis.plottedSignals[0].style == GraphLineStyle::Scatter);
         QVERIFY(gotAxis.plottedSignals[1].style == GraphLineStyle::Solid);
 
+        QCOMPARE(loaded->extraBuses.size(), size_t(2));
+        QCOMPARE(loaded->extraBuses[0].bus, 2);
+        QCOMPARE(loaded->extraBuses[0].channelDisplayName, QString("PEAK-System PCAN-Basic PCAN-USB FD"));
+        QCOMPARE(loaded->extraBuses[0].bitrateBps, 250000u);
+        QCOMPARE(loaded->extraBuses[1].bus, 4);
+        QCOMPARE(loaded->extraBuses[1].bitrateBps, 1000000u);
+
         QCOMPARE(loaded->transmitMessages.size(), size_t(2));
         const TransmitMessage& got = loaded->transmitMessages[0];
         QCOMPARE(got.id, 0x18DAF110u);
@@ -115,6 +123,7 @@ private slots:
         QVERIFY(loaded->displayMode == RuneDisplayMode::Waterfall);
         QVERIFY(loaded->traceHeaderState.isEmpty());
         QVERIFY(loaded->transmitMessages.empty());
+        QVERIFY(loaded->extraBuses.empty());
     }
 
     void brokenFilesFailWithAMessage() {
