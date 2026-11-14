@@ -55,6 +55,17 @@ sequenceDiagram
   its cost doesn't grow with the length of a capture. It applies the
   column filters and the sort itself, because a `QSortFilterProxyModel`
   on top missed a 30 Hz refresh at the row cap.
+- **`SignalHistoryStore`** (`app/SignalHistory.h/.cpp`): every sample of
+  every decoded signal, for the whole capture. Each signal is a
+  `SignalSeries`: the raw samples in fixed-size chunks, plus a small
+  pyramid of min/max buckets (8 samples per bucket, then 64, then 512...).
+  `SignalSeries::decimate()` uses the pyramid to turn any time range into
+  at most two points per pixel column.
+- **`GraphView`**: never appends to its chart per sample. A 30 Hz timer
+  checks whether the store or the view (time range, plot width) changed,
+  and if so replaces each plotted line's points with a fresh `decimate()`
+  result. Hidden windows skip the work entirely. Cursor readouts read the
+  store directly, so they always land on a real sample.
 
 ## The transmit side feeds the same pipeline
 

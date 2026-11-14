@@ -25,8 +25,36 @@ code alike. The C++ type is `IAvlabsCanBackend` (defined in
 
 ## Verifying changes
 
-There's no automated test suite yet. Verification is: build, run, and
-check against real behavior.
+Two layers: the automated unit tests, and checking against real behavior.
+The tests cover logic that doesn't need hardware. They can't tell you a
+vendor driver does what its documentation says, which is what the rest of
+this section is about.
+
+### Unit tests
+
+The tests live in `test/unit`, one file per area, built with Qt Test and
+run through CTest. They build with the app by default:
+
+```powershell
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
+```
+
+They take a few seconds and never open a window: anything with widgets
+runs on Qt's offscreen platform. Run them before committing, and add to
+them when you change something they could have caught:
+
+- A bug fix gets a test that fails without the fix.
+- New logic that doesn't need hardware (a model, a parser, a calculation)
+  gets tests alongside it.
+- To add a test file, create `test/unit/tst_<area>.cpp` and add one
+  `cantrip_add_test(tst_<area>)` line to `test/unit/CMakeLists.txt`.
+
+Everything in `app/` except `main.cpp` builds into the `cantrip_app`
+static library, which both `cantrip.exe` and the tests link, so the tests
+exercise the same code the app runs.
+
+### Checking against real behavior
 
 **The built-in synthetic test source (`CANtrip synthetic test source (no
 hardware needed)`, always available as a channel option) plus
