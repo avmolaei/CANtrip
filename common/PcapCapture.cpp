@@ -1,5 +1,9 @@
 #include "PcapCapture.h"
 
+#include "SimulatedEcu.h"
+
+#include <algorithm>
+
 #include <windows.h>
 #include <fcntl.h>
 #include <io.h>
@@ -301,7 +305,18 @@ void serveGateway(GatewayRouter* gateway, int bus, Transmit transmit) {
 
 void runSyntheticCapture(FILE* out, const std::atomic<bool>& stop, GatewayRouter* gateway, int bus) {
     if (gateway) gateway->attach(bus);
-    const auto noWire = [](const CanFrame&, std::string*) { return true; };
+    // There is no wire, but there is somebody on it: frames transmitted on
+    // this bus reach a pretend ECU, whose answers are captured like any
+    // other traffic (see SimulatedEcu.h).
+    SimulatedEcu ecu;
+    const auto started = std::chrono::steady_clock::now();
+    const auto nowMs = [started]() {
+        return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count());
+    };
+    const auto toEcu = [&ecu, &nowMs](const CanFrame& frame, std::string*) {
+        ecu.onFrame(frame, nowMs());
+        return true;
+    };
     uint64_t tUs = 0;
     uint32_t counter = 0;
     while (!stop) {
@@ -324,11 +339,21 @@ void runSyntheticCapture(FILE* out, const std::atomic<bool>& stop, GatewayRouter
             continue;
         }
         // Same 100 ms tick, spent serving the gateway instead of asleep.
-        const auto tickEnd = std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
-        while (!stop && std::chrono::steady_clock::now() < tickEnd) {
-            serveGateway(gateway, bus, noWire);
+        const auto tickStart = std::chrono::steady_clock::now();
+        const auto tickEnd = tickStart + std::chrono::milliseconds(100);
+        while (ok && !stop && std::chrono::steady_clock::now() < tickEnd) {
+            serveGateway(gateway, bus, toEcu);
+            ecu.poll(nowMs());
+            for (CanFrame& answer : ecu.takeFrames()) {
+                // Stamped inside this tick, so time never runs backwards.
+                const auto intoTick = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - tickStart).count();
+                answer.timestampUs = tickUs + static_cast<uint64_t>(std::min<long long>(intoTick, 99999));
+                ok = ok && writePcapRecord(out, answer);
+                gateway->route(bus, answer);
+            }
             gateway->waitForWork(bus, std::chrono::milliseconds(5));
         }
+        if (!ok) break;
     }
     if (gateway) gateway->detach(bus);
 }

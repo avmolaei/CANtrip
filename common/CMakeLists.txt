@@ -7,6 +7,12 @@ add_library(cantrip_common STATIC
     CanBitTiming.h
     CanBitTiming.cpp
     GatewayRouter.h
+    IsoTp.h
+    IsoTp.cpp
+    SimulatedEcu.h
+    SimulatedEcu.cpp
+    Uds.h
+    Uds.cpp
     GatewayRouter.cpp
     PcapCapture.h
     PcapCapture.cpp

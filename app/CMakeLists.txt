@@ -32,6 +32,11 @@ add_library(cantrip_app STATIC
     CsvLogWriter.cpp
     DbcDecoder.h
     DbcDecoder.cpp
+    DiagnosticsView.h
+    DiagnosticsView.cpp
+    GatewayText.h
+    UdsClient.h
+    UdsClient.cpp
     LogFilenameTemplate.h
     LogFilenameTemplate.cpp
     LoggingOptionsDialog.h

@@ -200,6 +200,13 @@ bool saveRuneFile(const QString& path, const RuneConfig& config, QString* error)
     gateway["rules"] = gatewayRules;
     root["gateway"] = gateway;
 
+    QJsonObject diagnostics;
+    diagnostics["bus"] = config.diagBus;
+    diagnostics["requestId"] = static_cast<qint64>(config.diagRequestId);
+    diagnostics["responseId"] = static_cast<qint64>(config.diagResponseId);
+    diagnostics["extended"] = config.diagExtended;
+    root["diagnostics"] = diagnostics;
+
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
         if (error) *error = "Could not open file for writing:\n" + path;
@@ -278,6 +285,13 @@ std::optional<RuneConfig> loadRuneFile(const QString& path, QString* error) {
         extra.listenOnly = o["listenOnly"].toBool(false);
         if (extra.bus >= 2 && extra.bus <= kMaxBuses) config.extraBuses.push_back(extra);
     }
+
+    // Absent in runes saved before the Diagnostics tab: the usual 7E0/7E8.
+    const QJsonObject diagnostics = root["diagnostics"].toObject();
+    config.diagBus = std::clamp(diagnostics["bus"].toInt(1), 1, kMaxBuses);
+    config.diagRequestId = static_cast<uint32_t>(diagnostics["requestId"].toInteger(0x7E0)) & 0x1FFFFFFFu;
+    config.diagResponseId = static_cast<uint32_t>(diagnostics["responseId"].toInteger(0x7E8)) & 0x1FFFFFFFu;
+    config.diagExtended = diagnostics["extended"].toBool(false);
 
     // Absent in runes saved before the gateway existed: no rules, off.
     const QJsonObject gateway = root["gateway"].toObject();

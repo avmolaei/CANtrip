@@ -151,6 +151,10 @@ long you've had this view open.
 
 ## Gateway
 
+!!! warning "Experimental"
+    The gateway has been run on the synthetic test source and in tests,
+    not yet on real adapters.
+
 **Gateway...** forwards frames from one bus to another while a capture
 runs. It needs at least two buses ticked in [More buses](#more-buses).
 

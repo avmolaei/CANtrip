@@ -17,7 +17,8 @@ disk.
   "listenOnly": false,
   "dbcFiles": [ { "path": "...", "bus": 2 } ],
   "extraBuses": [ { "bus": 2, "channelDisplayName": "...", "busConfig": {...}, "listenOnly": false } ],
-  "gateway": { "enabled": true, "rules": [ { "from": 1, "to": 2, "idLow": 256, "idHigh": 511 } ] }
+  "gateway": { "enabled": true, "rules": [ { "from": 1, "to": 2, "idLow": 256, "idHigh": 511 } ] },
+  "diagnostics": { "bus": 1, "requestId": 2016, "responseId": 2024, "extended": false }
 }
 ```
 

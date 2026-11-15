@@ -8,7 +8,9 @@
 
 namespace cantrip {
 
-constexpr const char* kVersion = "1.7.0";
-constexpr const char* kCodename = "Yukari";
+// "-experimental": main is ahead of the last release and holds features
+// that have not been run on real hardware. Drop the suffix at release.
+constexpr const char* kVersion = "2.0.0-experimental";
+constexpr const char* kCodename = "Nagato";
 
 } // namespace cantrip

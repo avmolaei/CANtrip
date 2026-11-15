@@ -27,6 +27,14 @@ that's simple to pick up, powerful, free to use, and licensed GPLv3.
 - A driver package for whichever CAN hardware you're using. If you don't have any and just want to try it out; CANtrip ships with a synthetic CAN source to test its features.
 
 
+## Experimental build
+
+The `main` branch is ahead of the last release (v1.7.0) and identifies
+itself as **v2.0.0-experimental**. It adds several buses in one window,
+per-bus DBC files, a gateway between buses and UDS diagnostics. None of
+that has been run on real CAN hardware yet. For work that matters, use the
+v1.7.0 release.
+
 ## Running CANtrip
 
 Prebuilt binaries are also published under

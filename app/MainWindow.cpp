@@ -60,10 +60,14 @@ void setItemGrayed(QTreeWidgetItem* item, bool grayed) {
 } // namespace
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
-    setWindowTitle("CANtrip");
+    // An experimental build says so where it cannot be missed.
+    setWindowTitle(QString(kVersion).contains("experimental") ? QString("CANtrip v%1 - %2").arg(kVersion, kCodename) : QString("CANtrip"));
     resize(1000, 600);
     connect(&gatewayTimer_, &QTimer::timeout, this, &MainWindow::pumpGateway);
     gatewayTimer_.start(20);
+
+    udsClient_.setTransmitter(gateway_);
+    diagnosticsView_ = new DiagnosticsView(&udsClient_, this);
 
     ribbon_ = new QTabWidget(this);
     ribbon_->setMaximumHeight(110);
@@ -72,6 +76,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     ribbon_->addTab(buildAnalysisTab(), "Analysis && Measurement");
     ribbon_->addTab(buildLoggingTab(), "Logging");
     ribbon_->addTab(buildStimulationTab(), "Stimulation");
+    ribbon_->addTab(diagnosticsView_->ribbonPage(), "Diagnostics");
     ribbon_->addTab(buildAboutTab(), "About...");
 
     // Start/Stop capture pinned into the tab bar's own top-left corner
@@ -114,6 +119,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     contentStack_->addWidget(graphWindows_);
     contentStack_->addWidget(stimulationView_);
     contentStack_->addWidget(busLoadTabs_);
+    contentStack_->addWidget(diagnosticsView_);
 
     auto* central = new QWidget(this);
     auto* rootLayout = new QVBoxLayout(central);
@@ -1010,6 +1016,11 @@ void MainWindow::saveRune() {
     }
     config.listenOnly = listenOnlyMode_;
     config.gatewayRules = gatewayRules_;
+    const UdsClient::Target diagTarget = diagnosticsView_->target();
+    config.diagBus = diagTarget.bus;
+    config.diagRequestId = diagTarget.requestId;
+    config.diagResponseId = diagTarget.responseId;
+    config.diagExtended = diagTarget.extended;
     config.gatewayEnabled = gatewayEnabled_;
 
     QString error;
@@ -1091,6 +1102,7 @@ void MainWindow::applyRune(const RuneConfig& config) {
         extraBuses_[index] = {true, extra.channelDisplayName, extra.busConfig, extra.listenOnly};
     }
     updateMoreBusesButton();
+    diagnosticsView_->setTarget({config.diagBus, config.diagRequestId, config.diagResponseId, config.diagExtended});
     gatewayRules_ = config.gatewayRules;
     gatewayEnabled_ = config.gatewayEnabled;
     applyGateway();
@@ -1640,6 +1652,9 @@ void MainWindow::onFrameReceived(const DecodedCanFrame& received) {
     }
     const DecodedCanFrame& frame = align ? aligned : received;
 
+    // The ECU's answers, when a diagnostic request is waiting for one.
+    udsClient_.onFrame(frame);
+
     // A replayed multi-bus log brings its bus numbers with it.
     if (frame.bus > 1 && frameTree_->isColumnHidden(TraceModel::Bus)) frameTree_->setColumnHidden(TraceModel::Bus, false);
 
@@ -1803,11 +1818,14 @@ void MainWindow::onCaptureStopped() {
 
     messageSender_.closePort();
     setSendingUiState();
+    udsClient_.cancel();
 }
 
 void MainWindow::onRibbonTabChanged(int index) {
     if (ribbon_->tabText(index) == "Stimulation") {
         contentStack_->setCurrentWidget(stimulationView_);
+    } else if (ribbon_->tabText(index) == "Diagnostics") {
+        contentStack_->setCurrentWidget(diagnosticsView_);
     } else {
         // Every other tab defaults back to the normal CAN Trace view -
         // Analysis & Measurement's own Trace/Graphics buttons can still

@@ -25,6 +25,8 @@
 #include "BusLoadView.h"
 #include "BusTimeAligner.h"
 #include "DbcDecoder.h"
+#include "DiagnosticsView.h"
+#include "UdsClient.h"
 #include "GatewayText.h"
 #include "GraphWindowContainer.h"
 #include "LogReplaySource.h"
@@ -205,6 +207,10 @@ private:
     // The Bus Load page: one tab per bus, the tab bar hidden while there is
     // only CAN 1. The extra buses' trackers and views live for one session.
     QTabWidget* busLoadTabs_;
+    // The Diagnostics tab: UDS requests, sent through gateway_ like every
+    // other transmit beyond CAN 1's own port.
+    UdsClient udsClient_;
+    DiagnosticsView* diagnosticsView_;
     struct ExtraBusLoad {
         int bus = 0;
         std::unique_ptr<BusLoadTracker> tracker;

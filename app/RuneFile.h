@@ -78,6 +78,11 @@ struct RuneConfig {
     // while it is off.
     std::vector<GatewayRule> gatewayRules;
     bool gatewayEnabled = false;
+    // The ECU the Diagnostics tab talks to.
+    int diagBus = 1;
+    uint32_t diagRequestId = 0x7E0;
+    uint32_t diagResponseId = 0x7E8;
+    bool diagExtended = false;
 };
 
 // Returns false (with *error set to a human-readable message) on any
