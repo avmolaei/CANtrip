@@ -12,6 +12,7 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
+#include <QSignalBlocker>
 #include <QSpinBox>
 #include <QVBoxLayout>
 
@@ -95,12 +96,20 @@ TransmitMessageDialog::TransmitMessageDialog(QWidget* parent) : QDialog(parent) 
 
     auto* root = new QVBoxLayout(this);
 
+    // The bus comes first: it decides whether FD frames are possible at all.
+    auto* busForm = new QFormLayout();
+    busCombo_ = new QComboBox(this);
+    busCombo_->setMinimumWidth(320);
+    busForm->addRow("Bus:", busCombo_);
     auto* busRow = new QHBoxLayout();
-    busInfoLabel_ = new QLabel("Bus: (unknown)", this);
+    busInfoLabel_ = new QLabel(this);
+    busInfoLabel_->setStyleSheet("color: palette(mid);");
     changeBusButton_ = new QPushButton("Change...", this);
+    changeBusButton_->setToolTip("Go to the Hardware tab to change buses and their configuration");
     busRow->addWidget(busInfoLabel_, /*stretch=*/1);
     busRow->addWidget(changeBusButton_);
-    root->addLayout(busRow);
+    busForm->addRow(QString(), busRow);
+    root->addLayout(busForm);
 
     auto* form = new QFormLayout();
 
@@ -146,11 +155,6 @@ TransmitMessageDialog::TransmitMessageDialog(QWidget* parent) : QDialog(parent) 
     form->addRow(remoteRequestCheck_);
     form->addRow(bitRateSwitchCheck_);
 
-    busSpin_ = new QSpinBox(this);
-    busSpin_->setRange(1, 16); // kMaxBuses
-    busSpin_->setPrefix("CAN ");
-    form->addRow("Bus:", busSpin_);
-
     commentEdit_ = new QLineEdit(this);
     form->addRow("Comment:", commentEdit_);
 
@@ -163,6 +167,7 @@ TransmitMessageDialog::TransmitMessageDialog(QWidget* parent) : QDialog(parent) 
         emit hardwareSettingsRequested();
         reject();
     });
+    connect(busCombo_, &QComboBox::currentIndexChanged, this, &TransmitMessageDialog::onBusChanged);
     connect(fdFrameCheck_, &QCheckBox::toggled, this, &TransmitMessageDialog::onFdFrameToggled);
     connect(extendedCheck_, &QCheckBox::toggled, this, &TransmitMessageDialog::onExtendedToggled);
     connect(editDataButton_, &QPushButton::clicked, this, &TransmitMessageDialog::onEditDataClicked);
@@ -177,11 +182,33 @@ TransmitMessageDialog::TransmitMessageDialog(QWidget* parent) : QDialog(parent) 
     onFdFrameToggled(false);
 }
 
-void TransmitMessageDialog::setBusInfo(const QString& summary, bool fdCapable) {
-    busInfoLabel_->setText("Bus: " + summary);
-    fdCapable_ = fdCapable;
-    fdFrameCheck_->setEnabled(fdCapable);
-    fdFrameCheck_->setChecked(fdCapable);
+void TransmitMessageDialog::setBuses(const std::vector<BusChoice>& buses) {
+    buses_ = buses;
+    {
+        const QSignalBlocker block(busCombo_);
+        busCombo_->clear();
+        for (const BusChoice& choice : buses_) {
+            const QString hardware = choice.hardware.isEmpty() ? QString("no channel picked") : choice.hardware;
+            busCombo_->addItem(QString("CAN %1  -  %2").arg(choice.bus).arg(hardware), choice.bus);
+        }
+    }
+    busCombo_->setCurrentIndex(0);
+    onBusChanged();
+    // A new message on an FD bus starts out as an FD frame.
+    fdFrameCheck_->setChecked(fdCapable_);
+}
+
+void TransmitMessageDialog::onBusChanged() {
+    const int index = busCombo_->currentIndex();
+    if (index < 0 || index >= static_cast<int>(buses_.size())) {
+        busInfoLabel_->clear();
+        return;
+    }
+    const BusChoice& choice = buses_[static_cast<size_t>(index)];
+    busInfoLabel_->setText(choice.summary);
+    fdCapable_ = choice.fdCapable;
+    fdFrameCheck_->setEnabled(fdCapable_);
+    if (!fdCapable_) fdFrameCheck_->setChecked(false);
 }
 
 void TransmitMessageDialog::onFdFrameToggled(bool fd) {
@@ -284,7 +311,15 @@ void TransmitMessageDialog::setMessage(const TransmitMessage& message) {
     remoteRequestCheck_->setChecked(message.rtr);
     bitRateSwitchCheck_->setChecked(message.brs);
     commentEdit_->setText(message.comment);
-    busSpin_->setValue(message.bus);
+    // A message saved for a bus that is not in use right now keeps it.
+    int busIndex = busCombo_->findData(message.bus);
+    if (busIndex < 0) {
+        buses_.push_back({message.bus, QString("not in use"), QString("CAN %1 is not ticked in More buses").arg(message.bus), message.fd});
+        busCombo_->addItem(QString("CAN %1  -  not in use").arg(message.bus), message.bus);
+        busIndex = busCombo_->count() - 1;
+    }
+    busCombo_->setCurrentIndex(busIndex);
+    fdFrameCheck_->setChecked(message.fd);
 }
 
 TransmitMessage TransmitMessageDialog::message() const {
@@ -299,7 +334,7 @@ TransmitMessage TransmitMessageDialog::message() const {
     msg.rtr = msg.fd ? false : remoteRequestCheck_->isChecked();
     msg.brs = msg.fd ? bitRateSwitchCheck_->isChecked() : false;
     msg.comment = commentEdit_->text();
-    msg.bus = busSpin_->value();
+    msg.bus = busCombo_->currentIndex() >= 0 ? busCombo_->currentData().toInt() : 1;
     return msg;
 }
 

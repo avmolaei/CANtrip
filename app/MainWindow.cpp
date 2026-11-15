@@ -70,7 +70,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     diagnosticsView_ = new DiagnosticsView(&udsClient_, this);
 
     ribbon_ = new QTabWidget(this);
-    ribbon_->setMaximumHeight(110);
+    // Tall enough for two rows of controls in a group (the Diagnostics tab
+    // has them) without squeezing them.
+    ribbon_->setMaximumHeight(140);
     ribbon_->addTab(buildHomeTab(), "Home");
     ribbon_->addTab(buildHardwareTab(), "Hardware");
     ribbon_->addTab(buildAnalysisTab(), "Analysis && Measurement");
@@ -462,10 +464,9 @@ QWidget* MainWindow::buildLoggingTab() {
     mf4FormatRadio_->setToolTip("Coming soon");
     // Default QVBoxLayout margins/spacing push 3 stacked radios + the
     // groupbox title just past the ribbon's fixed max height (see
-    // MainWindow's constructor - ribbon_->setMaximumHeight(110)), which
+    // MainWindow's constructor - ribbon_->setMaximumHeight()), which
     // forced Qt to compress this entire row, including the sibling Output
-    // File group. Tightened rather than raising the ribbon height globally,
-    // since every other tab already fits comfortably at 110px.
+    // File group. Tightened so it fits whatever that height is.
     formatLayout->setContentsMargins(6, 4, 6, 4);
     formatLayout->setSpacing(2);
     formatLayout->addWidget(ascFormatRadio_);
@@ -1903,10 +1904,19 @@ void MainWindow::refreshTransmitList() {
 void MainWindow::openTransmitMessageDialog(int editIndex) {
     TransmitMessageDialog dialog(this);
 
-    const QString busSummary = busConfig_.fd
-        ? QString("CAN FD, %1 bps / %2 bps").arg(busConfig_.nominalBitrateBps).arg(busConfig_.dataBitrateBps)
-        : QString("CAN, %1 bps").arg(busConfig_.nominalBitrateBps);
-    dialog.setBusInfo(busSummary, busConfig_.fd);
+    const auto summary = [](const CanBitrateConfig& config) {
+        return config.fd ? QString("CAN FD, %1 bps / %2 bps").arg(config.nominalBitrateBps).arg(config.dataBitrateBps)
+                         : QString("CAN, %1 bps").arg(config.nominalBitrateBps);
+    };
+    // The buses of the session, each with the hardware it is on.
+    std::vector<TransmitMessageDialog::BusChoice> buses;
+    buses.push_back({1, channelCombo_->currentText(), summary(busConfig_), busConfig_.fd});
+    for (size_t i = 0; i < extraBuses_.size(); ++i) {
+        const ExtraBus& extra = extraBuses_[i];
+        if (!extra.enabled) continue;
+        buses.push_back({static_cast<int>(i) + 2, extra.channelDisplayName, summary(extra.config), extra.config.fd});
+    }
+    dialog.setBuses(buses);
 
     if (editIndex >= 0 && editIndex < static_cast<int>(messageSender_.messages().size())) {
         dialog.setMessage(messageSender_.messages()[static_cast<size_t>(editIndex)]);

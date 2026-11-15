@@ -47,11 +47,19 @@ class TransmitMessageDialog : public QDialog {
 public:
     explicit TransmitMessageDialog(QWidget* parent = nullptr);
 
-    // Read-only bus summary shown at the top, and whether the FD Frame
-    // checkbox should even be offered - an FD-capable bus can still carry
-    // classic frames mixed in, so this stays a per-message choice, but a
-    // classic-only bus can't send FD frames at all.
-    void setBusInfo(const QString& summary, bool fdCapable);
+    // One bus the message can go out on, as listed in the Bus dropdown at
+    // the top. `summary` is its configuration ("CAN FD, 500000 bps /
+    // 2000000 bps"), shown under the dropdown. fdCapable says whether the
+    // FD Frame checkbox is offered: an FD bus can still carry classic
+    // frames, but a classic-only bus can't send FD frames at all.
+    struct BusChoice {
+        int bus = 1;
+        QString hardware; // the channel it is on
+        QString summary;
+        bool fdCapable = false;
+    };
+    // Call before setMessage(). The first bus is selected.
+    void setBuses(const std::vector<BusChoice>& buses);
 
     void setMessage(const TransmitMessage& message);
     TransmitMessage message() const;
@@ -74,6 +82,10 @@ private:
     void refreshInlineBytesFromData();
     void applyDataLength(int length);
 
+    void onBusChanged();
+
+    QComboBox* busCombo_;
+    std::vector<BusChoice> buses_;
     QLabel* busInfoLabel_;
     QPushButton* changeBusButton_;
 
@@ -89,7 +101,6 @@ private:
     QByteArray data_;
 
     QSpinBox* cycleTimeSpin_;
-    QSpinBox* busSpin_;
     QCheckBox* pausedCheck_;
 
     QCheckBox* extendedCheck_;
