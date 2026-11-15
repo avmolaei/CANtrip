@@ -36,6 +36,15 @@ public:
         return frameSec + it->second;
     }
 
+    // For events that did not come through a capture, such as a frame the
+    // gateway transmitted. hasBus() is false until that bus has shown its
+    // first frame; timeOn() turns a time on that bus's own clock into one on
+    // the shared timeline, and fromSession() does the same for a reading of
+    // the session clock.
+    bool hasBus(int bus) const { return offsets_.count(bus) != 0; }
+    double timeOn(int bus, double busSec) const { return busSec + offsets_.at(bus); }
+    double fromSession(double sessionSec) const { return haveOrigin_ ? sessionSec - origin_ : 0.0; }
+
 private:
     std::map<int, double> offsets_;
     double origin_ = 0.0;

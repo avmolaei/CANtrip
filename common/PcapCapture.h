@@ -17,6 +17,7 @@
 #include <thread>
 
 #include "AVlabsCanBackend.h"
+#include "GatewayRouter.h"
 
 namespace cantrip {
 
@@ -44,15 +45,19 @@ bool writePcapHeader(FILE* out);
 bool writePcapRecord(FILE* out, const CanFrame& frame);
 
 // Both capture loops run until `stop` becomes true or `out` stops accepting
-// data, whichever comes first.
-void runSyntheticCapture(FILE* out, const std::atomic<bool>& stop);
+// data, whichever comes first. With a gateway, the loop hands it every frame
+// it reads as coming from `bus`, and transmits what the gateway has for
+// `bus` (see GatewayRouter.h). The synthetic channel has no wire to transmit
+// on, so it only reports those frames as sent.
+void runSyntheticCapture(FILE* out, const std::atomic<bool>& stop, GatewayRouter* gateway = nullptr, int bus = 1);
 // Initializes the channel, captures, and releases the channel again before
 // returning. Returns false with *error set if it could not be initialized.
 // On PEAK it also serves the transmit pipe MessageSender sends through,
 // since only the thread holding the PEAK channel can transmit on it.
 bool runBackendCapture(IAvlabsCanBackend& backend, uint64_t channelId, const std::string& interfaceId,
                        const CanBitrateConfig& config, bool requestOwnership, FILE* out,
-                       const std::atomic<bool>& stop, const CaptureMessageCallback& onMessage, std::string* error);
+                       const std::atomic<bool>& stop, const CaptureMessageCallback& onMessage, std::string* error,
+                       GatewayRouter* gateway = nullptr, int bus = 1);
 
 // Runs a capture in its own thread and serves it on a named pipe for tshark
 // to read (`tshark -i <pipeName()>`).
@@ -62,6 +67,9 @@ public:
         std::string interfaceId;
         CanBitrateConfig bitrate;
         bool requestOwnership = true;
+        // Which bus of the session this is, and the session's gateway if any.
+        int bus = 1;
+        std::shared_ptr<GatewayRouter> gateway;
     };
 
     PcapPipeFeeder() = default;

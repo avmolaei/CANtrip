@@ -25,6 +25,7 @@
 #include "BusLoadView.h"
 #include "BusTimeAligner.h"
 #include "DbcDecoder.h"
+#include "GatewayText.h"
 #include "GraphWindowContainer.h"
 #include "LogReplaySource.h"
 #include "LogWriter.h"
@@ -55,6 +56,8 @@ private slots:
     void loadRune();
     void startCapture();
     void openMoreBuses();
+    void openGateway();
+    void pumpGateway();
     void stopCapture();
     void onFrameReceived(const DecodedCanFrame& frame);
     void onCaptureError(const QString& message);
@@ -155,6 +158,7 @@ private:
     QComboBox* channelCombo_;
     QPushButton* refreshButton_;
     QPushButton* moreBusesButton_;
+    QPushButton* gatewayButton_;
     QPushButton* canControllerButton_;
     QPushButton* autoDetectButton_;
     QPushButton* busLoadButton_;
@@ -198,6 +202,15 @@ private:
     StimulationView* stimulationView_;
     BusLoadTracker busLoadTracker_;
     BusLoadView* busLoadView_;
+    // The Bus Load page: one tab per bus, the tab bar hidden while there is
+    // only CAN 1. The extra buses' trackers and views live for one session.
+    QTabWidget* busLoadTabs_;
+    struct ExtraBusLoad {
+        int bus = 0;
+        std::unique_ptr<BusLoadTracker> tracker;
+        BusLoadView* view = nullptr;
+    };
+    std::vector<ExtraBusLoad> extraBusLoads_;
     SignalHistoryStore signalHistory_;
     MessageSender messageSender_;
     // MainWindow owns this rather than StimulationView since it's the real
@@ -232,6 +245,16 @@ private:
     BusTimeAligner timeAligner_;
     QElapsedTimer sessionClock_;
     void updateMoreBusesButton();
+    // Forwarding between buses (see GatewayRouter.h). The router is shared
+    // with every capture thread. The rules are kept while the gateway is
+    // switched off, and the router only gets them while it is on.
+    std::shared_ptr<GatewayRouter> gateway_ = std::make_shared<GatewayRouter>();
+    std::vector<GatewayRule> gatewayRules_;
+    bool gatewayEnabled_ = false;
+    uint64_t gatewayFailuresShown_ = 0;
+    QTimer gatewayTimer_;
+    GatewaySentPump gatewayPump_;
+    void applyGateway();
     int frameCount_ = 0;
 
     // Populated by the CAN Controller dialog; applied the next time a

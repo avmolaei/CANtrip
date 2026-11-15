@@ -146,6 +146,11 @@ TransmitMessageDialog::TransmitMessageDialog(QWidget* parent) : QDialog(parent) 
     form->addRow(remoteRequestCheck_);
     form->addRow(bitRateSwitchCheck_);
 
+    busSpin_ = new QSpinBox(this);
+    busSpin_->setRange(1, 16); // kMaxBuses
+    busSpin_->setPrefix("CAN ");
+    form->addRow("Bus:", busSpin_);
+
     commentEdit_ = new QLineEdit(this);
     form->addRow("Comment:", commentEdit_);
 
@@ -279,6 +284,7 @@ void TransmitMessageDialog::setMessage(const TransmitMessage& message) {
     remoteRequestCheck_->setChecked(message.rtr);
     bitRateSwitchCheck_->setChecked(message.brs);
     commentEdit_->setText(message.comment);
+    busSpin_->setValue(message.bus);
 }
 
 TransmitMessage TransmitMessageDialog::message() const {
@@ -293,6 +299,7 @@ TransmitMessage TransmitMessageDialog::message() const {
     msg.rtr = msg.fd ? false : remoteRequestCheck_->isChecked();
     msg.brs = msg.fd ? bitRateSwitchCheck_->isChecked() : false;
     msg.comment = commentEdit_->text();
+    msg.bus = busSpin_->value();
     return msg;
 }
 

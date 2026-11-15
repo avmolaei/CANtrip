@@ -30,6 +30,9 @@ configured transmit messages below, plus the controls to send them.
   deleting it; Send Now still fires it regardless.
 - **Extended Frame** / **Remote Request** (classic) or **Bit Rate Switch**
   (FD) - standard CAN flags.
+- **Bus** - which bus the message goes out on. Buses beyond CAN 1 are the
+  ones ticked in [More buses](hardware-tab.md#more-buses). A message for a
+  bus that is not being captured fails with a red row saying so.
 - **Comment** - free text, shown in the message list.
 
 ### Edit Data

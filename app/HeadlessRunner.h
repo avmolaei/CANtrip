@@ -18,6 +18,7 @@
 
 #include "../common/AVlabsCanBackend.h"
 #include "BusTimeAligner.h"
+#include "GatewayText.h"
 #include "DbcDecoder.h"
 #include "LogWriter.h"
 #include "MessageSender.h"
@@ -46,6 +47,7 @@ private slots:
     void onCaptureStopped();
     void onDurationElapsed();
     void checkInterrupted();
+    void pumpGateway();
 
 private:
     static QString findTsharkExe();
@@ -70,6 +72,11 @@ private:
     QElapsedTimer runClock_;
     QTimer durationTimer_;
     QTimer interruptPollTimer_;
+    // Forwards between buses when --gateway or the rune asks for it. The
+    // timer writes what it forwarded to the log, as Tx on the bus it went to.
+    std::shared_ptr<GatewayRouter> gateway_ = std::make_shared<GatewayRouter>();
+    QTimer gatewayTimer_;
+    GatewaySentPump gatewayPump_;
     bool stopping_ = false;
 };
 

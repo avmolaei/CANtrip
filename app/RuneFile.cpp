@@ -1,5 +1,7 @@
 #include "RuneFile.h"
 
+#include <algorithm>
+
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -94,6 +96,7 @@ QJsonObject transmitMessageToJson(const TransmitMessage& m) {
     obj["cycleTimeMs"] = m.cycleTimeMs;
     obj["paused"] = m.paused;
     obj["comment"] = m.comment;
+    obj["bus"] = m.bus;
     return obj;
 }
 
@@ -109,6 +112,7 @@ TransmitMessage transmitMessageFromJson(const QJsonObject& obj) {
     m.cycleTimeMs = obj["cycleTimeMs"].toInt();
     m.paused = obj["paused"].toBool();
     m.comment = obj["comment"].toString();
+    m.bus = std::clamp(obj["bus"].toInt(1), 1, kMaxBuses); // absent before multi-bus transmit
     return m;
 }
 
@@ -181,6 +185,20 @@ bool saveRuneFile(const QString& path, const RuneConfig& config, QString* error)
         extraBuses.append(o);
     }
     root["extraBuses"] = extraBuses;
+
+    QJsonArray gatewayRules;
+    for (const GatewayRule& rule : config.gatewayRules) {
+        QJsonObject o;
+        o["from"] = rule.fromBus;
+        o["to"] = rule.toBus;
+        o["idLow"] = static_cast<qint64>(rule.idLow);
+        o["idHigh"] = static_cast<qint64>(rule.idHigh);
+        gatewayRules.append(o);
+    }
+    QJsonObject gateway;
+    gateway["enabled"] = config.gatewayEnabled;
+    gateway["rules"] = gatewayRules;
+    root["gateway"] = gateway;
 
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
@@ -259,6 +277,20 @@ std::optional<RuneConfig> loadRuneFile(const QString& path, QString* error) {
         extra.busConfig = busConfigFromJson(o["busConfig"].toObject());
         extra.listenOnly = o["listenOnly"].toBool(false);
         if (extra.bus >= 2 && extra.bus <= kMaxBuses) config.extraBuses.push_back(extra);
+    }
+
+    // Absent in runes saved before the gateway existed: no rules, off.
+    const QJsonObject gateway = root["gateway"].toObject();
+    config.gatewayEnabled = gateway["enabled"].toBool(false);
+    for (const QJsonValue& v : gateway["rules"].toArray()) {
+        const QJsonObject o = v.toObject();
+        GatewayRule rule;
+        rule.fromBus = o["from"].toInt(0);
+        rule.toBus = o["to"].toInt(0);
+        rule.idLow = static_cast<uint32_t>(o["idLow"].toInteger(0));
+        rule.idHigh = static_cast<uint32_t>(o["idHigh"].toInteger(0x1FFFFFFF));
+        const bool busesOk = rule.fromBus >= 1 && rule.fromBus <= kMaxBuses && rule.toBus >= 1 && rule.toBus <= kMaxBuses;
+        if (busesOk && rule.fromBus != rule.toBus && rule.idLow <= rule.idHigh) config.gatewayRules.push_back(rule);
     }
 
     return config;

@@ -205,6 +205,14 @@ void MessageSender::transmitOne(int index) {
     frame.dlc = msg.fd ? dlcCodeFromByteLength(msg.dlc) : msg.dlc;
     std::memcpy(frame.data, msg.data.constData(), std::min<size_t>(sizeof(frame.data), static_cast<size_t>(msg.data.size())));
 
+    if (msg.bus > 1) {
+        // No frameSent here: the router reports the frame once it is out.
+        if (!busTransmitter_ || !busTransmitter_->send(msg.bus, frame)) {
+            emit sendFailed(msg, QString("CAN %1 is not being captured.").arg(msg.bus));
+        }
+        return;
+    }
+
     std::string error;
     if (!writeFrameOut(frame, &error)) {
         emit sendFailed(msg, QString::fromStdString(error));

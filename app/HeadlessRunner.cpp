@@ -9,6 +9,7 @@
 
 #include "AscLogWriter.h"
 #include "CsvLogWriter.h"
+#include "GatewayText.h"
 #include "RuneFile.h"
 
 namespace cantrip {
@@ -46,6 +47,8 @@ HeadlessRunner::HeadlessRunner(QObject* parent) : QObject(parent) {
 
     connect(&interruptPollTimer_, &QTimer::timeout, this, &HeadlessRunner::checkInterrupted);
     interruptPollTimer_.start(200);
+    connect(&gatewayTimer_, &QTimer::timeout, this, &HeadlessRunner::pumpGateway);
+    messageSender_.setBusTransmitter(gateway_);
 }
 
 QString HeadlessRunner::findTsharkExe() {
@@ -93,6 +96,8 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
     std::vector<ExtraBus> extraBuses;
     // Each --dbc, with the bus it was given under (all buses before any --bus).
     std::vector<RuneDbcFile> dbcFiles;
+    std::vector<GatewayRule> gatewayRules;
+    bool gatewayGiven = false;
     ExtraBus* current = nullptr; // null while the flags apply to bus 1
     bool afterBusOne = false;    // an explicit --bus 1 was given
 
@@ -132,6 +137,25 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
             dbcPath = nextArg();
             dbcFiles.push_back({dbcPath, current ? current->bus : (afterBusOne ? 1 : DbcDecoder::kAllBuses)});
         }
+        else if (a == "--gateway") {
+            // <from>:<to>, or <from>:<to>:<ids> with ids as in the Gateway dialog.
+            const QStringList parts = nextArg().split(':');
+            GatewayRule rule;
+            bool ok = parts.size() == 2 || parts.size() == 3;
+            if (ok) {
+                rule.fromBus = parts[0].toInt();
+                rule.toBus = parts[1].toInt();
+                ok = rule.fromBus >= 1 && rule.fromBus <= kMaxBuses && rule.toBus >= 1 && rule.toBus <= kMaxBuses &&
+                     rule.fromBus != rule.toBus;
+            }
+            if (ok && parts.size() == 3) ok = parseGatewayIdRange(parts[2], &rule.idLow, &rule.idHigh);
+            if (!ok) {
+                if (error) *error = "--gateway takes <from bus>:<to bus>, optionally followed by :<id> or :<id>-<id>, e.g. 1:2:0x100-0x1FF.";
+                return false;
+            }
+            gatewayRules.push_back(rule);
+            gatewayGiven = true;
+        }
         else if (a == "--log") logPath = nextArg();
         else if (a == "--send") send = true;
         else if (a == "--duration") { durationSec = nextArg().toInt(); haveDuration = true; }
@@ -140,7 +164,8 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
                 "[--rune <path>] [--channel <name>] [--bitrate <bps>] [--fd] "
                 "[--data-bitrate <bps>] [--dbc <path>] [--log <path>] [--send] "
                 "[--duration <seconds>] "
-                "[--bus <n> --channel <name> [--bitrate <bps>] [--fd] [--data-bitrate <bps>]]...";
+                "[--bus <n> --channel <name> [--bitrate <bps>] [--fd] [--data-bitrate <bps>]]... "
+                "[--gateway <from>:<to>[:<ids>]]...";
             return false;
         }
     }
@@ -160,6 +185,7 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
         }
         if (channelName.isEmpty()) channelName = config->channelDisplayName;
         busConfig = config->busConfig;
+        if (!gatewayGiven && config->gatewayEnabled) gatewayRules = config->gatewayRules;
         if (dbcFiles.empty()) {
             dbcFiles = config->dbcFiles;
             if (dbcFiles.empty() && !config->dbcPath.isEmpty()) dbcFiles.push_back({config->dbcPath, DbcDecoder::kAllBuses});
@@ -221,6 +247,7 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
     config.dataTseg2 = busConfig.dataTiming.tseg2;
     config.dataSjw = busConfig.dataTiming.sjw;
     config.listenOnly = false;
+    config.gateway = gateway_;
 
     // Everything about the extra buses is checked before any capture starts,
     // so a typo in bus 3's channel doesn't leave buses 1 and 2 running.
@@ -236,6 +263,7 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
         extraConfig.nominalBitrateBps = extra.bitrate;
         extraConfig.dataBitrateBps = extra.dataBitrate;
         extraConfig.fd = extra.fd;
+        extraConfig.gateway = gateway_;
         if (!resolveChannel(extra.channelName, &extraConfig.interfaceId, error)) return false;
         if (extraConfig.interfaceId == interfaceId && interfaceId != kTestInterfaceId) {
             if (error) *error = QString("Bus %1 uses the same channel as bus 1.").arg(extra.bus);
@@ -245,6 +273,27 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
     }
 
     SetConsoleCtrlHandler(consoleCtrlHandler, TRUE);
+
+    // A rule naming a bus this run does not capture would never do anything.
+    for (const GatewayRule& rule : gatewayRules) {
+        for (int bus : {rule.fromBus, rule.toBus}) {
+            bool captured = bus == 1;
+            for (const ExtraBus& extra : extraBuses) captured = captured || extra.bus == bus;
+            if (!captured) {
+                if (error) *error = QString("The gateway rule %1 to %2 names bus %3, which this run does not capture.")
+                                        .arg(rule.fromBus).arg(rule.toBus).arg(bus);
+                return false;
+            }
+        }
+    }
+    gateway_->reset();
+    gateway_->setRules(gatewayRules);
+    // Also running without rules: --send messages for buses beyond the first
+    // come back through the same router.
+    gatewayTimer_.start(20);
+    if (!gatewayRules.empty()) {
+        fprintf(stdout, "cantrip: gateway on, %d rule(s)\n", static_cast<int>(gatewayRules.size()));
+    }
 
     runClock_.start();
     timeAligner_.reset();
@@ -305,6 +354,12 @@ void HeadlessRunner::onFrameReceived(const DecodedCanFrame& frame) {
     logWriter_->writeFrame(aligned.bus, aligned);
 }
 
+void HeadlessRunner::pumpGateway() {
+    const std::vector<DecodedCanFrame> rows = gatewayPump_.pump(*gateway_, timeAligner_, runClock_.nsecsElapsed() / 1e9);
+    if (!logWriter_) return;
+    for (const DecodedCanFrame& frame : rows) logWriter_->writeFrame(frame.bus, frame);
+}
+
 void HeadlessRunner::onCaptureError(const QString& message) {
     fprintf(stderr, "cantrip: %s\n", qUtf8Printable(message));
     fflush(stderr);
@@ -331,6 +386,16 @@ void HeadlessRunner::stopAndFinish(int exitCode) {
 
     interruptPollTimer_.stop();
     durationTimer_.stop();
+    gatewayTimer_.stop();
+    pumpGateway();
+    if (gateway_->active()) {
+        uint64_t forwarded = 0;
+        for (uint64_t n : gateway_->forwardedCounts()) forwarded += n;
+        fprintf(stdout, "cantrip: gateway forwarded %llu frame(s), %llu dropped, %llu failed%s%s\n",
+                static_cast<unsigned long long>(forwarded), static_cast<unsigned long long>(gateway_->dropped()),
+                static_cast<unsigned long long>(gateway_->failed()), gateway_->failed() ? ": " : "",
+                gateway_->failed() ? gateway_->lastError().c_str() : "");
+    }
     if (sending_) messageSender_.closePort();
     if (capture_.isRunning()) capture_.stop();
     for (auto& capture : extraCaptures_) {

@@ -263,7 +263,32 @@ cantrip.exe --headless --channel "PEAK-System PCAN-Basic PCAN-USB FD" --bitrate 
   every bus. After `--bus N` it applies to that bus only, so each bus can
   have its own DBC files. When two files define the same ID for a bus, the
   first one given wins.
-- `--rune` and `--send` still apply to bus 1 only.
+- `--rune` still describes bus 1 only. `--send` sends each of the rune's
+  messages on the bus it was configured for, so a message for bus 2 needs
+  a `--bus 2` in the same run.
+
+### `--gateway <from>:<to>[:<ids>]`
+
+Forwards frames received on bus `<from>` to bus `<to>` for the whole run.
+Both buses have to be captured by this run. `<ids>` is optional: one ID
+(`0x100`) or a range (`0x100-0x1FF`), hex with `0x` in front and decimal
+without. Leave it out to forward every ID. The flag can be given several
+times, also in both directions.
+
+```
+cantrip.exe --headless --channel "..." --bus 2 --channel "..." --gateway 1:2 --gateway 2:1:0x700-0x7FF --log gw.asc --duration 60
+```
+
+Forwarded frames are written to the log as Tx on the bus they went out
+on. At the end of the run a line reports how many frames were forwarded,
+dropped and refused by the adapter:
+
+```
+cantrip: gateway forwarded 33 frame(s), 0 dropped, 0 failed
+```
+
+Without `--gateway`, a rune given with `--rune` supplies its own gateway
+rules if its gateway was switched on when it was saved.
 
 ## Config resolution order
 

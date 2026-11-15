@@ -47,6 +47,10 @@ public:
     // capture for real - see MainWindow::ensureSenderPortOpen()).
     bool openPort(const QString& interfaceId, const CanBitrateConfig& config, QString* error);
     void closePort();
+    // Messages for a bus beyond the first go through this to the capture
+    // thread that holds that bus, which transmits them and reports them back
+    // through the router. Bus 1 keeps the port above.
+    void setBusTransmitter(std::shared_ptr<GatewayRouter> router) { busTransmitter_ = std::move(router); }
     bool isPortOpen() const { return portOpen_; }
 
     int addMessage(const TransmitMessage& message); // returns its index
@@ -91,6 +95,7 @@ private:
     uint64_t channelId_ = 0;                     // DirectBackend mode only
     HANDLE txPipe_ = INVALID_HANDLE_VALUE;        // NamedPipe mode only
     bool portOpen_ = false;
+    std::shared_ptr<GatewayRouter> busTransmitter_;
     QElapsedTimer portClock_;
 
     std::vector<TransmitMessage> messages_;

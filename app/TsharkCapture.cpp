@@ -73,6 +73,8 @@ void TsharkCapture::start(const Config& config) {
     PcapPipeFeeder::Config feed;
     feed.interfaceId = config.interfaceId.toStdString();
     feed.requestOwnership = !config.listenOnly;
+    feed.bus = config.bus;
+    feed.gateway = config.gateway;
     feed.bitrate.nominalBitrateBps = config.nominalBitrateBps;
     feed.bitrate.dataBitrateBps = config.dataBitrateBps;
     feed.bitrate.fd = config.fd;

@@ -12,6 +12,7 @@
 #include <QString>
 
 #include "../common/AVlabsCanBackend.h"
+#include "../common/GatewayRouter.h"
 #include "GraphView.h"
 #include "TransmitMessage.h"
 
@@ -73,6 +74,10 @@ struct RuneConfig {
     // longstanding default) for a rune saved before this field existed.
     bool listenOnly = false;
     std::vector<RuneExtraBus> extraBuses;
+    // Gateway rules, and whether the gateway is switched on. Rules are kept
+    // while it is off.
+    std::vector<GatewayRule> gatewayRules;
+    bool gatewayEnabled = false;
 };
 
 // Returns false (with *error set to a human-readable message) on any

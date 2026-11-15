@@ -110,7 +110,8 @@ void StimulationView::refreshTransmitList(const std::vector<TransmitMessage>& me
     for (const TransmitMessage& m : messages) {
         auto* item = new QTreeWidgetItem(transmitTree_);
         item->setText(0, m.cycleTimeMs > 0 ? QString("%1 ms").arg(m.cycleTimeMs) : "One-shot");
-        item->setText(1, QString("0x%1").arg(m.id, m.extended ? 8 : 3, 16, QChar('0')).toUpper());
+        const QString id = QString("0x%1").arg(m.id, m.extended ? 8 : 3, 16, QChar('0')).toUpper();
+        item->setText(1, m.bus > 1 ? QString("CAN %1  %2").arg(m.bus).arg(id) : id);
         item->setText(2, transmitFlags(m).join(" "));
         item->setText(3, QString::number(m.dlc));
         item->setText(4, QString::fromLatin1(m.data.toHex(' ').toUpper()));

@@ -43,9 +43,9 @@ With more than one bus:
   across buses.
 - The bus list and each bus's configuration are saved in [runes](runes.md).
 
-What still belongs to CAN 1 only, for now:
 [Autodetect](#autodetect-bus-config), [Bus Load](#bus-load-statistics),
-and transmitting from the [Stimulation tab](stimulation-tab.md).
+the [Gateway](#gateway) and transmitting from the
+[Stimulation tab](stimulation-tab.md) all work per bus.
 
 ## CAN Controller
 
@@ -95,6 +95,11 @@ Don't know your bus's actual bitrate? **Autodetect** scans the selected
 hardware against the common classic-CAN presets and applies whichever one
 comes back clean.
 
+With more than one bus ticked in [More buses](#more-buses), every bus is
+checked in turn and each keeps the bitrate found for it. The button then
+reads, for example, `CAN 1: 500k, CAN 2: 250k`, with `none` for a bus
+where nothing came back clean.
+
 ![Autodetect checking](../images/autodetect-checking.png)
 ![Autodetect result](../images/autodetect-result.png)
 
@@ -106,6 +111,9 @@ This only works for classic CAN bitrates today, not CAN FD timing.
 on PEAK PCAN-View's own Bus Load window - the same "changes the main
 window" behavior [Stimulation](stimulation-tab.md) uses, just reached
 from a button here instead of a ribbon tab.
+
+With more than one bus, the view has one tab per bus. Each bus is measured
+against its own configured bitrate.
 
 ![Bus Load view](../images/bus-load.png)
 
@@ -140,3 +148,42 @@ Unlike the Stimulation received pane, statistics here keep accumulating
 in the background regardless of which tab is currently showing - max/min/
 mean are meant to reflect the whole capture session, not just however
 long you've had this view open.
+
+## Gateway
+
+**Gateway...** forwards frames from one bus to another while a capture
+runs. It needs at least two buses ticked in [More buses](#more-buses).
+
+Tick **Forward frames between buses** and add rules with **+**. A rule
+reads: frames received on **From**, with these **IDs**, are transmitted on
+**To**.
+
+- **IDs** is `all`, one ID such as `0x100`, or a range such as
+  `0x100-0x1FF`. Numbers are hex with `0x` in front and decimal without.
+- Several rules can be active at once, in both directions. A frame the
+  gateway transmits is not received again by the bus it went out on, so a
+  pair of rules 1 to 2 and 2 to 1 does not send a frame back and forth.
+- A frame goes to a destination bus once, even when several rules match.
+- Bus error frames are never forwarded.
+- Rules can be changed in the middle of a capture and take effect at once.
+  Unticking the box keeps the rules for later.
+
+Forwarded frames show up in the Trace view as **Tx** rows on the bus they
+went out on, and are logged the same way. While a capture runs, the dialog
+shows how many frames were forwarded so far.
+
+Things to know:
+
+- The destination bus has to be able to transmit. A bus with
+  [Request bus configuration](#request-bus-configuration) unticked may be
+  listen only, depending on the adapter. Frames it refuses are counted as
+  failed, and the status bar shows the adapter's reason.
+- A CAN FD frame cannot go out on a bus configured as classic CAN. It is
+  counted as failed.
+- If a destination bus cannot keep up, frames for it queue up to 4096 deep
+  and further ones are dropped and counted.
+- Forwarding happens in the capture threads, not in the window, so it adds
+  about a millisecond or two. It is a test bench tool, not a certified
+  gateway.
+
+The rules are saved in [runes](runes.md).

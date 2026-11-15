@@ -68,6 +68,8 @@ public:
         // it (see IAvlabsCanBackend::initialize's requestOwnership parameter
         // and CanControllerDialog's "Request bus configuration" checkbox).
         bool listenOnly = false;
+        // The session's gateway, shared by all its captures. Null for none.
+        std::shared_ptr<GatewayRouter> gateway;
     };
 
     // Opens the channel in a thread of this process (PcapPipeFeeder), which

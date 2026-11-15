@@ -24,6 +24,8 @@
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QStringList>
+#include <QTabBar>
+#include <QTableWidget>
 #include <QtAlgorithms>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -32,6 +34,7 @@
 #include "AscLogWriter.h"
 #include "CanControllerDialog.h"
 #include "CsvLogWriter.h"
+#include "GatewayText.h"
 #include "LogFilenameTemplate.h"
 #include "TransmitMessageDialog.h"
 #include "Version.h"
@@ -59,6 +62,8 @@ void setItemGrayed(QTreeWidgetItem* item, bool grayed) {
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle("CANtrip");
     resize(1000, 600);
+    connect(&gatewayTimer_, &QTimer::timeout, this, &MainWindow::pumpGateway);
+    gatewayTimer_.start(20);
 
     ribbon_ = new QTabWidget(this);
     ribbon_->setMaximumHeight(110);
@@ -99,12 +104,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     graphWindows_ = new GraphWindowContainer(&signalHistory_, this);
     stimulationView_ = new StimulationView(this);
     busLoadView_ = new BusLoadView(&busLoadTracker_, this);
+    busLoadTabs_ = new QTabWidget(this);
+    busLoadTabs_->addTab(busLoadView_, "CAN 1");
+    busLoadTabs_->tabBar()->setVisible(false);
+    messageSender_.setBusTransmitter(gateway_);
 
     contentStack_ = new QStackedWidget(this);
     contentStack_->addWidget(frameTree_);
     contentStack_->addWidget(graphWindows_);
     contentStack_->addWidget(stimulationView_);
-    contentStack_->addWidget(busLoadView_);
+    contentStack_->addWidget(busLoadTabs_);
 
     auto* central = new QWidget(this);
     auto* rootLayout = new QVBoxLayout(central);
@@ -138,7 +147,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     // bus right now, so it must not count toward live bus load.
     connect(&capture_, &TsharkCapture::frameReceived, &busLoadTracker_, &BusLoadTracker::recordFrame);
     connect(&messageSender_, &MessageSender::frameSent, &busLoadTracker_, &BusLoadTracker::recordFrame);
-    connect(busLoadButton_, &QPushButton::clicked, this, [this]() { contentStack_->setCurrentWidget(busLoadView_); });
+    connect(busLoadButton_, &QPushButton::clicked, this, [this]() { contentStack_->setCurrentWidget(busLoadTabs_); });
 
     // "Clear Graph" only clears plotted data/history, not axis layout -
     // GraphView doesn't own SignalHistoryStore, so it just requests this
@@ -301,14 +310,22 @@ QWidget* MainWindow::buildHardwareTab() {
     busLoadButton_ = new QPushButton("Bus Load...", busLoadGroup);
     busLoadLayout->addWidget(busLoadButton_);
 
+    auto* gatewayGroup = new QGroupBox("Gateway", page);
+    auto* gatewayLayout = new QHBoxLayout(gatewayGroup);
+    gatewayButton_ = new QPushButton("Gateway...", gatewayGroup);
+    gatewayButton_->setToolTip("Forward frames from one bus to another");
+    gatewayLayout->addWidget(gatewayButton_);
+
     layout->addWidget(hwGroup);
     layout->addWidget(controllerGroup);
     layout->addWidget(autoDetectGroup);
     layout->addWidget(busLoadGroup);
+    layout->addWidget(gatewayGroup);
     layout->addStretch(1);
 
     connect(refreshButton_, &QPushButton::clicked, this, &MainWindow::refreshChannels);
     connect(moreBusesButton_, &QPushButton::clicked, this, &MainWindow::openMoreBuses);
+    connect(gatewayButton_, &QPushButton::clicked, this, &MainWindow::openGateway);
     connect(canControllerButton_, &QPushButton::clicked, this, &MainWindow::openCanController);
     connect(autoDetectButton_, &QPushButton::clicked, this, &MainWindow::autoDetectBusConfig);
     // busLoadButton_'s own click->contentStack_ swap is wired later in the
@@ -781,19 +798,40 @@ void MainWindow::autoDetectBusConfig() {
     // get a turn to show "Checking..." until this handler returns otherwise.
     autoDetectButton_->repaint();
 
-    const QString interfaceId = channelCombo_->currentData().toString();
-    const std::optional<uint32_t> bitrate = BusAutoDetector::detectClassicBitrate(interfaceId);
-
-    if (bitrate) {
-        busConfig_.fd = false;
-        busConfig_.nominalBitrateBps = *bitrate;
-        autoDetectButton_->setText(QString("%1 kbit/s").arg(*bitrate / 1000));
-        // Reuse the same Save Rune flow the Home tab button uses, so a
-        // successful detection isn't lost if nothing was loaded/saved yet.
-        saveRune();
-    } else {
-        autoDetectButton_->setText("No config found");
+    // Every bus in use is checked, one after the other, and each keeps what
+    // was found for it.
+    struct Target {
+        int bus;
+        QString interfaceId;
+        CanBitrateConfig* config;
+    };
+    std::vector<Target> targets = {{1, channelCombo_->currentData().toString(), &busConfig_}};
+    for (size_t i = 0; i < extraBuses_.size(); ++i) {
+        if (!extraBuses_[i].enabled) continue;
+        const int channelIndex = channelCombo_->findText(extraBuses_[i].channelDisplayName);
+        if (channelIndex < 0) continue;
+        targets.push_back({static_cast<int>(i) + 2, channelCombo_->itemData(channelIndex).toString(), &extraBuses_[i].config});
     }
+
+    QStringList results;
+    bool anyFound = false;
+    for (const Target& target : targets) {
+        const std::optional<uint32_t> bitrate = BusAutoDetector::detectClassicBitrate(target.interfaceId);
+        if (bitrate) {
+            target.config->fd = false;
+            target.config->nominalBitrateBps = *bitrate;
+            anyFound = true;
+        }
+        if (targets.size() == 1) {
+            results << (bitrate ? QString("%1 kbit/s").arg(*bitrate / 1000) : QString("No config found"));
+        } else {
+            results << QString("CAN %1: %2").arg(target.bus).arg(bitrate ? QString("%1k").arg(*bitrate / 1000) : QString("none"));
+        }
+    }
+    autoDetectButton_->setText(results.join(", "));
+    // Reuse the same Save Rune flow the Home tab button uses, so a
+    // successful detection isn't lost if nothing was loaded/saved yet.
+    if (anyFound) saveRune();
     autoDetectButton_->setEnabled(true);
 }
 
@@ -971,6 +1009,8 @@ void MainWindow::saveRune() {
         config.extraBuses.push_back({static_cast<int>(i) + 2, extraBuses_[i].channelDisplayName, extraBuses_[i].config, extraBuses_[i].listenOnly});
     }
     config.listenOnly = listenOnlyMode_;
+    config.gatewayRules = gatewayRules_;
+    config.gatewayEnabled = gatewayEnabled_;
 
     QString error;
     if (!saveRuneFile(path, config, &error)) {
@@ -1051,6 +1091,9 @@ void MainWindow::applyRune(const RuneConfig& config) {
         extraBuses_[index] = {true, extra.channelDisplayName, extra.busConfig, extra.listenOnly};
     }
     updateMoreBusesButton();
+    gatewayRules_ = config.gatewayRules;
+    gatewayEnabled_ = config.gatewayEnabled;
+    applyGateway();
 }
 
 void MainWindow::updateMoreBusesButton() {
@@ -1126,6 +1169,155 @@ void MainWindow::openMoreBuses() {
     updateMoreBusesButton();
 }
 
+void MainWindow::applyGateway() {
+    gateway_->setRules(gatewayEnabled_ ? gatewayRules_ : std::vector<GatewayRule>{});
+    const int rules = gatewayEnabled_ ? static_cast<int>(gatewayRules_.size()) : 0;
+    gatewayButton_->setText(rules > 0 ? QString("Gateway (%1)...").arg(rules) : QString("Gateway..."));
+}
+
+void MainWindow::pumpGateway() {
+    // Forwarded frames show up on the bus they went out on, as Tx rows, the
+    // same way Send Message's frames do.
+    if (!capture_.isRunning()) {
+        gateway_->drainSent();
+        gatewayPump_.reset();
+        return;
+    }
+    for (const DecodedCanFrame& frame : gatewayPump_.pump(*gateway_, timeAligner_, sessionClock_.nsecsElapsed() / 1e9)) {
+        onFrameReceived(frame);
+        // A transmitted frame occupies its bus like any other.
+        if (frame.bus == 1) busLoadTracker_.recordFrame(frame);
+        for (ExtraBusLoad& load : extraBusLoads_) {
+            if (load.bus == frame.bus) load.tracker->recordFrame(frame);
+        }
+    }
+
+    const uint64_t failed = gateway_->failed();
+    if (failed != gatewayFailuresShown_) {
+        gatewayFailuresShown_ = failed;
+        statusLabel_->setText(QString("Gateway: %1 frame(s) could not be transmitted (%2)")
+                                  .arg(failed).arg(QString::fromStdString(gateway_->lastError())));
+    }
+}
+
+void MainWindow::openGateway() {
+    QDialog dialog(this);
+    dialog.setWindowTitle("Gateway");
+    dialog.resize(460, 320);
+    auto* layout = new QVBoxLayout(&dialog);
+
+    auto* enable = new QCheckBox("Forward frames between buses", &dialog);
+    enable->setChecked(gatewayEnabled_);
+    layout->addWidget(enable);
+
+    std::vector<int> buses = {1};
+    for (size_t i = 0; i < extraBuses_.size(); ++i) {
+        if (extraBuses_[i].enabled) buses.push_back(static_cast<int>(i) + 2);
+    }
+
+    // One row per rule: frames from one bus, with these IDs, go out on another.
+    auto* table = new QTableWidget(0, 3, &dialog);
+    table->setHorizontalHeaderLabels({"From", "To", "IDs"});
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->verticalHeader()->setVisible(false);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setSelectionMode(QAbstractItemView::SingleSelection);
+    layout->addWidget(table, /*stretch=*/1);
+
+    auto addRule = [table, buses](const GatewayRule& rule) {
+        const int row = table->rowCount();
+        table->insertRow(row);
+        for (int col = 0; col < 2; ++col) {
+            auto* combo = new QComboBox(table);
+            const int wanted = col == 0 ? rule.fromBus : rule.toBus;
+            std::vector<int> listed = buses;
+            // A rule for a bus that is switched off right now keeps its bus.
+            if (std::find(listed.begin(), listed.end(), wanted) == listed.end()) listed.push_back(wanted);
+            for (int bus : listed) combo->addItem(QString("CAN %1").arg(bus), bus);
+            combo->setCurrentIndex(combo->findData(wanted));
+            table->setCellWidget(row, col, combo);
+        }
+        auto* ids = new QTableWidgetItem(gatewayIdRangeText(rule));
+        ids->setToolTip("all, one ID (0x100), or a range (0x100-0x1FF)");
+        table->setItem(row, 2, ids);
+        table->selectRow(row);
+    };
+    for (const GatewayRule& rule : gatewayRules_) addRule(rule);
+
+    auto* row = new QHBoxLayout();
+    auto* addButton = new QPushButton("+", &dialog);
+    addButton->setFixedWidth(32);
+    addButton->setToolTip("Add a rule");
+    auto* removeButton = new QPushButton("Remove", &dialog);
+    auto* totals = new QLabel(&dialog);
+    row->addWidget(addButton);
+    row->addWidget(removeButton);
+    row->addStretch(1);
+    row->addWidget(totals);
+    layout->addLayout(row);
+
+    // Forwarding needs two buses. With one, say where to get a second.
+    addButton->setEnabled(buses.size() >= 2);
+    if (buses.size() < 2) totals->setText("Tick a second bus in More buses first.");
+    connect(addButton, &QPushButton::clicked, &dialog, [addRule, buses]() {
+        GatewayRule rule;
+        rule.fromBus = buses[0];
+        rule.toBus = buses[1];
+        addRule(rule);
+    });
+    connect(removeButton, &QPushButton::clicked, &dialog, [table]() {
+        if (table->currentRow() >= 0) table->removeRow(table->currentRow());
+    });
+
+    // What the running gateway has done so far, kept current while open.
+    QTimer refresh;
+    auto showTotals = [this, totals, &buses]() {
+        if (buses.size() < 2 || !capture_.isRunning()) return;
+        uint64_t forwarded = 0;
+        for (uint64_t n : gateway_->forwardedCounts()) forwarded += n;
+        QString text = QString("%1 forwarded").arg(forwarded);
+        if (gateway_->dropped()) text += QString(", %1 dropped").arg(gateway_->dropped());
+        if (gateway_->failed()) text += QString(", %1 failed").arg(gateway_->failed());
+        totals->setText(text);
+    };
+    connect(&refresh, &QTimer::timeout, &dialog, showTotals);
+    refresh.start(250);
+    showTotals();
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    std::vector<GatewayRule> edited;
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, [&]() {
+        edited.clear();
+        for (int r = 0; r < table->rowCount(); ++r) {
+            GatewayRule rule;
+            rule.fromBus = static_cast<QComboBox*>(table->cellWidget(r, 0))->currentData().toInt();
+            rule.toBus = static_cast<QComboBox*>(table->cellWidget(r, 1))->currentData().toInt();
+            if (rule.fromBus == rule.toBus) {
+                table->selectRow(r);
+                QMessageBox::warning(&dialog, "Gateway", QString("Rule %1 forwards a bus to itself.").arg(r + 1));
+                return;
+            }
+            if (!parseGatewayIdRange(table->item(r, 2)->text(), &rule.idLow, &rule.idHigh)) {
+                table->selectRow(r);
+                QMessageBox::warning(&dialog, "Gateway",
+                    QString("Rule %1: \"%2\" is not an ID or a range of IDs.\n\nUse all, one ID such as 0x100, or a range such as 0x100-0x1FF.")
+                        .arg(r + 1).arg(table->item(r, 2)->text()));
+                return;
+            }
+            edited.push_back(rule);
+        }
+        dialog.accept();
+    });
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted) return;
+    gatewayRules_ = edited;
+    gatewayEnabled_ = enable->isChecked();
+    // Takes effect at once, also in the middle of a capture.
+    applyGateway();
+}
+
 QString MainWindow::findTsharkExe() {
     QString found = QStandardPaths::findExecutable("tshark");
     if (!found.isEmpty()) return found;
@@ -1188,6 +1380,7 @@ void MainWindow::startCapture() {
         extraConfig.dataTseg2 = extra.config.dataTiming.tseg2;
         extraConfig.dataSjw = extra.config.dataTiming.sjw;
         extraConfig.listenOnly = extra.listenOnly;
+        extraConfig.gateway = gateway_;
         bool channelTaken = extraConfig.interfaceId == config.interfaceId;
         for (const TsharkCapture::Config& other : extraConfigs) channelTaken = channelTaken || other.interfaceId == extraConfig.interfaceId;
         if (channelTaken && extraConfig.interfaceId != kTestInterfaceId) {
@@ -1203,11 +1396,19 @@ void MainWindow::startCapture() {
     busLoadTracker_.reset();
     statusLabel_->setText("Starting capture on " + channelCombo_->currentText() + "...");
     statusLed_->setCapturing(true);
+    gateway_->reset();
+    gatewayFailuresShown_ = 0;
+    config.gateway = gateway_;
     capture_.start(config);
 
     extraCaptures_.clear();
     timeAligner_.reset();
     sessionClock_.start();
+    for (ExtraBusLoad& load : extraBusLoads_) {
+        busLoadTabs_->removeTab(busLoadTabs_->indexOf(load.view));
+        delete load.view;
+    }
+    extraBusLoads_.clear();
     for (const TsharkCapture::Config& extraConfig : extraConfigs) {
         auto capture = std::make_unique<TsharkCapture>();
         const int bus = extraConfig.bus;
@@ -1220,9 +1421,21 @@ void MainWindow::startCapture() {
         connect(capture.get(), &TsharkCapture::stopped, this, [this, bus]() {
             if (capture_.isRunning()) statusLabel_->setText(QString("Bus %1 stopped").arg(bus));
         });
+        // Its own Bus Load tab, fed by its own capture.
+        ExtraBusLoad load;
+        load.bus = bus;
+        load.tracker = std::make_unique<BusLoadTracker>();
+        load.tracker->setBusConfig(extraBuses_[static_cast<size_t>(bus - 2)].config);
+        load.tracker->reset();
+        connect(capture.get(), &TsharkCapture::frameReceived, load.tracker.get(), &BusLoadTracker::recordFrame);
+        load.view = new BusLoadView(load.tracker.get(), busLoadTabs_);
+        busLoadTabs_->addTab(load.view, QString("CAN %1").arg(bus));
+        extraBusLoads_.push_back(std::move(load));
+
         capture->start(extraConfig);
         extraCaptures_.push_back(std::move(capture));
     }
+    busLoadTabs_->tabBar()->setVisible(!extraBusLoads_.empty());
     frameTree_->setColumnHidden(TraceModel::Bus, extraCaptures_.empty());
     moreBusesButton_->setEnabled(false);
 

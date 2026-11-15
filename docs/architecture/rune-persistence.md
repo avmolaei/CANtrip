@@ -16,7 +16,8 @@ disk.
   "traceHeaderState": "hex-encoded QHeaderView::saveState() bytes",
   "listenOnly": false,
   "dbcFiles": [ { "path": "...", "bus": 2 } ],
-  "extraBuses": [ { "bus": 2, "channelDisplayName": "...", "busConfig": {...}, "listenOnly": false } ]
+  "extraBuses": [ { "bus": 2, "channelDisplayName": "...", "busConfig": {...}, "listenOnly": false } ],
+  "gateway": { "enabled": true, "rules": [ { "from": 1, "to": 2, "idLow": 256, "idHigh": 511 } ] }
 }
 ```
 

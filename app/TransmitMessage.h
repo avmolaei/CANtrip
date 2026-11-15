@@ -18,6 +18,8 @@ struct TransmitMessage {
     bool rtr = false;
     uint8_t dlc = 0;
     QByteArray data;
+    // The bus it goes out on.
+    int bus = 1;
 
     // 0 = one-shot (fires once when sending starts, or via Send Now).
     // >0 = cyclic interval in milliseconds.

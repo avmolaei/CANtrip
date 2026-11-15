@@ -283,25 +283,60 @@ bool writePcapHeader(FILE* out) {
     return std::fwrite(&gh, sizeof(gh), 1, out) == 1 && std::fflush(out) == 0;
 }
 
-void runSyntheticCapture(FILE* out, const std::atomic<bool>& stop) {
+namespace {
+// Transmits what the gateway has queued for this bus. Bounded, so a flood of
+// forwarded frames cannot keep the loop from reading its own bus.
+template <typename Transmit>
+void serveGateway(GatewayRouter* gateway, int bus, Transmit transmit) {
+    if (!gateway) return;
+    CanFrame frame;
+    int fromBus = 0;
+    for (int n = 0; n < 64 && gateway->take(bus, &frame, &fromBus); ++n) {
+        std::string err;
+        const bool ok = transmit(frame, &err);
+        gateway->reportSent(bus, fromBus, frame, ok, err);
+    }
+}
+} // namespace
+
+void runSyntheticCapture(FILE* out, const std::atomic<bool>& stop, GatewayRouter* gateway, int bus) {
+    if (gateway) gateway->attach(bus);
+    const auto noWire = [](const CanFrame&, std::string*) { return true; };
     uint64_t tUs = 0;
     uint32_t counter = 0;
     while (!stop) {
         const uint64_t tickUs = tUs;
-        bool ok = writePcapRecord(out, makeSyntheticFrame(tUs, counter));
-        ok = ok && writePcapRecord(out, makeSyntheticWaveformFrame(tickUs));
+        const CanFrame plain = makeSyntheticFrame(tUs, counter);
+        const CanFrame waveform = makeSyntheticWaveformFrame(tickUs);
+        bool ok = writePcapRecord(out, plain);
+        ok = ok && writePcapRecord(out, waveform);
+        if (gateway) {
+            gateway->route(bus, plain);
+            gateway->route(bus, waveform);
+        }
         // Every 8th tick, also inject a synthetic bus error frame so
         // CANtrip's error display can be exercised without needing real
         // hardware to actually fault on the bus.
         if (counter % 8 == 0) ok = ok && writePcapRecord(out, makeSyntheticErrorFrame(tUs, counter / 8));
-        if (!ok) return;
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if (!ok) break;
+        if (!gateway) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+        // Same 100 ms tick, spent serving the gateway instead of asleep.
+        const auto tickEnd = std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
+        while (!stop && std::chrono::steady_clock::now() < tickEnd) {
+            serveGateway(gateway, bus, noWire);
+            gateway->waitForWork(bus, std::chrono::milliseconds(5));
+        }
     }
+    if (gateway) gateway->detach(bus);
 }
 
 bool runBackendCapture(IAvlabsCanBackend& backend, uint64_t channelId, const std::string& interfaceId,
                        const CanBitrateConfig& config, bool requestOwnership, FILE* out,
-                       const std::atomic<bool>& stop, const CaptureMessageCallback& onMessage, std::string* error) {
+                       const std::atomic<bool>& stop, const CaptureMessageCallback& onMessage, std::string* error,
+                       GatewayRouter* gateway, int bus) {
     const auto report = [&onMessage](const std::string& message) {
         if (onMessage) onMessage(message);
     };
@@ -323,18 +358,28 @@ bool runBackendCapture(IAvlabsCanBackend& backend, uint64_t channelId, const std
         }
     }
 
+    if (gateway) gateway->attach(bus);
+    const auto transmit = [&backend, channelId](const CanFrame& frame, std::string* txErr) {
+        return backend.writeFrame(channelId, frame, txErr);
+    };
+
     while (!stop) {
         CanFrame frame;
         err.clear();
         const bool got = backend.readFrame(channelId, &frame, &err);
         if (got) {
             if (!writePcapRecord(out, frame)) break; // nothing is reading anymore
+            if (gateway) gateway->route(bus, frame);
         } else if (!err.empty()) {
             report("read error: " + err);
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        } else if (gateway) {
+            // Idle, but woken the moment another bus has a frame for this one.
+            gateway->waitForWork(bus, std::chrono::milliseconds(1));
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
+        serveGateway(gateway, bus, transmit);
 
         CanFrame txFrame;
         if (tryReadTxPipe(txPipe, &txFrame)) {
@@ -343,6 +388,7 @@ bool runBackendCapture(IAvlabsCanBackend& backend, uint64_t channelId, const std
         }
     }
 
+    if (gateway) gateway->detach(bus);
     if (txPipe != INVALID_HANDLE_VALUE) {
         DisconnectNamedPipe(txPipe);
         CloseHandle(txPipe);
@@ -411,7 +457,7 @@ void PcapPipeFeeder::run(Config config, CaptureMessageCallback onMessage, void* 
 
     if (writePcapHeader(out)) {
         if (config.interfaceId == kSyntheticInterfaceId) {
-            runSyntheticCapture(out, stop_);
+            runSyntheticCapture(out, stop_, config.gateway.get(), config.bus);
         } else {
             uint64_t channelId = 0;
             std::unique_ptr<IAvlabsCanBackend> backend = resolveInterface(config.interfaceId, &channelId);
@@ -419,7 +465,8 @@ void PcapPipeFeeder::run(Config config, CaptureMessageCallback onMessage, void* 
             if (!backend) {
                 if (onMessage) onMessage("unknown or unavailable interface '" + config.interfaceId + "'");
             } else if (!runBackendCapture(*backend, channelId, config.interfaceId, config.bitrate,
-                                          config.requestOwnership, out, stop_, onMessage, &err)) {
+                                          config.requestOwnership, out, stop_, onMessage, &err,
+                                          config.gateway.get(), config.bus)) {
                 if (onMessage) onMessage(err);
             }
         }

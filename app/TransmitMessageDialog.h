@@ -89,6 +89,7 @@ private:
     QByteArray data_;
 
     QSpinBox* cycleTimeSpin_;
+    QSpinBox* busSpin_;
     QCheckBox* pausedCheck_;
 
     QCheckBox* extendedCheck_;
