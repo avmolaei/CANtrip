@@ -22,11 +22,22 @@ namespace cantrip {
 // need to depend on MainWindow.h just to describe a file format.
 enum class RuneDisplayMode { Waterfall, Periodic };
 
-// A bus beyond the first: buses 2 to 4.
+// How many buses one session can hold: CAN 1 plus the ones added in the
+// Hardware tab's bus list.
+constexpr int kMaxBuses = 16;
+
+// One loaded DBC file: for every bus (0) or for one bus (1 to 4).
+struct RuneDbcFile {
+    QString path;
+    int bus = 0;
+};
+
+// A bus beyond the first, with its own channel and bus configuration.
 struct RuneExtraBus {
     int bus = 2;
     QString channelDisplayName;
-    uint32_t bitrateBps = 500000;
+    CanBitrateConfig busConfig;
+    bool listenOnly = false;
 };
 
 struct RuneConfig {
@@ -40,7 +51,11 @@ struct RuneConfig {
     // Path reference, not an embedded DBC - re-loaded via the same
     // dbcppp::INetwork::LoadDBCFromIs() path MainWindow::importDbc() uses.
     // Empty means no DBC was loaded when the rune was saved.
+    // The first DBC file, which is all that versions before multi-DBC read.
     QString dbcPath;
+    // Every DBC file, in lookup order. Empty in runes saved before
+    // multi-DBC, where dbcPath says it all.
+    std::vector<RuneDbcFile> dbcFiles;
     // One entry per graph window (see GraphWindowContainer) - always at
     // least one entry for a rune saved by the current version; loadRuneFile()
     // also accepts the older single-window file shape (see RuneFile.cpp).

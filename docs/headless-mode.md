@@ -240,8 +240,7 @@ sequence this triggers.
 
 ### `--bus <number>`
 
-Type: integer, 2 to 4. Optional. Captures a second, third or fourth bus in
-the same run.
+Type: integer, 2 to 16. Optional. Captures more buses in the same run.
 
 `--bus N` switches which bus the `--channel`, `--bitrate`, `--fd` and
 `--data-bitrate` flags after it apply to. Flags before the first `--bus`
@@ -260,8 +259,11 @@ cantrip.exe --headless --channel "PEAK-System PCAN-Basic PCAN-USB FD" --bitrate 
   same bus is exactly what the adapter reported. Alignment between buses
   comes from when each bus's first frame arrived, so allow a few
   milliseconds when comparing times across buses.
-- `--rune`, `--dbc` and `--send` still apply to bus 1 only. The same DBC
-  names messages on every bus in the log.
+- `--dbc` can be given several times. Before any `--bus` it applies to
+  every bus. After `--bus N` it applies to that bus only, so each bus can
+  have its own DBC files. When two files define the same ID for a bus, the
+  first one given wins.
+- `--rune` and `--send` still apply to bus 1 only.
 
 ## Config resolution order
 

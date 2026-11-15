@@ -281,7 +281,7 @@ QWidget* MainWindow::buildHardwareTab() {
     channelCombo_->setMinimumWidth(260);
     refreshButton_ = new QPushButton("Refresh", hwGroup);
     moreBusesButton_ = new QPushButton("More buses...", hwGroup);
-    moreBusesButton_->setToolTip("Capture up to three more buses alongside this one");
+    moreBusesButton_->setToolTip("Capture more buses alongside this one");
     hwLayout->addWidget(channelCombo_);
     hwLayout->addWidget(refreshButton_);
     hwLayout->addWidget(moreBusesButton_);
@@ -325,8 +325,9 @@ QWidget* MainWindow::buildAnalysisTab() {
 
     auto* dbGroup = new QGroupBox("CAN Database", page);
     auto* dbLayout = new QHBoxLayout(dbGroup);
-    importDbcButton_ = new QPushButton("Import DBC...", dbGroup);
-    dbLayout->addWidget(importDbcButton_);
+    dbcManageButton_ = new QPushButton("DBC management...", dbGroup);
+    dbcManageButton_->setToolTip("Import DBC files and assign them to buses");
+    dbLayout->addWidget(dbcManageButton_);
 
     dbcStatusLabel_ = new QLabel("No DBC loaded...", page);
     dbcStatusLabel_->setStyleSheet("color: red;");
@@ -343,7 +344,7 @@ QWidget* MainWindow::buildAnalysisTab() {
     layout->addWidget(viewGroup);
     layout->addStretch(1);
 
-    connect(importDbcButton_, &QPushButton::clicked, this, &MainWindow::importDbc);
+    connect(dbcManageButton_, &QPushButton::clicked, this, &MainWindow::openDbcManagement);
     connect(traceButton, &QPushButton::clicked, this, [this]() { contentStack_->setCurrentWidget(frameTree_); });
     connect(graphicsButton, &QPushButton::clicked, this, [this]() { contentStack_->setCurrentWidget(graphWindows_); });
 
@@ -713,12 +714,53 @@ void MainWindow::showAboutDialog() {
 }
 
 void MainWindow::openCanController() {
-    CanControllerDialog dialog(this);
-    dialog.setConfig(busConfig_);
-    dialog.setListenOnly(listenOnlyMode_);
-    if (dialog.exec() == QDialog::Accepted) {
-        busConfig_ = dialog.config();
-        listenOnlyMode_ = dialog.listenOnly();
+    // One tab per bus in use. Each tab is a whole CAN Controller page, so
+    // every bus gets its own mode, bitrates, FD timing and access setting.
+    QDialog host(this);
+    host.setWindowTitle("CAN Controller");
+    auto* layout = new QVBoxLayout(&host);
+    auto* tabs = new QTabWidget(&host);
+    layout->addWidget(tabs);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &host);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &host, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &host, &QDialog::reject);
+
+    std::vector<CanControllerDialog*> pages;
+    std::vector<int> pageBus; // 1 for CAN 1, else index + 2 into extraBuses_
+    auto addPage = [&](int bus, const CanBitrateConfig& config, bool listenOnly) {
+        auto* page = new CanControllerDialog(&host);
+        page->embedAsPage();
+        page->setConfig(config);
+        page->setListenOnly(listenOnly);
+        tabs->addTab(page, QString("CAN %1").arg(bus));
+        pages.push_back(page);
+        pageBus.push_back(bus);
+    };
+    addPage(1, busConfig_, listenOnlyMode_);
+    for (size_t i = 0; i < extraBuses_.size(); ++i) {
+        if (extraBuses_[i].enabled) addPage(static_cast<int>(i) + 2, extraBuses_[i].config, extraBuses_[i].listenOnly);
+    }
+
+    // OK only while every tab's timing is usable.
+    auto syncOk = [&]() {
+        bool ok = true;
+        for (CanControllerDialog* page : pages) ok = ok && page->isAcceptable();
+        buttons->button(QDialogButtonBox::Ok)->setEnabled(ok);
+    };
+    for (CanControllerDialog* page : pages) connect(page, &CanControllerDialog::acceptableChanged, &host, syncOk);
+    syncOk();
+
+    if (host.exec() != QDialog::Accepted) return;
+    for (size_t p = 0; p < pages.size(); ++p) {
+        if (pageBus[p] == 1) {
+            busConfig_ = pages[p]->config();
+            listenOnlyMode_ = pages[p]->listenOnly();
+        } else {
+            ExtraBus& extra = extraBuses_[static_cast<size_t>(pageBus[p] - 2)];
+            extra.config = pages[p]->config();
+            extra.listenOnly = pages[p]->listenOnly();
+        }
     }
 }
 
@@ -778,21 +820,136 @@ void MainWindow::refreshChannels() {
 
 bool MainWindow::loadDbcFile(const QString& path, QString* error) {
     if (!dbcDecoder_.loadFile(path, error)) return false;
-    traceModel_->decoderChanged();
-
-    dbcStatusLabel_->setText(QFileInfo(path).fileName() + " loaded!");
-    dbcStatusLabel_->setStyleSheet("color: green;");
+    onDbcSetChanged();
     return true;
 }
 
-void MainWindow::importDbc() {
-    const QString path = QFileDialog::getOpenFileName(this, "Import DBC", QString(), "DBC files (*.dbc)");
-    if (path.isEmpty()) return;
+void MainWindow::onDbcSetChanged() {
+    traceModel_->decoderChanged();
 
-    QString error;
-    if (!loadDbcFile(path, &error)) {
-        QMessageBox::warning(this, "Import DBC", error);
+    const std::vector<DbcDecoder::FileInfo> files = dbcDecoder_.files();
+    if (files.empty()) {
+        dbcStatusLabel_->setText("No DBC loaded...");
+        dbcStatusLabel_->setStyleSheet("color: red;");
+    } else {
+        dbcStatusLabel_->setText(files.size() == 1 ? QFileInfo(files.front().path).fileName() + " loaded!"
+                                                   : QString("%1 DBC files loaded!").arg(files.size()));
+        dbcStatusLabel_->setStyleSheet("color: green;");
     }
+}
+
+void MainWindow::openDbcManagement() {
+    QDialog dialog(this);
+    dialog.setWindowTitle("DBC management");
+    dialog.resize(560, 380);
+    auto* layout = new QVBoxLayout(&dialog);
+
+    // One node per bus in use, its DBC files underneath. Files loaded for
+    // every bus (an older rune, or headless --dbc) get a node of their own.
+    auto* tree = new QTreeWidget(&dialog);
+    tree->setColumnCount(2);
+    tree->setHeaderLabels({"Bus / DBC file", "Messages"});
+    tree->setColumnWidth(0, 400);
+    layout->addWidget(tree, /*stretch=*/1);
+
+    auto* conflictsLabel = new QLabel(&dialog);
+    conflictsLabel->setWordWrap(true);
+    conflictsLabel->setStyleSheet("color: #c62828;");
+    layout->addWidget(conflictsLabel);
+
+    constexpr int kBusRole = Qt::UserRole;       // on every item: the bus it belongs to
+    constexpr int kFileRole = Qt::UserRole + 1;  // on file items: index into dbcDecoder_.files()
+    auto refresh = [this, tree, conflictsLabel, kBusRole, kFileRole](int selectBus) {
+        tree->clear();
+        const std::vector<DbcDecoder::FileInfo> files = dbcDecoder_.files();
+        std::vector<int> buses = {1};
+        for (size_t i = 0; i < extraBuses_.size(); ++i) {
+            if (extraBuses_[i].enabled) buses.push_back(static_cast<int>(i) + 2);
+        }
+        // A bus that has files but is switched off right now still shows them.
+        for (const DbcDecoder::FileInfo& file : files) {
+            if (file.bus != DbcDecoder::kAllBuses && std::find(buses.begin(), buses.end(), file.bus) == buses.end()) buses.push_back(file.bus);
+        }
+        std::sort(buses.begin(), buses.end());
+        for (const DbcDecoder::FileInfo& file : files) {
+            if (file.bus == DbcDecoder::kAllBuses) { buses.insert(buses.begin(), DbcDecoder::kAllBuses); break; }
+        }
+
+        for (int bus : buses) {
+            auto* busItem = new QTreeWidgetItem(tree);
+            busItem->setText(0, bus == DbcDecoder::kAllBuses ? QString("All buses") : QString("CAN %1").arg(bus));
+            busItem->setData(0, kBusRole, bus);
+            busItem->setData(0, kFileRole, -1);
+            QFont bold = busItem->font(0);
+            bold.setBold(true);
+            busItem->setFont(0, bold);
+            for (size_t i = 0; i < files.size(); ++i) {
+                if (files[i].bus != bus) continue;
+                auto* fileItem = new QTreeWidgetItem(busItem);
+                fileItem->setText(0, QFileInfo(files[i].path).fileName());
+                fileItem->setToolTip(0, files[i].path);
+                fileItem->setText(1, QString::number(files[i].messageCount));
+                fileItem->setData(0, kBusRole, bus);
+                fileItem->setData(0, kFileRole, static_cast<int>(i));
+            }
+            busItem->setExpanded(true);
+            if (bus == selectBus) tree->setCurrentItem(busItem);
+        }
+        if (!tree->currentItem() && tree->topLevelItemCount() > 0) tree->setCurrentItem(tree->topLevelItem(0));
+
+        const QStringList conflicts = dbcDecoder_.conflicts();
+        // A long list of clashes would push the buttons off the dialog.
+        QString text = conflicts.mid(0, 5).join("\n");
+        if (conflicts.size() > 5) text += QString("\n... and %1 more.").arg(conflicts.size() - 5);
+        conflictsLabel->setText(text);
+    };
+    refresh(1);
+
+    auto* row = new QHBoxLayout();
+    auto* importButton = new QPushButton("Import DBC...", &dialog);
+    auto* removeButton = new QPushButton("Remove", &dialog);
+    auto* closeButton = new QPushButton("Close", &dialog);
+    row->addWidget(importButton);
+    row->addWidget(removeButton);
+    row->addStretch(1);
+    row->addWidget(closeButton);
+    layout->addLayout(row);
+
+    auto syncButtons = [tree, importButton, removeButton, kBusRole, kFileRole]() {
+        QTreeWidgetItem* item = tree->currentItem();
+        importButton->setEnabled(item != nullptr);
+        removeButton->setEnabled(item && item->data(0, kFileRole).toInt() >= 0);
+        if (item) {
+            const int bus = item->data(0, kBusRole).toInt();
+            importButton->setText(bus == DbcDecoder::kAllBuses ? QString("Import DBC for all buses...")
+                                                               : QString("Import DBC for CAN %1...").arg(bus));
+        }
+    };
+    connect(tree, &QTreeWidget::currentItemChanged, &dialog, syncButtons);
+    syncButtons();
+
+    // Imports go to the bus of whatever is selected: a bus, or one of its files.
+    connect(importButton, &QPushButton::clicked, &dialog, [this, &dialog, tree, refresh, kBusRole]() {
+        if (!tree->currentItem()) return;
+        const int bus = tree->currentItem()->data(0, kBusRole).toInt();
+        const QStringList paths = QFileDialog::getOpenFileNames(&dialog, "Import DBC", QString(), "DBC files (*.dbc)");
+        for (const QString& path : paths) {
+            QString error;
+            if (!dbcDecoder_.addFile(path, bus, &error)) QMessageBox::warning(&dialog, "Import DBC", error);
+        }
+        refresh(bus);
+    });
+    connect(removeButton, &QPushButton::clicked, &dialog, [this, tree, refresh, kBusRole, kFileRole]() {
+        QTreeWidgetItem* item = tree->currentItem();
+        if (!item || item->data(0, kFileRole).toInt() < 0) return;
+        const int bus = item->data(0, kBusRole).toInt();
+        dbcDecoder_.removeFile(item->data(0, kFileRole).toInt());
+        refresh(bus);
+    });
+    connect(closeButton, &QPushButton::clicked, &dialog, &QDialog::accept);
+
+    dialog.exec();
+    onDbcSetChanged();
 }
 
 void MainWindow::saveRune() {
@@ -805,12 +962,13 @@ void MainWindow::saveRune() {
     config.displayMode = displayMode_ == DisplayMode::Periodic ? RuneDisplayMode::Periodic : RuneDisplayMode::Waterfall;
     config.displayRateMs = displayIntervalMs_;
     config.dbcPath = dbcDecoder_.path();
+    for (const DbcDecoder::FileInfo& file : dbcDecoder_.files()) config.dbcFiles.push_back({file.path, file.bus});
     config.graphWindows = graphWindows_->exportLayout();
     config.transmitMessages = messageSender_.messages();
     config.traceHeaderState = frameTree_->header()->saveState();
     for (size_t i = 0; i < extraBuses_.size(); ++i) {
         if (!extraBuses_[i].enabled) continue;
-        config.extraBuses.push_back({static_cast<int>(i) + 2, extraBuses_[i].channelDisplayName, extraBuses_[i].bitrateBps});
+        config.extraBuses.push_back({static_cast<int>(i) + 2, extraBuses_[i].channelDisplayName, extraBuses_[i].config, extraBuses_[i].listenOnly});
     }
     config.listenOnly = listenOnlyMode_;
 
@@ -852,7 +1010,16 @@ void MainWindow::applyRune(const RuneConfig& config) {
     const int rateIndex = displayRateCombo_->findData(config.displayRateMs);
     if (rateIndex >= 0) displayRateCombo_->setCurrentIndex(rateIndex);
 
-    if (!config.dbcPath.isEmpty()) {
+    if (!config.dbcFiles.empty()) {
+        dbcDecoder_.clear();
+        for (const RuneDbcFile& file : config.dbcFiles) {
+            QString dbcError;
+            if (!dbcDecoder_.addFile(file.path, file.bus, &dbcError)) {
+                QMessageBox::warning(this, "Load Rune", "Could not reload a DBC referenced by this rune:\n" + dbcError);
+            }
+        }
+        onDbcSetChanged();
+    } else if (!config.dbcPath.isEmpty()) {
         QString dbcError;
         if (!loadDbcFile(config.dbcPath, &dbcError)) {
             QMessageBox::warning(this, "Load Rune", "Could not reload the DBC referenced by this rune:\n" + dbcError);
@@ -877,9 +1044,11 @@ void MainWindow::applyRune(const RuneConfig& config) {
     traceModel_->sort(traceHeader_->sortIndicatorSection(), traceHeader_->sortIndicatorOrder());
     listenOnlyMode_ = config.listenOnly;
 
-    extraBuses_ = {};
+    extraBuses_.assign(3, ExtraBus{});
     for (const RuneExtraBus& extra : config.extraBuses) {
-        extraBuses_[extra.bus - 2] = {true, extra.channelDisplayName, extra.bitrateBps};
+        const size_t index = static_cast<size_t>(extra.bus - 2);
+        if (index >= extraBuses_.size()) extraBuses_.resize(index + 1);
+        extraBuses_[index] = {true, extra.channelDisplayName, extra.busConfig, extra.listenOnly};
     }
     updateMoreBusesButton();
 }
@@ -893,56 +1062,67 @@ void MainWindow::updateMoreBusesButton() {
 void MainWindow::openMoreBuses() {
     QDialog dialog(this);
     dialog.setWindowTitle("More buses");
-    auto* layout = new QGridLayout(&dialog);
-    auto* intro = new QLabel("Capture up to three more buses alongside the one selected on the Hardware tab (CAN 1).\n"
-                             "These are classic CAN for now. CAN FD stays on CAN 1.", &dialog);
-    layout->addWidget(intro, 0, 0, 1, 3);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* rows = new QGridLayout();
+    layout->addLayout(rows);
 
-    static const uint32_t kBitrates[] = {125000, 250000, 500000, 1000000};
-    std::array<QCheckBox*, 3> checks{};
-    std::array<QComboBox*, 3> channelCombos{};
-    std::array<QComboBox*, 3> bitrateCombos{};
-    for (int i = 0; i < 3; ++i) {
-        checks[i] = new QCheckBox(QString("CAN %1").arg(i + 2), &dialog);
-        channelCombos[i] = new QComboBox(&dialog);
-        channelCombos[i]->setMinimumWidth(320);
-        for (const ChannelEntry& entry : channels_) channelCombos[i]->addItem(entry.displayName);
-        bitrateCombos[i] = new QComboBox(&dialog);
-        for (uint32_t bitrate : kBitrates) bitrateCombos[i]->addItem(QString("%1 kbit/s").arg(bitrate / 1000), bitrate);
-
-        const ExtraBus& extra = extraBuses_[i];
-        checks[i]->setChecked(extra.enabled);
+    std::vector<QCheckBox*> checks;
+    std::vector<QComboBox*> channelCombos;
+    // Row 0 is CAN 1, the bus the Hardware tab's own dropdown selects.
+    auto addRow = [&](bool enabled, const QString& channelName) {
+        const int row = static_cast<int>(checks.size());
+        auto* check = new QCheckBox(QString("CAN %1").arg(row + 1), &dialog);
+        auto* combo = new QComboBox(&dialog);
+        combo->setMinimumWidth(340);
+        for (const ChannelEntry& entry : channels_) combo->addItem(entry.displayName);
         // A saved channel that isn't plugged in right now is kept, not
         // silently swapped for whatever happens to be first in the list.
-        if (!extra.channelDisplayName.isEmpty() && channelCombos[i]->findText(extra.channelDisplayName) < 0) {
-            channelCombos[i]->addItem(extra.channelDisplayName);
-        }
-        if (!extra.channelDisplayName.isEmpty()) channelCombos[i]->setCurrentText(extra.channelDisplayName);
-        bitrateCombos[i]->setCurrentIndex(std::max(0, bitrateCombos[i]->findData(extra.bitrateBps)));
+        if (!channelName.isEmpty() && combo->findText(channelName) < 0) combo->addItem(channelName);
+        if (!channelName.isEmpty()) combo->setCurrentText(channelName);
+        check->setChecked(enabled);
+        combo->setEnabled(enabled);
+        if (row == 0) check->setEnabled(false); // CAN 1 is always there
+        connect(check, &QCheckBox::toggled, combo, &QComboBox::setEnabled);
+        rows->addWidget(check, row, 0);
+        rows->addWidget(combo, row, 1);
+        checks.push_back(check);
+        channelCombos.push_back(combo);
+    };
+    addRow(true, channelCombo_->currentText());
+    for (const ExtraBus& extra : extraBuses_) addRow(extra.enabled, extra.channelDisplayName);
 
-        auto syncEnabled = [channel = channelCombos[i], bitrate = bitrateCombos[i]](bool on) {
-            channel->setEnabled(on);
-            bitrate->setEnabled(on);
-        };
-        syncEnabled(extra.enabled);
-        connect(checks[i], &QCheckBox::toggled, &dialog, syncEnabled);
-
-        layout->addWidget(checks[i], i + 1, 0);
-        layout->addWidget(channelCombos[i], i + 1, 1);
-        layout->addWidget(bitrateCombos[i], i + 1, 2);
-    }
+    auto* moreRow = new QHBoxLayout();
+    auto* addButton = new QPushButton("+", &dialog);
+    addButton->setFixedWidth(32);
+    addButton->setToolTip("Add another bus");
+    moreRow->addWidget(new QLabel("More", &dialog));
+    moreRow->addWidget(addButton);
+    moreRow->addStretch(1);
+    layout->addLayout(moreRow);
+    connect(addButton, &QPushButton::clicked, &dialog, [&]() {
+        addRow(true, QString());
+        addButton->setEnabled(static_cast<int>(checks.size()) < kMaxBuses);
+    });
+    addButton->setEnabled(static_cast<int>(checks.size()) < kMaxBuses);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addWidget(buttons, 4, 0, 1, 3);
+    layout->addWidget(buttons);
 
     if (dialog.exec() != QDialog::Accepted) return;
-    for (int i = 0; i < 3; ++i) {
-        extraBuses_[i].enabled = checks[i]->isChecked();
-        extraBuses_[i].channelDisplayName = channelCombos[i]->currentText();
-        extraBuses_[i].bitrateBps = bitrateCombos[i]->currentData().toUInt();
+
+    const int bus1Index = channelCombo_->findText(channelCombos[0]->currentText());
+    if (bus1Index >= 0) channelCombo_->setCurrentIndex(bus1Index);
+    // Rows added with "+" get the same starting configuration a new bus
+    // always had. Existing buses keep theirs.
+    extraBuses_.resize(checks.size() - 1);
+    for (size_t i = 0; i < extraBuses_.size(); ++i) {
+        extraBuses_[i].enabled = checks[i + 1]->isChecked();
+        extraBuses_[i].channelDisplayName = channelCombos[i + 1]->currentText();
     }
+    // Unticked buses at the end are dropped again, down to the usual CAN 2 to 4.
+    while (extraBuses_.size() > 3 && !extraBuses_.back().enabled) extraBuses_.pop_back();
     updateMoreBusesButton();
 }
 
@@ -988,7 +1168,7 @@ void MainWindow::startCapture() {
         const int channelIndex = channelCombo_->findText(extra.channelDisplayName);
         if (channelIndex < 0) {
             QMessageBox::warning(this, "Start Capture",
-                QString("Bus %1's channel isn't available:\n%2\n\nPick another in More buses, or turn that bus off.")
+                QString("CAN %1's channel isn't available:\n%2\n\nPick another in More buses, or turn that bus off.")
                     .arg(bus).arg(extra.channelDisplayName));
             return;
         }
@@ -996,7 +1176,18 @@ void MainWindow::startCapture() {
         extraConfig.tsharkPath = config.tsharkPath;
         extraConfig.interfaceId = channelCombo_->itemData(channelIndex).toString();
         extraConfig.bus = bus;
-        extraConfig.nominalBitrateBps = extra.bitrateBps;
+        extraConfig.nominalBitrateBps = extra.config.nominalBitrateBps;
+        extraConfig.dataBitrateBps = extra.config.dataBitrateBps;
+        extraConfig.fd = extra.config.fd;
+        extraConfig.nomBrp = extra.config.nominalTiming.brp;
+        extraConfig.nomTseg1 = extra.config.nominalTiming.tseg1;
+        extraConfig.nomTseg2 = extra.config.nominalTiming.tseg2;
+        extraConfig.nomSjw = extra.config.nominalTiming.sjw;
+        extraConfig.dataBrp = extra.config.dataTiming.brp;
+        extraConfig.dataTseg1 = extra.config.dataTiming.tseg1;
+        extraConfig.dataTseg2 = extra.config.dataTiming.tseg2;
+        extraConfig.dataSjw = extra.config.dataTiming.sjw;
+        extraConfig.listenOnly = extra.listenOnly;
         bool channelTaken = extraConfig.interfaceId == config.interfaceId;
         for (const TsharkCapture::Config& other : extraConfigs) channelTaken = channelTaken || other.interfaceId == extraConfig.interfaceId;
         if (channelTaken && extraConfig.interfaceId != kTestInterfaceId) {
@@ -1048,7 +1239,7 @@ void MainWindow::startCapture() {
     // grew memory into the hundreds of MB. Simplest fix: don't allow that
     // combination at all rather than try to make frame processing safe
     // under an arbitrary nested loop.
-    importDbcButton_->setEnabled(false);
+    dbcManageButton_->setEnabled(false);
     // Same nested-message-loop hazard as Import DBC above - Save/Load Rune
     // and Output File all use QFileDialog too.
     saveRuneButton_->setEnabled(false);
@@ -1384,7 +1575,7 @@ void MainWindow::onCaptureStopped() {
     startButton_->setEnabled(true);
     stopButton_->setEnabled(false);
     channelCombo_->setEnabled(true);
-    importDbcButton_->setEnabled(true);
+    dbcManageButton_->setEnabled(true);
     saveRuneButton_->setEnabled(true);
     loadRuneButton_->setEnabled(true);
     startReplayButton_->setEnabled(true);

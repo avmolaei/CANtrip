@@ -112,23 +112,45 @@ TransmitMessage transmitMessageFromJson(const QJsonObject& obj) {
     return m;
 }
 
+QJsonObject busConfigToJson(const CanBitrateConfig& config) {
+    QJsonObject o;
+    o["nominalBitrateBps"] = static_cast<int>(config.nominalBitrateBps);
+    o["dataBitrateBps"] = static_cast<int>(config.dataBitrateBps);
+    o["fd"] = config.fd;
+    o["nominalTiming"] = timingToJson(config.nominalTiming);
+    o["dataTiming"] = timingToJson(config.dataTiming);
+    return o;
+}
+
+CanBitrateConfig busConfigFromJson(const QJsonObject& o) {
+    CanBitrateConfig config;
+    config.nominalBitrateBps = static_cast<uint32_t>(o["nominalBitrateBps"].toInt(500000));
+    config.dataBitrateBps = static_cast<uint32_t>(o["dataBitrateBps"].toInt(2000000));
+    config.fd = o["fd"].toBool();
+    config.nominalTiming = timingFromJson(o["nominalTiming"].toObject());
+    config.dataTiming = timingFromJson(o["dataTiming"].toObject());
+    return config;
+}
+
 } // namespace
 
 bool saveRuneFile(const QString& path, const RuneConfig& config, QString* error) {
     QJsonObject root;
     root["channelDisplayName"] = config.channelDisplayName;
 
-    QJsonObject busConfig;
-    busConfig["nominalBitrateBps"] = static_cast<int>(config.busConfig.nominalBitrateBps);
-    busConfig["dataBitrateBps"] = static_cast<int>(config.busConfig.dataBitrateBps);
-    busConfig["fd"] = config.busConfig.fd;
-    busConfig["nominalTiming"] = timingToJson(config.busConfig.nominalTiming);
-    busConfig["dataTiming"] = timingToJson(config.busConfig.dataTiming);
-    root["busConfig"] = busConfig;
+    root["busConfig"] = busConfigToJson(config.busConfig);
 
     root["displayMode"] = config.displayMode == RuneDisplayMode::Periodic ? "Periodic" : "Waterfall";
     root["displayRateMs"] = config.displayRateMs;
     root["dbcPath"] = config.dbcPath;
+    QJsonArray dbcFiles;
+    for (const RuneDbcFile& file : config.dbcFiles) {
+        QJsonObject o;
+        o["path"] = file.path;
+        o["bus"] = file.bus;
+        dbcFiles.append(o);
+    }
+    root["dbcFiles"] = dbcFiles;
 
     QJsonArray windowsArray;
     for (const auto& window : config.graphWindows) {
@@ -154,7 +176,8 @@ bool saveRuneFile(const QString& path, const RuneConfig& config, QString* error)
         QJsonObject o;
         o["bus"] = extra.bus;
         o["channelDisplayName"] = extra.channelDisplayName;
-        o["nominalBitrateBps"] = static_cast<int>(extra.bitrateBps);
+        o["busConfig"] = busConfigToJson(extra.busConfig);
+        o["listenOnly"] = extra.listenOnly;
         extraBuses.append(o);
     }
     root["extraBuses"] = extraBuses;
@@ -186,16 +209,16 @@ std::optional<RuneConfig> loadRuneFile(const QString& path, QString* error) {
     RuneConfig config;
     config.channelDisplayName = root["channelDisplayName"].toString();
 
-    const QJsonObject busConfig = root["busConfig"].toObject();
-    config.busConfig.nominalBitrateBps = static_cast<uint32_t>(busConfig["nominalBitrateBps"].toInt(500000));
-    config.busConfig.dataBitrateBps = static_cast<uint32_t>(busConfig["dataBitrateBps"].toInt(2000000));
-    config.busConfig.fd = busConfig["fd"].toBool();
-    config.busConfig.nominalTiming = timingFromJson(busConfig["nominalTiming"].toObject());
-    config.busConfig.dataTiming = timingFromJson(busConfig["dataTiming"].toObject());
+    config.busConfig = busConfigFromJson(root["busConfig"].toObject());
 
     config.displayMode = root["displayMode"].toString() == "Periodic" ? RuneDisplayMode::Periodic : RuneDisplayMode::Waterfall;
     config.displayRateMs = root["displayRateMs"].toInt(33);
     config.dbcPath = root["dbcPath"].toString();
+    for (const QJsonValue& v : root["dbcFiles"].toArray()) {
+        const QJsonObject o = v.toObject();
+        const int bus = o["bus"].toInt(0);
+        if (!o["path"].toString().isEmpty() && bus >= 0 && bus <= kMaxBuses) config.dbcFiles.push_back({o["path"].toString(), bus});
+    }
 
     const QJsonObject graph = root["graph"].toObject();
     if (graph.contains("windows")) {
@@ -233,8 +256,9 @@ std::optional<RuneConfig> loadRuneFile(const QString& path, QString* error) {
         RuneExtraBus extra;
         extra.bus = o["bus"].toInt(0);
         extra.channelDisplayName = o["channelDisplayName"].toString();
-        extra.bitrateBps = static_cast<uint32_t>(o["nominalBitrateBps"].toInt(500000));
-        if (extra.bus >= 2 && extra.bus <= 4) config.extraBuses.push_back(extra);
+        extra.busConfig = busConfigFromJson(o["busConfig"].toObject());
+        extra.listenOnly = o["listenOnly"].toBool(false);
+        if (extra.bus >= 2 && extra.bus <= kMaxBuses) config.extraBuses.push_back(extra);
     }
 
     return config;

@@ -43,7 +43,15 @@ private slots:
         message.paused = true;
         message.comment = "tester present, with \"quotes\"";
         saved.transmitMessages = {message, TransmitMessage{}};
-        saved.extraBuses = {{2, "PEAK-System PCAN-Basic PCAN-USB FD", 250000}, {4, "Vector XL Driver Library VN1640A Channel 2", 1000000}};
+        saved.dbcFiles = {{"C:/dbc/powertrain.dbc", 0}, {"C:/dbc/body.dbc", 2}};
+        RuneExtraBus can2{2, "PEAK-System PCAN-Basic PCAN-USB FD", {}, false};
+        can2.busConfig.nominalBitrateBps = 250000;
+        RuneExtraBus can6{6, "Vector XL Driver Library VN1640A Channel 2", {}, true};
+        can6.busConfig.nominalBitrateBps = 1000000;
+        can6.busConfig.dataBitrateBps = 5000000;
+        can6.busConfig.fd = true;
+        can6.busConfig.dataTiming = {2, 5, 2, 2};
+        saved.extraBuses = {can2, can6};
 
         QTemporaryDir dir;
         const QString path = dir.filePath("config.rune");
@@ -86,12 +94,23 @@ private slots:
         QVERIFY(gotAxis.plottedSignals[0].style == GraphLineStyle::Scatter);
         QVERIFY(gotAxis.plottedSignals[1].style == GraphLineStyle::Solid);
 
+        QCOMPARE(loaded->dbcFiles.size(), size_t(2));
+        QCOMPARE(loaded->dbcFiles[0].path, QString("C:/dbc/powertrain.dbc"));
+        QCOMPARE(loaded->dbcFiles[0].bus, 0);
+        QCOMPARE(loaded->dbcFiles[1].path, QString("C:/dbc/body.dbc"));
+        QCOMPARE(loaded->dbcFiles[1].bus, 2);
         QCOMPARE(loaded->extraBuses.size(), size_t(2));
         QCOMPARE(loaded->extraBuses[0].bus, 2);
         QCOMPARE(loaded->extraBuses[0].channelDisplayName, QString("PEAK-System PCAN-Basic PCAN-USB FD"));
-        QCOMPARE(loaded->extraBuses[0].bitrateBps, 250000u);
-        QCOMPARE(loaded->extraBuses[1].bus, 4);
-        QCOMPARE(loaded->extraBuses[1].bitrateBps, 1000000u);
+        QCOMPARE(loaded->extraBuses[0].busConfig.nominalBitrateBps, 250000u);
+        QCOMPARE(loaded->extraBuses[0].busConfig.fd, false);
+        QCOMPARE(loaded->extraBuses[0].listenOnly, false);
+        QCOMPARE(loaded->extraBuses[1].bus, 6); // past CAN 4
+        QCOMPARE(loaded->extraBuses[1].busConfig.nominalBitrateBps, 1000000u);
+        QCOMPARE(loaded->extraBuses[1].busConfig.dataBitrateBps, 5000000u);
+        QCOMPARE(loaded->extraBuses[1].busConfig.fd, true);
+        QCOMPARE(loaded->extraBuses[1].busConfig.dataTiming.tseg1, 5u);
+        QCOMPARE(loaded->extraBuses[1].listenOnly, true);
 
         QCOMPARE(loaded->transmitMessages.size(), size_t(2));
         const TransmitMessage& got = loaded->transmitMessages[0];
@@ -124,6 +143,7 @@ private slots:
         QVERIFY(loaded->traceHeaderState.isEmpty());
         QVERIFY(loaded->transmitMessages.empty());
         QVERIFY(loaded->extraBuses.empty());
+        QVERIFY(loaded->dbcFiles.empty());
     }
 
     void brokenFilesFailWithAMessage() {

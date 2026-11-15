@@ -198,7 +198,7 @@ void CanControllerDialog::onModeChanged() {
         updateIsoPreview();
     } else {
         fdStack_->setCurrentIndex(1);
-        buttonBox_->button(QDialogButtonBox::Ok)->setEnabled(true);
+        setAcceptable(true);
     }
 }
 
@@ -212,7 +212,7 @@ void CanControllerDialog::updateIsoPreview() {
     if (!result) {
         lastFdResult_.reset();
         achievedLabel_->setText("<font color='red'>No valid bit-timing solution for these values.</font>");
-        buttonBox_->button(QDialogButtonBox::Ok)->setEnabled(false);
+        setAcceptable(false);
         return;
     }
 
@@ -224,7 +224,19 @@ void CanControllerDialog::updateIsoPreview() {
         .arg(result->nominal.brp).arg(result->nominal.tseg1).arg(result->nominal.tseg2).arg(result->nominal.sjw)
         .arg(result->achievedDataSamplePoint, 0, 'f', 1)
         .arg(result->data.brp).arg(result->data.tseg1).arg(result->data.tseg2).arg(result->data.sjw));
-    buttonBox_->button(QDialogButtonBox::Ok)->setEnabled(true);
+    setAcceptable(true);
+}
+
+void CanControllerDialog::embedAsPage() {
+    setWindowFlags(Qt::Widget);
+    buttonBox_->hide();
+}
+
+void CanControllerDialog::setAcceptable(bool acceptable) {
+    buttonBox_->button(QDialogButtonBox::Ok)->setEnabled(acceptable);
+    if (acceptable_ == acceptable) return;
+    acceptable_ = acceptable;
+    emit acceptableChanged();
 }
 
 void CanControllerDialog::setConfig(const CanBitrateConfig& config) {

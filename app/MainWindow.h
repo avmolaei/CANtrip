@@ -48,7 +48,7 @@ public:
 
 private slots:
     void refreshChannels();
-    void importDbc();
+    void openDbcManagement();
     void openCanController();
     void autoDetectBusConfig();
     void saveRune();
@@ -116,6 +116,7 @@ private:
 
     static QString findTsharkExe();
     bool loadDbcFile(const QString& path, QString* error);
+    void onDbcSetChanged();
     void applyRune(const RuneConfig& config);
     void resetDisplay();
     QString resolveMessageName(const DecodedCanFrame& frame) const;
@@ -159,7 +160,7 @@ private:
     QPushButton* busLoadButton_;
 
     // Analysis & Measurement tab
-    QPushButton* importDbcButton_;
+    QPushButton* dbcManageButton_;
     QLabel* dbcStatusLabel_;
 
     // Logging tab
@@ -214,14 +215,16 @@ private:
     DbcDecoder dbcDecoder_;
     TsharkCapture capture_; // bus 1, the channel picked on the Hardware tab
 
-    // Buses 2 to 4, set up in the More buses dialog. Classic CAN only for
-    // now: the CAN Controller dialog and its FD timing still belong to bus 1.
+    // Buses beyond CAN 1: extraBuses_[0] is CAN 2 and so on. The channel is
+    // picked in the More buses dialog, the bus configuration in the CAN
+    // Controller dialog, which shows one tab per bus in use.
     struct ExtraBus {
         bool enabled = false;
         QString channelDisplayName;
-        uint32_t bitrateBps = 500000;
+        CanBitrateConfig config;
+        bool listenOnly = false;
     };
-    std::array<ExtraBus, 3> extraBuses_;
+    std::vector<ExtraBus> extraBuses_ = std::vector<ExtraBus>(3);
     // One capture per enabled extra bus, alive from Start until the next
     // Start. Bus 1 keeps its own member so a single-bus session runs
     // exactly the code it always did.

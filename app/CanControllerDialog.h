@@ -39,6 +39,16 @@ public:
     bool listenOnly() const;
     void setListenOnly(bool listenOnly);
 
+    // Turns the dialog into a plain page for a tab widget: no window of
+    // its own and no OK/Cancel, the host dialog provides those.
+    void embedAsPage();
+    // False while the entered timing can't be used. A host dialog keeps
+    // its own OK disabled until every page is acceptable.
+    bool isAcceptable() const { return acceptable_; }
+
+signals:
+    void acceptableChanged();
+
 private slots:
     void onModeChanged();
     void updateIsoPreview();
@@ -77,6 +87,8 @@ private:
     // Cached so switching from ISO to Expert mode pre-fills the raw fields
     // with the last live-computed solution instead of leaving them blank.
     std::optional<CanFdTimingResult> lastFdResult_;
+    bool acceptable_ = true;
+    void setAcceptable(bool acceptable);
 };
 
 } // namespace cantrip

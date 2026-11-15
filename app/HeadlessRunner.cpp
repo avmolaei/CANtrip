@@ -91,7 +91,10 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
         bool fd = false;
     };
     std::vector<ExtraBus> extraBuses;
+    // Each --dbc, with the bus it was given under (all buses before any --bus).
+    std::vector<RuneDbcFile> dbcFiles;
     ExtraBus* current = nullptr; // null while the flags apply to bus 1
+    bool afterBusOne = false;    // an explicit --bus 1 was given
 
     for (int i = 0; i < args.size(); ++i) {
         const QString& a = args[i];
@@ -100,15 +103,16 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
         if (a == "--rune") runePath = nextArg();
         else if (a == "--bus") {
             const int bus = nextArg().toInt();
-            if (bus < 1 || bus > 4) {
-                if (error) *error = "--bus takes a bus number from 1 to 4.";
+            if (bus < 1 || bus > kMaxBuses) {
+                if (error) *error = QString("--bus takes a bus number from 1 to %1.").arg(kMaxBuses);
                 return false;
             }
             current = nullptr;
+            afterBusOne = bus == 1;
             if (bus != 1) {
                 for (ExtraBus& b : extraBuses) if (b.bus == bus) current = &b;
                 if (!current) {
-                    extraBuses.reserve(4); // keeps `current` valid across push_back
+                    extraBuses.reserve(kMaxBuses); // keeps `current` valid across push_back
                     extraBuses.push_back(ExtraBus{bus});
                     current = &extraBuses.back();
                 }
@@ -124,7 +128,10 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
             if (current) current->dataBitrate = nextArg().toUInt();
             else { dataBitrate = nextArg().toUInt(); dataBitrateGiven = true; }
         }
-        else if (a == "--dbc") dbcPath = nextArg();
+        else if (a == "--dbc") {
+            dbcPath = nextArg();
+            dbcFiles.push_back({dbcPath, current ? current->bus : (afterBusOne ? 1 : DbcDecoder::kAllBuses)});
+        }
         else if (a == "--log") logPath = nextArg();
         else if (a == "--send") send = true;
         else if (a == "--duration") { durationSec = nextArg().toInt(); haveDuration = true; }
@@ -133,7 +140,7 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
                 "[--rune <path>] [--channel <name>] [--bitrate <bps>] [--fd] "
                 "[--data-bitrate <bps>] [--dbc <path>] [--log <path>] [--send] "
                 "[--duration <seconds>] "
-                "[--bus <2-4> --channel <name> [--bitrate <bps>] [--fd] [--data-bitrate <bps>]]...";
+                "[--bus <n> --channel <name> [--bitrate <bps>] [--fd] [--data-bitrate <bps>]]...";
             return false;
         }
     }
@@ -153,7 +160,10 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
         }
         if (channelName.isEmpty()) channelName = config->channelDisplayName;
         busConfig = config->busConfig;
-        if (dbcPath.isEmpty()) dbcPath = config->dbcPath;
+        if (dbcFiles.empty()) {
+            dbcFiles = config->dbcFiles;
+            if (dbcFiles.empty() && !config->dbcPath.isEmpty()) dbcFiles.push_back({config->dbcPath, DbcDecoder::kAllBuses});
+        }
         transmitMessages = config->transmitMessages;
 
         // Explicit flags still override a loaded rune's own values.
@@ -174,10 +184,10 @@ bool HeadlessRunner::start(const QStringList& args, QString* error) {
         return false;
     }
 
-    if (!dbcPath.isEmpty()) {
+    for (const RuneDbcFile& file : dbcFiles) {
         QString dbcError;
-        if (!dbcDecoder_.loadFile(dbcPath, &dbcError)) {
-            if (error) *error = "Could not load DBC '" + dbcPath + "': " + dbcError;
+        if (!dbcDecoder_.addFile(file.path, file.bus, &dbcError)) {
+            if (error) *error = "Could not load DBC '" + file.path + "': " + dbcError;
             return false;
         }
     }

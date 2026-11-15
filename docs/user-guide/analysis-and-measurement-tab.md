@@ -1,19 +1,27 @@
 # Analysis & Measurement Tab
 
-## Import DBC
+## DBC management
 
-**Import DBC...** loads a `.dbc` file and decodes every subsequent frame
-whose CAN ID matches a message defined in it, via
-[dbcppp](https://github.com/xR3b0rn/dbcppp). Decoded signals appear as
+**DBC management...** opens a tree of the buses in use: CAN 1, plus every
+bus ticked in the Hardware tab's [More buses](hardware-tab.md#more-buses).
+Select a bus and click **Import DBC for CAN n...** to load one or more
+`.dbc` files for it. A bus can hold as many files as you like, and
+**Remove** takes the selected one out again.
+
+Every frame whose CAN ID matches a message in its bus's files is decoded,
+via [dbcppp](https://github.com/xR3b0rn/dbcppp). Decoded signals appear as
 child rows under their frame in the Trace view (expand the arrow next to a
 row), and become available to plot in the [Graph view](#graph-view).
+
+When two files on the same bus define the same ID, the one higher in the
+list is used, and the dialog lists the clash in red.
 
 The repository ships [`test/sample.dbc`](https://github.com/avmolaei/CANtrip/blob/main/test/sample.dbc)
 for trying this against the synthetic test source with zero hardware - see
 [Getting Started](getting-started.md#try-it-with-no-hardware-at-all).
 
-The loaded DBC's path is saved in [Runes](runes.md), and re-imported
-automatically when that rune is loaded.
+The loaded DBC files and their buses are saved in [Runes](runes.md), and
+re-imported automatically when that rune is loaded.
 
 ## Trace vs Graph view
 

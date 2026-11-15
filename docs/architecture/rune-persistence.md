@@ -15,7 +15,8 @@ disk.
   "transmitMessages": [ { "id": 0, "extended": false, "fd": false, "dlc": 8, "data": "hex...", "cycleTimeMs": 0, ... } ],
   "traceHeaderState": "hex-encoded QHeaderView::saveState() bytes",
   "listenOnly": false,
-  "extraBuses": [ { "bus": 2, "channelDisplayName": "...", "nominalBitrateBps": 500000 } ]
+  "dbcFiles": [ { "path": "...", "bus": 2 } ],
+  "extraBuses": [ { "bus": 2, "channelDisplayName": "...", "busConfig": {...}, "listenOnly": false } ]
 }
 ```
 
