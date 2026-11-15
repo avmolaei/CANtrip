@@ -70,7 +70,7 @@ DiagnosticsView::DiagnosticsView(UdsClient* client, QWidget* parent) : QWidget(p
     bottom->setContentsMargins(6, 0, 6, 6);
     bottom->addWidget(new QLabel("Request:", this));
     rawEdit_ = new QLineEdit(this);
-    rawEdit_->setPlaceholderText("Any request as hex bytes, for example 22 F1 90");
+    rawEdit_->setPlaceholderText("e.g: 22 F1 90");
     bottom->addWidget(rawEdit_, /*stretch=*/1);
     auto* sendButton = new QPushButton("Send", this);
     bottom->addWidget(sendButton);
