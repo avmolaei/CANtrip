@@ -97,6 +97,7 @@ std::vector<CanChannelInfo> VectorBackend::enumerateChannels() const {
     XLstatus status = pGetDriverConfig_(driverConfig.get());
     if (status != XL_SUCCESS) return result;
 
+    std::vector<std::string> suffixes;
     for (unsigned int i = 0; i < driverConfig->channelCount; ++i) {
         const XLchannelConfig& ch = driverConfig->channel[i];
         // channelBusCapabilities lists which bus types this channel could
@@ -104,7 +105,11 @@ std::vector<CanChannelInfo> VectorBackend::enumerateChannels() const {
         if (!(ch.channelBusCapabilities & XL_BUS_ACTIVE_CAP_CAN)) continue;
         std::string name(ch.name, strnlen(ch.name, sizeof(ch.name)));
         result.push_back(CanChannelInfo{ch.channelMask, name, true});
+        // The serial number tells two devices of the same model apart, and
+        // stays the same whichever USB port they are plugged into.
+        suffixes.push_back(" (S/N " + std::to_string(ch.serialNumber) + ")");
     }
+    disambiguateChannelNames(result, suffixes);
     return result;
 }
 

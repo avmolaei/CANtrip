@@ -7,7 +7,27 @@
 #include "PeakBackend.h"
 #include "VectorBackend.h"
 
+#include <map>
+
 namespace cantrip {
+
+void disambiguateChannelNames(std::vector<CanChannelInfo>& channels, const std::vector<std::string>& suffixes) {
+    std::map<std::string, int> uses;
+    for (const CanChannelInfo& ch : channels) ++uses[ch.name];
+    for (size_t i = 0; i < channels.size() && i < suffixes.size(); ++i) {
+        if (uses[channels[i].name] > 1) channels[i].name += suffixes[i];
+    }
+    // Same model, same serial (or no serial at all): fall back to numbering
+    // whatever is still doubled, in enumeration order.
+    std::map<std::string, int> after, seen;
+    for (const CanChannelInfo& ch : channels) ++after[ch.name];
+    for (CanChannelInfo& ch : channels) {
+        if (after[ch.name] > 1) {
+            const std::string base = ch.name;
+            ch.name += " #" + std::to_string(++seen[base]);
+        }
+    }
+}
 
 std::vector<std::unique_ptr<IAvlabsCanBackend>> probeAvailableBackends() {
     std::vector<std::unique_ptr<IAvlabsCanBackend>> backends;

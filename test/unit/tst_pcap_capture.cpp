@@ -96,6 +96,27 @@ private slots:
         QCOMPARE(interfaceIdFor(backend, {1, "  odd -- name!! ", true}), std::string("fake_odd_name"));
     }
 
+    void twoDevicesOfTheSameModelGetDistinctNames() {
+        // Two CANcaseXLs: both report "CANcaseXL Channel 1" and "Channel 2".
+        std::vector<CanChannelInfo> channels = {{1, "CANcaseXL Channel 1", true}, {2, "CANcaseXL Channel 2", true},
+                                                {4, "CANcaseXL Channel 1", true}, {8, "CANcaseXL Channel 2", true},
+                                                {16, "VN1640A Channel 1", true}};
+        disambiguateChannelNames(channels, {" (S/N 1001)", " (S/N 1001)", " (S/N 2002)", " (S/N 2002)", " (S/N 3003)"});
+        QCOMPARE(channels[0].name, std::string("CANcaseXL Channel 1 (S/N 1001)"));
+        QCOMPARE(channels[2].name, std::string("CANcaseXL Channel 1 (S/N 2002)"));
+        QCOMPARE(channels[3].name, std::string("CANcaseXL Channel 2 (S/N 2002)"));
+        QCOMPARE(channels[4].name, std::string("VN1640A Channel 1")); // one of a kind: name kept, runes still match
+
+        FakeBackend backend;
+        QVERIFY(interfaceIdFor(backend, channels[0]) != interfaceIdFor(backend, channels[2]));
+
+        // Same suffix for both (no serial to tell them apart): numbered instead.
+        std::vector<CanChannelInfo> twins = {{1, "PCAN-USB FD", true}, {2, "PCAN-USB FD", true}};
+        disambiguateChannelNames(twins, {" (PCAN_UNKNOWN)", " (PCAN_UNKNOWN)"});
+        QCOMPARE(twins[0].name, std::string("PCAN-USB FD (PCAN_UNKNOWN) #1"));
+        QCOMPARE(twins[1].name, std::string("PCAN-USB FD (PCAN_UNKNOWN) #2"));
+    }
+
     void classicFramesSerializeAsSocketCan() {
         uint8_t buf[72] = {};
         QCOMPARE(serializeFrame(classicFrame(0x123, 0), buf), size_t(16));

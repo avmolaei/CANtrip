@@ -128,4 +128,13 @@ public:
 // pair (following PeakBackend.h/.cpp), then append a load attempt here.
 std::vector<std::unique_ptr<IAvlabsCanBackend>> probeAvailableBackends();
 
+// Two devices of the same model report the same channel names ("CANcaseXL
+// Channel 1" twice), which would make them one entry in every channel list
+// and one interface ID. For each name that occurs more than once, this
+// appends that channel's suffix (parallel to `channels`, e.g. " (S/N 12345)")
+// so every name is unique again. Names that are already unique are left
+// alone, so a setup with one device of each model keeps the names its runes
+// were saved with.
+void disambiguateChannelNames(std::vector<CanChannelInfo>& channels, const std::vector<std::string>& suffixes);
+
 } // namespace cantrip

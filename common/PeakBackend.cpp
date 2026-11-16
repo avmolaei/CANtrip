@@ -144,13 +144,18 @@ std::vector<CanChannelInfo> PeakBackend::enumerateChannels() const {
         status = pGetValue_(PCAN_NONEBUS, PCAN_ATTACHED_CHANNELS, infos.data(),
                              static_cast<DWORD>(infos.size() * sizeof(TPCANChannelInformation)));
         if (status == PCAN_ERROR_OK) {
+            std::vector<std::string> suffixes;
             for (const auto& info : infos) {
                 if (info.channel_condition == PCAN_CHANNEL_UNAVAILABLE) continue;
                 std::string name(info.device_name, strnlen(info.device_name, sizeof(info.device_name)));
                 result.push_back(CanChannelInfo{
                     static_cast<uint64_t>(info.channel_handle), name,
                     info.channel_condition == PCAN_CHANNEL_AVAILABLE});
+                // Two PCAN-USB FDs both call themselves "PCAN-USB FD"; the
+                // PCAN-Basic channel (PCAN_USBBUS1, PCAN_USBBUS2) tells them apart.
+                suffixes.push_back(std::string(" (") + handleName(info.channel_handle) + ")");
             }
+            disambiguateChannelNames(result, suffixes);
             return result;
         }
     }
