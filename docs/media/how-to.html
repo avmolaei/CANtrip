@@ -1,5 +1,6 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<script>if (location.hash === "#embed") document.documentElement.classList.add("embed");</script><style>.embed body{padding:0!important}.embed .top,.embed .chapters,.embed .foot,.embed details{display:none!important}.embed .wrap{gap:12px;max-width:none}.embed .scrub{order:0;flex-basis:80px}.embed #mutelabel{display:none}.embed #full{font-size:0;gap:0}</style><title>Using CANtrip</title>
+<script>if (location.hash === "#embed") document.documentElement.classList.add("embed");</script><style>.embed body{padding:0!important}.embed .top,.embed .chapters,.embed .foot,.embed details{display:none!important}.embed .wrap{gap:12px;max-width:none}.embed .scrub{order:0;flex-basis:80px}.embed #mutelabel{display:none}.embed #full{font-size:0;gap:0}</style>
+<title>Using CANtrip</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
 /* Layout: an engineering drawing sheet. One 16:9 film stage, a transport bar under it, then chapters and transcript. */
@@ -66,20 +67,21 @@ details strong { color: var(--fg); font-weight: 400; }
 @media (prefers-reduced-motion: reduce) { .bigplay { transition: none; } }
 </style>
 
+
 <main class="wrap">
   <header class="top">
     <div class="brand">
       <div class="tile"><img id="brandlogo" alt="" width="40" height="37"></div>
       <div>
         <h1><span>CAN</span>trip</h1>
-        <p>A two-minute how-to, from install to first capture</p>
+        <p>A three-minute how-to: every tab, step by step</p>
       </div>
     </div>
-    <span class="meta">v1.5.0 - Yukari · Windows · no hardware needed</span>
+    <span class="meta">v2.0.0 - Nagato · Windows</span>
   </header>
 
   <div class="stage" id="stage">
-    <canvas id="film" width="1920" height="1080" role="img" aria-label="Animated how-to for CANtrip v1.5.0: installing it, picking a channel and bus timing, capturing, decoding with a DBC, plotting signals, bus load, sending frames, logging and replay, runes and headless mode. The chapters and transcript below list every step."></canvas>
+    <canvas id="film" width="1920" height="1080" role="img" aria-label="Animated how-to for CANtrip v2.0.0: installing it, the seven ribbon tabs, picking channels and adding buses, bus timing per bus, capturing, filtering the trace, DBC files per bus, graphs, the gateway, bus load, logging and replay, sending frames, UDS diagnostics, runes, the About tab and headless mode. The chapters and transcript below list every step."></canvas>
     <button class="bigplay" id="bigplay" type="button" aria-label="Play the film">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4l14 8-14 8z" fill="currentColor"/></svg>
     </button>
@@ -87,8 +89,8 @@ details strong { color: var(--fg); font-weight: 400; }
 
   <div class="controls">
     <button class="btn" id="play" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="playicon" d="M6 4l14 8-14 8z" fill="currentColor"/></svg><span id="playlabel">Play</span></button>
-    <span class="time" id="time">0:00 / 1:58</span>
-    <div class="scrub" id="scrub" role="slider" tabindex="0" aria-label="Position in the film" aria-valuemin="0" aria-valuemax="118" aria-valuenow="0">
+    <span class="time" id="time">0:00 / 2:56</span>
+    <div class="scrub" id="scrub" role="slider" tabindex="0" aria-label="Position in the film" aria-valuemin="0" aria-valuemax="176" aria-valuenow="0">
       <div class="track"><div class="rest" id="rest"></div></div>
       <div id="ticks"></div>
       <div class="thumb" id="thumb"></div>
@@ -100,30 +102,36 @@ details strong { color: var(--fg); font-weight: 400; }
   <ol class="chapters" id="chapters"></ol>
 
   <div class="foot">
-    <p class="note">The interface is redrawn from CANtrip v1.5.0's own labels and layout, and the traffic is what its built-in synthetic source sends. Sending frames needs a real PEAK or Vector adapter.</p>
+    <p class="note">The interface is redrawn from CANtrip v2.0.0's own labels and layout, and CAN 1's traffic is what its built-in synthetic source sends, simulated ECU included. CAN 2 stands for a Vector channel; its traffic is an example. 2.0.0 has been tested in the field on PEAK and Vector hardware, multi-bus, the gateway and diagnostics included.</p>
     <nav class="links" aria-label="Project links">
-      <a href="https://github.com/avmolaei/CANtrip/releases/tag/v1.5.0_yukari" target="_blank" rel="noopener">Download v1.5.0</a>
-      <a href="https://avmolaei.github.io/CANtrip/user-guide/getting-started/" target="_blank" rel="noopener">Getting started guide</a>
-      <a href="https://avmolaei.github.io/CANtrip/user-guide/troubleshooting/" target="_blank" rel="noopener">Troubleshooting</a>
+      <a href="https://github.com/avmolaei/CANtrip/releases/tag/v2.0.0_nagato" target="_blank" rel="noopener">Download v2.0.0</a>
+      <a href="https://avmolaei.com/CANtrip/user-guide/getting-started/" target="_blank" rel="noopener">Getting started guide</a>
+      <a href="https://avmolaei.com/CANtrip/user-guide/troubleshooting/" target="_blank" rel="noopener">Troubleshooting</a>
     </nav>
   </div>
 
   <details>
     <summary>Transcript</summary>
     <ol>
-      <li><strong>Using CANtrip.</strong> Install, capture, decode, plot, send and log. No hardware needed to follow along.</li>
-      <li><strong>Install it once.</strong> Install Wireshark (Npcap is not needed). Unzip the CANtrip release anywhere. Copy can2pcap.exe into %APPDATA%\Wireshark\extcap\, and copy it again after every update. Launch cantrip.exe.</li>
-      <li><strong>Find your way.</strong> Home: display mode, display rate and runes. Hardware: channel, bus timing and bus load. Analysis &amp; Measurement: DBC import, trace and graphs. Logging: record and replay. Stimulation: send frames. Start and Stop stay pinned on every tab.</li>
-      <li><strong>Pick a channel and bus timing.</strong> Choose a channel; the synthetic source needs no hardware. CAN Controller sets the mode, bitrate and sample point and computes the timing registers. Uncheck Request bus configuration to listen only. Autodetect tries the classic CAN presets on real hardware.</li>
-      <li><strong>Start capturing.</strong> Press Start. Waterfall puts every frame on its own row, newest first, with bus errors in red. Periodic keeps one row per ID. Display Rate limits redraws; logging still gets every frame.</li>
-      <li><strong>Decode with a DBC.</strong> Import DBC on the Analysis &amp; Measurement tab; sample.dbc ships with the release. Frames show their message names, and expanding a row shows its signals in real units.</li>
-      <li><strong>Plot signals live.</strong> Open Graphics, add a Y axis and drag signals onto it in the Axes list. Ctrl-click several to drag them together. The cursor tool reads values and measures deltas. Up to six graph windows; export as PNG, SVG or PDF.</li>
-      <li><strong>Watch the bus load.</strong> Bus Load on the Hardware tab shows a live gauge, a history graph, statistics and a per-ID table. The synthetic source uses about 0.5% of a 500 kbit/s bus.</li>
-      <li><strong>Send frames.</strong> With a PEAK or Vector adapter: New Message sets the ID, length and data, FD frames go up to 64 bytes in a grid editor, cycle time 0 sends once. Start Sending runs cyclic messages, Send Now fires the selected one, and your own frames come back tagged TX.</li>
-      <li><strong>Log it, replay it.</strong> Pick .asc or .csv, set the filename template, splitting and auto-start under Other options, then Start. Start Replay plays a saved log back through the same views.</li>
-      <li><strong>Save it as a Rune.</strong> Save Rune writes your whole setup to one .rune file; Load Rune restores it.</li>
-      <li><strong>Or run it headless.</strong> The same capture runs from a terminal with --headless, for CI and test benches.</li>
-      <li><strong>That's the tour.</strong> Documentation at avmolaei.github.io/CANtrip, including troubleshooting. Source at github.com/avmolaei/CANtrip.</li>
+      <li><strong>Using CANtrip.</strong> Every tab, step by step. Most of it needs no hardware at all.</li>
+      <li><strong>Install it once.</strong> Install Wireshark (Npcap is not needed). Unzip the CANtrip release anywhere and launch cantrip.exe. Nothing gets copied into Wireshark: CANtrip opens the hardware itself and hands the frames to tshark.</li>
+      <li><strong>Find your way.</strong> Home: display, trace filters and runes. Hardware: channels, buses, bus timing, bus load and the gateway. Analysis &amp; Measurement: DBC files, trace and graphs. Logging: record and replay. Stimulation: send frames. Diagnostics: talk UDS to an ECU, new in 2.0. About: version and license. Start and Stop stay pinned on every tab.</li>
+      <li><strong>Pick a channel, add more buses.</strong> Choose a channel for CAN 1; the synthetic source needs no hardware. More buses... lets you tick CAN 2, 3 or 4 and give each its own channel; + adds more, up to 16. Start and Stop then run every bus together, on one timeline. Every bus needs its own channel: here CAN 2 is a Vector channel.</li>
+      <li><strong>Bus timing, bus by bus.</strong> CAN Controller... has one tab per bus, so CAN 1 stays classic CAN while CAN 2 runs ISO CAN FD. Pick the mode, bitrate and sample point and CANtrip computes the timing registers. Uncheck Request bus configuration to listen only. Autodetect checks each bus in turn against the classic CAN presets, on real hardware.</li>
+      <li><strong>Start capturing.</strong> Press Start; it starts every bus at once. Waterfall puts every frame on its own row, newest first, with bus errors in red and a Bus column. Periodic keeps one row per ID and bus, showing its period, and grays out a row that goes quiet for 2 s. Display Rate limits redraws; logging still gets every frame.</li>
+      <li><strong>Filter and sort the trace.</strong> Click a column's name and type to filter it live. Esc clears it, Enter keeps it and shows it in the header. Filter the Bus column to watch one bus. The arrow at a column's edge sorts it; drag a header to reorder. Filters only change the screen.</li>
+      <li><strong>Decode with DBC files.</strong> DBC management... on the Analysis &amp; Measurement tab shows a tree of your buses: select one and import as many .dbc files as it needs. sample.dbc ships with the release and matches the synthetic source. Frames show their message names, and expanding a row shows its signals in real units.</li>
+      <li><strong>Plot signals live.</strong> Open Graphics, add a Y axis and drag signals onto it; a signal plots from the start of the capture. Ctrl-click several to drag them together. The cursor tool reads values and measures deltas. Up to six graph windows; export as PNG, SVG or PDF.</li>
+      <li><strong>Gateway between buses.</strong> Gateway... on the Hardware tab forwards frames from one bus to another while a capture runs. Tick Forward frames between buses and add rules: From, To, and IDs (all, one ID, or a range such as 0x100-0x1FF). Forwarded frames show up as Tx rows on the bus they went out on. A test bench tool, not a certified gateway.</li>
+      <li><strong>Watch the bus load.</strong> Bus Load... shows one tab per bus, each measured against its own bitrate: a live gauge, a history graph, statistics and a per-ID table. Reset clears them all. The synthetic source uses about 0.5% of a 500 kbit/s bus.</li>
+      <li><strong>Log it, replay it.</strong> Pick .asc or .csv, set the filename template, splitting and auto-start under Other options, then Start. Every bus goes into one file, with the bus as the channel column. Start Replay plays a saved log back through the same views, buses included.</li>
+      <li><strong>Send frames.</strong> New Message... starts with the bus, which decides whether FD frames are possible. Set the ID, length and data; FD frames go up to 64 bytes in a grid editor. Cycle time 0 sends once. Start Sending runs cyclic messages, Send Now fires the selected one, and your own frames come back tagged TX. Sending needs a real adapter: here, CAN 2.</li>
+      <li><strong>Read an ECU.</strong> On the Diagnostics tab, set the ECU's bus, request ID and response ID; the synthetic source's simulated ECU is on 0x7E1 / 0x7E9. Read... with F190 returns the VIN, reassembled from three frames. Trouble Codes, Read lists every stored code with its status.</li>
+      <li><strong>Sessions and security access.</strong> Unlock... in the default session is refused, in red, with what usually fixes it. Switch to Extended and tick Tester present to stay there. Unlock... again shows the seed and asks for the key; on the simulated ECU the key is the seed XOR CAFEBABE. The Request line sends any hex bytes you type. Classic CAN, normal addressing, not in headless mode yet.</li>
+      <li><strong>Save it as a Rune.</strong> Save Rune... writes your whole setup to one .rune file, every bus, DBC file, gateway rule and the diagnostics target included. Load Rune... restores it.</li>
+      <li><strong>Version and license.</strong> On the About tab, GitHub opens the project page and About CANtrip... shows the version, codename, license and trademark notice.</li>
+      <li><strong>Or run it headless.</strong> The same capture runs from a terminal with --headless, for CI and test benches. --bus 2 starts a second bus, --dbc can repeat per bus and --gateway forwards between them. Diagnostics isn't available headless yet.</li>
+      <li><strong>That's the tour.</strong> Documentation at avmolaei.com/CANtrip, including troubleshooting. Source at github.com/avmolaei/CANtrip.</li>
     </ol>
   </details>
 </main>
@@ -133,7 +141,7 @@ details strong { color: var(--fg); font-weight: 400; }
   "use strict";
 
   // ---------- Constants ----------
-  const W = 1920, H = 1080, DURATION = 118, POSTER_T = 4.4;
+  const W = 1920, H = 1080, DURATION = 176, POSTER_T = 4.4;
   const C = {
     sheet: "#0c0e13", ink: "#07080c", panel: "#121520", line: "#2b3142", rule: "#495268",
     paper: "#eef1f7", fog: "#b8c0d3", dim: "#7c869c",
@@ -466,7 +474,7 @@ details strong { color: var(--fg); font-weight: 400; }
   function drawTitleBlock(si) {
     const sc = SCENES[si];
     const x = 1292, y = 990, h = 62;
-    const cells = [["Project", "CANtrip", 150], ["Title", sc.title, 260], ["Sheet", `${String(si + 1).padStart(2, "0")} / ${SCENES.length}`, 96], ["Rev", "1.5.0", 72]];
+    const cells = [["Project", "CANtrip", 150], ["Title", sc.title, 260], ["Sheet", `${String(si + 1).padStart(2, "0")} / ${SCENES.length}`, 96], ["Rev", "2.0.0", 72]];
     ctx.save();
     ctx.fillStyle = C.sheet;
     ctx.fillRect(x, y, W - 28 - x, h);
@@ -622,7 +630,7 @@ details strong { color: var(--fg); font-weight: 400; }
 
 
 
-  // ---------- The synthetic source, as can2pcap generates it ----------
+  // ---------- The synthetic source, as CANtrip generates it ----------
   const SYN_IDS = [0x100, 0x200, 0x300, 0x7e8];
   const MSG_IDS = [0x100, 0x200, 0x300, 0x400, 0x7e8];
   const NAMES = { 0x100: "EngineData", 0x200: "VehicleSpeed", 0x300: "BrakeStatus", 0x400: "TestWaveforms", 0x7e8: "OBDResponse" };
@@ -637,21 +645,24 @@ details strong { color: var(--fg); font-weight: 400; }
     return [a & 255, a >> 8, b & 255, b >> 8, c & 255, c >> 8, 0, 0];
   }
   const synBytes = (j) => Array.from({ length: 8 }, (_, i) => (j + i) & 255);
+  const tickOf = (T) => Math.floor(T * 10 + 1e-6);
   // The last frame of an ID at capture time T (seconds since the capture started).
   function lastFrame(id, T) {
-    const n = Math.floor(T * 10 + 1e-6);
+    const n = tickOf(T);
     if (n < 0) return null;
     if (id === 0x400) return { t: n * 0.1, bytes: waveBytes(n * 0.1) };
     const k = SYN_IDS.indexOf(id);
     const j = n - ((((n - k) % 4) + 4) % 4);
-    return j < 0 ? null : { t: j * 0.1, bytes: synBytes(j) };
+    return j < 0 ? null : { t: j * 0.1, bytes: synBytes(j), j };
   }
+  // The last bus error of a type, with its index e (one error every 8 ticks, types in turn).
   function lastError(type, T) {
-    const m = Math.floor((Math.floor(T * 10 + 1e-6) + 1) / 8);
+    const m = Math.floor((tickOf(T) + 1) / 8);
     const e = m - ((((m - type) % 4) + 4) % 4);
-    return e >= 1 ? (8 * e - 1) * 0.1 : null;
+    return e >= 1 ? { t: (8 * e - 1) * 0.1, e } : null;
   }
-  const frameCount = (T) => (T < 0 ? 0 : 2 * (Math.floor(T * 10 + 1e-6) + 1) + Math.floor((Math.floor(T * 10 + 1e-6) + 1) / 8));
+  const frameCount = (T) => (T < 0 ? 0 : 2 * (tickOf(T) + 1) + Math.floor((tickOf(T) + 1) / 8));
+  const errorCount = (T) => (T < 0 ? 0 : Math.floor((tickOf(T) + 1) / 8));
   function fmtG(x) {
     if (Math.abs(x) < 1e6) return String(+x.toPrecision(6));
     const [m, e] = x.toExponential(5).split("e");
@@ -666,19 +677,46 @@ details strong { color: var(--fg); font-weight: 400; }
       default: return [["ResponseByte0", String(b[0])], ["ResponseByte1", String(b[1])]];
     }
   }
-  const hexId = (id) => "0x" + id.toString(16).toUpperCase();
+  const hexId = (id) => "0x" + id.toString(16).toUpperCase().padStart(3, "0");
 
-  // ---------- The capture story, in film time ----------
-  const CAP_CLICK = 37.0, CAP0 = 37.6; // Start pressed on sheet 5; first frames 0.6 s later
+  // CAN 2 is a Vector channel on a bench bus in this example; its two IDs are made up.
+  const BUS2 = [{ id: 0x0c4, every: 1, off: 0.043 }, { id: 0x2b0, every: 5, off: 0.071 }];
+  const bus2Bytes = (id, j) => (id === 0x0c4 ? [0x0c, (j * 5) & 255, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00] : [0x01, 0x00, Math.floor(j / 5) & 255, 0x00, 0xa5, 0x5a, 0x00, 0x00]);
+  function lastBus2(spec, T) {
+    if (T < spec.off) return null;
+    const n = Math.floor((T - spec.off) * 10 + 1e-6);
+    const j = n - (n % spec.every);
+    return { t: j * 0.1 + spec.off, bytes: bus2Bytes(spec.id, j), j };
+  }
+  const bus2Count = (T) => BUS2.reduce((a, s) => a + (T < s.off ? 0 : Math.floor(Math.floor((T - s.off) * 10 + 1e-6) / s.every) + 1), 0);
+  // The gateway forwards every 0x100 from CAN 1 onto CAN 2 once its rule is in place.
+  function fwdFirstTick() { return Math.ceil((capT(GW_T) * 10 - 1e-6) / 4) * 4; }
+  function fwdCount(T) {
+    if (capT(GW_T) > T) return 0;
+    const n = tickOf(T), f = fwdFirstTick();
+    return n < f ? 0 : Math.floor((n - f) / 4) + 1;
+  }
+
+  // ---------- The capture story, in film time (set once the timeline exists) ----------
+  let CAP_CLICK = 0, CAP0 = 0, CH_T = 0, MB_T = 0, CC2FD_T = 0, PERIODIC_T = 0, DBC_T = 0, GW_T = 0, REQ_T = 0, RES_T = 0, SESSION_T = 0, TESTER_T = 0;
   const capT = (t) => t - CAP0;
+  const totalFrames = (T) => frameCount(T) + bus2Count(T) + fwdCount(T);
   const SYN_NAME = "CANtrip synthetic test source (no hardware needed)";
   const PEAK_NAME = "PEAK-System PCAN-Basic PCAN-USB FD";
+  const VEC1 = "Vector XL Driver Library VN1640A Channel 1";
+  const VEC2 = "Vector XL Driver Library VN1640A Channel 2";
+  const CLOCK0 = 17 * 3600 + 40 * 60;
+  function clockAt(t) {
+    const ms = Math.round((CLOCK0 + t) * 1000);
+    const s = Math.floor(ms / 1000);
+    return `${String(Math.floor(s / 3600)).padStart(2, "0")}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}.${String(ms % 1000).padStart(3, "0")}`;
+  }
 
   // ---------- App UI kit, in app space (1150 x 830) ----------
   const AW = 1150, AH = 830;
   const UF = (px) => F.iso(px);
   const UM = (px) => F.mono(400, px);
-  const TABS = ["Home", "Hardware", "Analysis & Measurement", "Logging", "Stimulation", "About..."];
+  const TABS = ["Home", "Hardware", "Analysis & Measurement", "Logging", "Stimulation", "Diagnostics", "About..."];
   const PIN = { start: { x: 12, y: 39, w: 100, h: 31 }, stop: { x: 118, y: 39, w: 100, h: 31 } };
   const CONTENT = { x: 10, y: 174, w: 1130, h: 624 };
   let tabCache = null;
@@ -700,15 +738,16 @@ details strong { color: var(--fg); font-weight: 400; }
       { title: "Configuration", x: 386, w: 240, items: [{ t: "btn", label: "Save Rune...", x: 398, y: 104, w: 104 }, { t: "btn", label: "Load Rune...", x: 510, y: 104, w: 104 }] },
     ],
     "Hardware": [
-      { title: "Network Hardware", x: 14, w: 446, items: [{ t: "combo", key: "channel", x: 26, y: 104, w: 330 }, { t: "btn", label: "Refresh", x: 364, y: 104, w: 84 }] },
-      { title: "Bus Configuration", x: 470, w: 150, items: [{ t: "btn", label: "CAN Controller...", x: 482, y: 104, w: 126 }] },
-      { title: "Autodetect Bus Config", x: 630, w: 176, items: [{ t: "btn", label: "Click to check", x: 642, y: 104, w: 152 }] },
-      { title: "Bus Load", x: 816, w: 112, items: [{ t: "btn", label: "Bus Load...", x: 828, y: 104, w: 88 }] },
+      { title: "Network Hardware", x: 14, w: 472, items: [{ t: "combo", key: "channel", x: 26, y: 104, w: 260 }, { t: "btn", label: "Refresh", x: 292, y: 104, w: 66 }, { t: "btn", key: "morebuses", label: "More buses...", x: 364, y: 104, w: 110 }] },
+      { title: "Bus Configuration", x: 496, w: 136, items: [{ t: "btn", label: "CAN Controller...", x: 508, y: 104, w: 112 }] },
+      { title: "Autodetect Bus Config", x: 642, w: 196, items: [{ t: "btn", label: "Click to check", x: 654, y: 104, w: 172 }] },
+      { title: "Bus Load", x: 848, w: 100, items: [{ t: "btn", label: "Bus Load...", x: 860, y: 104, w: 76 }] },
+      { title: "Gateway", x: 958, w: 110, items: [{ t: "btn", key: "gateway", label: "Gateway...", x: 970, y: 104, w: 86 }] },
     ],
     "Analysis & Measurement": [
-      { title: "CAN Database", x: 14, w: 132, items: [{ t: "btn", label: "Import DBC...", x: 26, y: 104, w: 108 }] },
-      { title: null, x: 156, w: 170, items: [{ t: "label", key: "dbcstatus", x: 160, y: 124 }] },
-      { title: "Views", x: 336, w: 218, items: [{ t: "btn", label: "CAN Trace", x: 348, y: 104, w: 94 }, { t: "btn", label: "Graphics", x: 448, y: 104, w: 94 }] },
+      { title: "CAN Database", x: 14, w: 156, items: [{ t: "btn", label: "DBC management...", x: 26, y: 104, w: 132 }] },
+      { title: null, x: 180, w: 170, items: [{ t: "label", key: "dbcstatus", x: 184, y: 124 }] },
+      { title: "Views", x: 360, w: 218, items: [{ t: "btn", label: "CAN Trace", x: 372, y: 104, w: 94 }, { t: "btn", label: "Graphics", x: 472, y: 104, w: 94 }] },
     ],
     "Logging": [
       { title: "Logging", x: 14, w: 168, items: [{ t: "btn", label: "Start", key: "logstart", x: 26, y: 104, w: 70 }, { t: "btn", label: "Stop", key: "logstop", x: 102, y: 104, w: 70 }] },
@@ -722,12 +761,23 @@ details strong { color: var(--fg); font-weight: 400; }
       { title: "Sending", x: 156, w: 338, items: [{ t: "btn", label: "Start Sending", key: "startsend", icon: "play", x: 168, y: 104, w: 118 }, { t: "btn", label: "Stop Sending", key: "stopsend", icon: "pause", x: 292, y: 104, w: 112 }, { t: "btn", label: "Send Now", x: 410, y: 104, w: 72 }] },
       { title: "Received", x: 504, w: 270, items: [{ t: "radio", key: "rxwf", label: "Waterfall", x: 516, y: 118 }, { t: "radio", key: "rxper", label: "Periodic", x: 612, y: 118 }, { t: "btn", label: "Clear", x: 700, y: 104, w: 62 }] },
     ],
+    "Diagnostics": [
+      { title: "ECU", x: 14, w: 322, items: [
+        { t: "spin", key: "diagbus", x: 26, y: 96, w: 74, h: 26 }, { t: "text", s: "Request ID", x: 140, y: 114 }, { t: "edit", key: "reqid", x: 232, y: 96, w: 92, h: 26 },
+        { t: "check", key: "ext29", label: "29-bit IDs", x: 28, y: 141 }, { t: "text", s: "Response ID", x: 140, y: 146 }, { t: "edit", key: "resid", x: 232, y: 128, w: 92, h: 26 }] },
+      { title: "Session", x: 346, w: 216, items: [{ t: "combo", key: "session", x: 358, y: 96, w: 118, h: 26 }, { t: "btn", label: "Switch", x: 482, y: 96, w: 68, h: 26 }, { t: "check", key: "tester", label: "Tester present", x: 360, y: 141 }] },
+      { title: "Data", x: 572, w: 170, items: [{ t: "btn", label: "Read...", x: 584, y: 104, w: 72 }, { t: "btn", label: "Write...", x: 662, y: 104, w: 68 }] },
+      { title: "Trouble Codes", x: 752, w: 156, items: [{ t: "btn", key: "dtcread", label: "Read", x: 764, y: 104, w: 66 }, { t: "btn", key: "dtcclear", label: "Clear", x: 836, y: 104, w: 60 }] },
+      { title: "Control", x: 918, w: 214, items: [{ t: "btn", label: "Unlock...", x: 930, y: 104, w: 92 }, { t: "btn", label: "Reset ECU", x: 1028, y: 104, w: 92 }] },
+    ],
     "About...": [
       { title: null, x: 14, w: 300, items: [{ t: "btn", label: "GitHub", x: 26, y: 104, w: 80 }, { t: "btn", label: "About CANtrip...", x: 112, y: 104, w: 124 }] },
     ],
   };
   function itemRect(it) {
     if (it.t === "radio") return { x: it.x - 2, y: it.y - 10, w: 24 + measure(it.label, UF(15)), h: 20 };
+    if (it.t === "check") return { x: it.x - 2, y: it.y - 10, w: 26 + measure(it.label, UF(15)), h: 20 };
+    if (it.t === "text" || it.t === "label") return null;
     return { x: it.x, y: it.y, w: it.w || 100, h: it.h || 28 };
   }
 
@@ -743,13 +793,36 @@ details strong { color: var(--fg); font-weight: 400; }
     top: [["Add Graph Window", 18, 140], ["Remove Graph Window", 164, 162], ["Layout: Stacked", 332, 118], ["Export All...", 456, 100]],
   };
   // Dialog geometry
-  const CC = { x: 410, y: 166, w: 330, h: 500 };
+  const CC = { x: 395, y: 128, w: 360, h: 584 };
+  const MB = { x: 316, y: 214, w: 520, h: 300 };
+  const GW = { x: 345, y: 196, w: 460, h: 330 };
+  const DM = { x: 300, y: 186, w: 560, h: 384 };
   const FD = { x: 290, y: 190, w: 580, h: 380 };
-  const TX = { x: 370, y: 148, w: 440, h: 520 };
+  const TX = { x: 316, y: 110, w: 560, h: 590 };
   const ED = { x: 460, y: 204, w: 350, h: 368 };
   const LO = { x: 310, y: 188, w: 540, h: 344 };
-  const CHANNELS = [PEAK_NAME, "Vector VN1640A Channel 1", SYN_NAME];
+  const IN = { x: 385, y: 296, w: 380, h: 214 };
+  const AB = { x: 320, y: 196, w: 510, h: 420 };
+  const CHANNELS = [PEAK_NAME, VEC1, VEC2, SYN_NAME];
   const LENGTHS = ["8", "12", "16", "20", "24", "32", "48", "64"];
+  const TXBUSES = ["CAN 1  -  " + SYN_NAME, "CAN 2  -  " + VEC1];
+  const SESSIONS = ["Default", "Extended", "Programming"];
+  const mbRowY = (i) => MB.y + 46 + i * 38;
+  const ccBase = () => CC.y + 86;
+
+  // Positions the views report as they draw (rows move as the trace changes).
+  const LAYOUT = { chev: {}, row: {}, diag: [] };
+
+  // Trace view columns; Bus only appears with more than one bus.
+  const TCOL = [["Time", 16], ["ID", 128], ["Flags", 212], ["DLC", 300], ["Data", 344], ["Message/Signal", 650], ["Value", 870]];
+  const traceCols = (st) => (st.buses > 1 ? [...TCOL, ["Bus", 1030]] : TCOL);
+  function headerCell(st, name) {
+    const cols = traceCols(st), i = cols.findIndex((c) => c[0] === name);
+    if (i < 0) return null;
+    const x0 = CONTENT.x + cols[i][1] - 8, x1 = i + 1 < cols.length ? CONTENT.x + cols[i + 1][1] - 8 : CONTENT.x + CONTENT.w;
+    return { x: x0, y: CONTENT.y, w: x1 - x0, h: 26 };
+  }
+  let lastSt = { buses: 2 };
 
   // Where a named widget sits, in app space.
   function rectOf(key) {
@@ -763,19 +836,43 @@ details strong { color: var(--fg); font-weight: 400; }
         for (const g of RB[tab]) for (const it of g.items) if ((it.key || it.label) === label || it.label === label) return itemRect(it);
         return null;
       }
-      case "dd": return { x: 26, y: 132 + Number(name) * 28, w: 330, h: 28 };
-      case "cc": return {
-        mode: { x: CC.x + 150, y: CC.y + 46, w: 162, h: 26 }, isofd: { x: CC.x + 150, y: CC.y + 72 + 26, w: 162, h: 26 },
-        sp: { x: CC.x + 210, y: CC.y + 172, w: 102, h: 26 }, check: { x: CC.x + 16, y: CC.y + 410, w: 220, h: 22 }, ok: { x: CC.x + 140, y: CC.y + 456, w: 84, h: 28 },
+      case "dd": return { x: 26, y: 132 + Number(name) * 28, w: 380, h: 28 };
+      case "mb": {
+        if (name === "chk2") return { x: MB.x + 14, y: mbRowY(1) + 4, w: 74, h: 20 };
+        if (name === "combo2") return { x: MB.x + 110, y: mbRowY(1), w: 390, h: 28 };
+        if (name === "add") return { x: MB.x + 62, y: mbRowY(4), w: 32, h: 28 };
+        if (name === "ok") return { x: MB.x + MB.w - 196, y: MB.y + MB.h - 42, w: 84, h: 28 };
+        return null;
+      }
+      case "mbdd": return { x: MB.x + 110, y: mbRowY(1) + 28 + Number(name) * 28, w: 390, h: 28 };
+      case "cc": {
+        const b = ccBase();
+        return {
+          tab1: { x: CC.x + 12, y: CC.y + 40, w: 72, h: 28 }, tab2: { x: CC.x + 86, y: CC.y + 40, w: 72, h: 28 },
+          mode: { x: CC.x + 170, y: b, w: 166, h: 26 }, isofd: { x: CC.x + 170, y: b + 26 + 26, w: 166, h: 26 },
+          sp: { x: CC.x + 234, y: b + 126, w: 102, h: 26 }, check: { x: CC.x + 16, y: CC.y + 482, w: 220, h: 22 },
+          ok: { x: CC.x + CC.w - 196, y: CC.y + 538, w: 84, h: 28 },
+        }[name];
+      }
+      case "gw": return {
+        enable: { x: GW.x + 14, y: GW.y + 46, w: 240, h: 22 }, add: { x: GW.x + 12, y: GW.y + 246, w: 32, h: 28 },
+        ids: { x: GW.x + 236, y: GW.y + 106, w: 210, h: 28 }, ok: { x: GW.x + GW.w - 196, y: GW.y + GW.h - 42, w: 84, h: 28 },
+      }[name];
+      case "dm": return {
+        import: { x: DM.x + 12, y: DM.y + DM.h - 44, w: 196, h: 28 }, close: { x: DM.x + DM.w - 96, y: DM.y + DM.h - 44, w: 84, h: 28 },
+        can2: { x: DM.x + 14, y: DM.y + 70 + (lastSt.dbcFile ? 2 : 1) * 26, w: 300, h: 26 },
       }[name];
       case "file": return { sample: { x: FD.x + 170, y: FD.y + 76, w: 390, h: 24 }, open: { x: FD.x + 468, y: FD.y + 300, w: 96, h: 28 } }[name];
       case "tx": return {
-        id: { x: TX.x + 130, y: TX.y + 116, w: 120, h: 26 }, len: { x: TX.x + 130, y: TX.y + 152, w: 120, h: 26 },
-        len64: { x: TX.x + 130, y: TX.y + 178 + 7 * 22, w: 120, h: 22 }, dots: { x: TX.x + 404, y: TX.y + 188, w: 26, h: 26 },
-        cycle: { x: TX.x + 130, y: TX.y + 224, w: 120, h: 26 }, brs: { x: TX.x + 130, y: TX.y + 316, w: 140, h: 22 }, ok: { x: TX.x + 238, y: TX.y + 470, w: 90, h: 28 },
+        bus: { x: TX.x + 130, y: TX.y + 44, w: 414, h: 26 }, bus1: { x: TX.x + 130, y: TX.y + 70 + 26, w: 414, h: 26 },
+        id: { x: TX.x + 130, y: TX.y + 140, w: 120, h: 26 }, len: { x: TX.x + 130, y: TX.y + 176, w: 120, h: 26 },
+        len64: { x: TX.x + 130, y: TX.y + 202 + 7 * 22, w: 120, h: 22 }, dots: { x: TX.x + 404, y: TX.y + 212, w: 26, h: 26 },
+        cycle: { x: TX.x + 130, y: TX.y + 248, w: 120, h: 26 }, brs: { x: TX.x + 130, y: TX.y + 340, w: 150, h: 22 }, ok: { x: TX.x + TX.w - 196, y: TX.y + 542, w: 84, h: 28 },
       }[name];
       case "ed": return { ok: { x: ED.x + 160, y: ED.y + 326, w: 84, h: 28 } }[name];
       case "lo": return { tab2: { x: LO.x + 170, y: LO.y + 38, w: 140, h: 28 }, ok: { x: LO.x + 352, y: LO.y + 300, w: 84, h: 28 } }[name];
+      case "in": return { ok: { x: IN.x + IN.w - 196, y: IN.y + IN.h - 42, w: 84, h: 28 } }[name];
+      case "ab": return { ok: { x: AB.x + AB.w - 100, y: AB.y + AB.h - 44, w: 84, h: 28 } }[name];
       case "g": {
         if (name.startsWith("sig:")) {
           const k = SIGS.indexOf(name.slice(4));
@@ -788,9 +885,16 @@ details strong { color: var(--fg); font-weight: 400; }
         if (tool) return { x: tool[1], y: 220, w: tool[2], h: 26 };
         return null;
       }
-      case "chev": return { 0x100: { x: 14, y: 300, w: 18, h: 24 }, 0x400: { x: 14, y: 420, w: 18, h: 24 } }[Number(name)];
+      case "chev": return LAYOUT.chev[Number(name)] || { x: 14, y: 300, w: 18, h: 24 };
+      case "row": return LAYOUT.row[name] || { x: 10, y: 400, w: 1130, h: 24 };
+      case "hdr": return headerCell(lastSt, name);
+      case "hdrarrow": { const c = headerCell(lastSt, name); return c ? { x: c.x + c.w - 22, y: c.y + 4, w: 16, h: 18 } : null; }
       case "st": return { row3: { x: 44, y: 546, w: 1080, h: 24 } }[name];
-      case "bl": return { reset: { x: 822, y: 206, w: 300, h: 26 } }[name];
+      case "bl": return { reset: { x: 822, y: 230, w: 300, h: 26 } }[name];
+      case "blt": return { x: 16 + (Number(name) - 1) * 84, y: 180, w: 80, h: 26 };
+      case "sesdd": return { x: 358, y: 122 + Number(name) * 26, w: 118, h: 26 };
+      case "dg": return { req: { x: 92, y: 764, w: 660, h: 26 }, send: { x: 760, y: 763, w: 70, h: 28 } }[name];
+      case "dl": return LAYOUT.diag[Number(name)] || { x: 10, y: 300, w: 1130, h: 24 };
       default: return null;
     }
   }
@@ -826,26 +930,37 @@ details strong { color: var(--fg); font-weight: 400; }
   function uiCombo(r, text, s = {}) {
     ctx.fillStyle = s.open ? "#1c2130" : "#141822";
     ctx.fillRect(r.x, r.y, r.w, r.h);
-    rect(r.x, r.y, r.w, r.h, s.press > 0 || s.open ? C.redHi : rgba(C.fog, 0.3), null, 1.2);
+    rect(r.x, r.y, r.w, r.h, s.press > 0 || s.open ? C.redHi : rgba(C.fog, s.dim ? 0.15 : 0.3), null, 1.2);
     let px = s.px || 15;
     while (px > 10 && measure(text, UF(px)) > r.w - 34) px--;
     txt(text, r.x + 10, r.y + r.h / 2 + px * 0.36, UF(px), s.dim ? C.dim : C.paper);
-    ctx.strokeStyle = C.fog;
+    ctx.strokeStyle = s.dim ? C.dim : C.fog;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(r.x + r.w - 20, r.y + r.h / 2 - 3); ctx.lineTo(r.x + r.w - 15, r.y + r.h / 2 + 2); ctx.lineTo(r.x + r.w - 10, r.y + r.h / 2 - 3);
     ctx.stroke();
   }
+  function uiSpin(r, text, s = {}) {
+    ctx.fillStyle = "#0f1219";
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    rect(r.x, r.y, r.w, r.h, s.press > 0 ? C.redHi : rgba(C.fog, 0.3), null, 1.2);
+    txt(text, r.x + 8, r.y + r.h / 2 + 5, UF(15), C.paper);
+    ctx.fillStyle = C.fog;
+    const ax = r.x + r.w - 12, ay = r.y + r.h / 2;
+    ctx.beginPath(); ctx.moveTo(ax - 4, ay - 3); ctx.lineTo(ax, ay - 8); ctx.lineTo(ax + 4, ay - 3); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(ax - 4, ay + 3); ctx.lineTo(ax, ay + 8); ctx.lineTo(ax + 4, ay + 3); ctx.closePath(); ctx.fill();
+  }
   function uiList(r, items, s = {}) {
+    const rh = s.rowH || 28;
     ctx.fillStyle = "#1a1e2b";
-    ctx.fillRect(r.x, r.y, r.w, items.length * (s.rowH || 28));
-    rect(r.x, r.y, r.w, items.length * (s.rowH || 28), C.redHi, null, 1.2);
+    ctx.fillRect(r.x, r.y, r.w, items.length * rh);
+    rect(r.x, r.y, r.w, items.length * rh, C.redHi, null, 1.2);
     items.forEach((it, i) => {
-      const y = r.y + i * (s.rowH || 28);
-      if (i === s.hover) { ctx.fillStyle = rgba(C.blue, 0.45); ctx.fillRect(r.x + 1, y, r.w - 2, s.rowH || 28); }
+      const y = r.y + i * rh;
+      if (i === s.hover) { ctx.fillStyle = rgba(C.blue, 0.45); ctx.fillRect(r.x + 1, y, r.w - 2, rh); }
       let px = 15;
       while (px > 10 && measure(it, UF(px)) > r.w - 16) px--;
-      txt(it, r.x + 10, y + (s.rowH || 28) / 2 + px * 0.36, UF(px), C.paper);
+      txt(it, r.x + 10, y + rh / 2 + px * 0.36, UF(px), C.paper);
     });
   }
   function uiRadio(x, y, label, on, s = {}) {
@@ -856,9 +971,9 @@ details strong { color: var(--fg); font-weight: 400; }
     txt(label, x + 20, y + 5, UF(15), s.disabled ? C.dim : C.paper);
   }
   function uiCheck(x, y, label, on, s = {}) {
-    rect(x, y - 8, 15, 15, s.press > 0 ? C.redHi : C.fog, "#141822", 1.3);
+    rect(x, y - 8, 15, 15, s.press > 0 ? C.redHi : s.dim ? rgba(C.fog, 0.3) : C.fog, "#141822", 1.3);
     if (on) {
-      ctx.strokeStyle = C.blueHi;
+      ctx.strokeStyle = s.dim ? C.dim : C.blueHi;
       ctx.lineWidth = 2.2;
       ctx.beginPath(); ctx.moveTo(x + 3, y); ctx.lineTo(x + 6.5, y + 3.5); ctx.lineTo(x + 12.5, y - 4); ctx.stroke();
     }
@@ -871,10 +986,17 @@ details strong { color: var(--fg); font-weight: 400; }
     const f = s.mono ? UM(s.px || 14) : UF(s.px || 15);
     txt(text, s.center ? r.x + r.w / 2 : r.x + 8, r.y + r.h / 2 + 5, f, s.dim ? C.dim : C.paper, s.center ? "center" : "left");
     if (s.caret) {
-      const cw = measure(text, f);
+      const cw = s.dim ? 0 : measure(text, f);
       ctx.fillStyle = C.paper;
       ctx.fillRect((s.center ? r.x + r.w / 2 + cw / 2 : r.x + 8 + cw) + 1, r.y + 5, 1.5, r.h - 10);
     }
+  }
+  // Text cut to a width with an ellipsis, as Qt elides a cell.
+  function fit(s, font, maxW) {
+    if (measure(s, font) <= maxW) return s;
+    let lo = 0, hi = s.length;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (measure(s.slice(0, mid) + "…", font) <= maxW) lo = mid; else hi = mid - 1; }
+    return s.slice(0, lo) + "…";
   }
   function uiGroup(g) {
     if (!g.title) return;
@@ -891,9 +1013,38 @@ details strong { color: var(--fg); font-weight: 400; }
     ctx.fillStyle = C.line;
     ctx.fillRect(x, y + 26, w, 1);
   }
+  function miniTabs(x, y, names, active, s = {}) {
+    let cx = x;
+    names.forEach((n, i) => {
+      const w = s.w || measure(n, UF(15)) + 28, on = i === active, pr = s.press ? s.press(i) : 0;
+      ctx.fillStyle = on ? "#1c2130" : "#141822";
+      ctx.fillRect(cx, y, w, 28);
+      rect(cx, y, w, 28, pr > 0 ? C.redHi : on ? rgba(C.fog, 0.4) : rgba(C.fog, 0.15), null, 1);
+      if (on) { ctx.fillStyle = C.redHi; ctx.fillRect(cx, y, w, 2); }
+      txt(n, cx + w / 2, y + 19, UF(15), on ? C.paper : C.fog, "center");
+      cx += w + 2;
+    });
+  }
+  // A keyboard key being pressed, in app space.
+  function keycap(lt, at, label, x, y, scale = 1) {
+    const k = prog(lt, at - 0.15, at + 0.55);
+    if (k <= 0 || k >= 1) return;
+    const a = k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8;
+    const f = F.iso(Math.round(16 * scale)), w = measure(label, f) + 24 * scale, h = 30 * scale;
+    ctx.save();
+    ctx.globalAlpha *= a;
+    ctx.fillStyle = C.ink;
+    ctx.fillRect(x, y, w, h);
+    rect(x, y, w, h, C.redHi, null, 1.6 * scale);
+    ctx.fillStyle = C.redHi;
+    ctx.fillRect(x, y + h - 3 * scale, w, 3 * scale);
+    txt(label, x + w / 2, y + h / 2 + 5 * scale, f, C.paper, "center");
+    ctx.restore();
+  }
 
   // The window chrome: title bar, pinned Start/Stop, tabs, ribbon, status bar.
   function drawApp(st) {
+    lastSt = st;
     ctx.fillStyle = "#10131a";
     ctx.fillRect(0, 0, AW, AH);
     ctx.fillStyle = "#0b0d12";
@@ -932,9 +1083,11 @@ details strong { color: var(--fg); font-weight: 400; }
     rect(8, 72, AW - 16, 96, rgba(C.fog, 0.18), null, 1);
     drawRibbon(st);
     // Content
+    st.statusExtra = "";
     if (st.view === "graph") drawGraphView(st);
     else if (st.view === "busload") drawBusLoadView(st);
     else if (st.view === "stim") drawStimView(st);
+    else if (st.view === "diag") drawDiagView(st);
     else drawTraceView(st);
     // Status bar
     ctx.fillStyle = "#0b0d12";
@@ -942,71 +1095,154 @@ details strong { color: var(--fg); font-weight: 400; }
     const on = st.cap && Math.floor(st.t * 2) % 2 === 0;
     ctx.fillStyle = st.cap ? (on ? C.green : "#5a6070") : C.red;
     ctx.beginPath(); ctx.arc(16, AH - 15, 6, 0, Math.PI * 2); ctx.fill();
-    txt(st.status || "", 32, AH - 9, UF(15), C.fog);
+    txt((st.status || "") + st.statusExtra, 32, AH - 9, UF(15), C.fog);
     rect(0, 0, AW, AH, C.rule, null, 1.5);
   }
   function drawRibbon(st) {
     RB[st.tab].forEach((g) => {
       uiGroup(g);
       g.items.forEach((it) => {
-        const key = "rb:" + st.tab + "|" + (it.key || it.label);
+        const k = it.key || it.label, key = "rb:" + st.tab + "|" + k;
         const r = itemRect(it), pr = st.press(key);
-        if (it.t === "btn") uiBtn(r, it.label, { disabled: st.dis[it.key || it.label], press: pr, icon: it.icon, on: st.on[it.key || it.label] });
+        if (it.t === "btn") uiBtn(r, (st.btnText && st.btnText[k]) || it.label, { disabled: st.dis[k], press: pr, icon: it.icon, on: st.on[k] });
         else if (it.t === "radio") uiRadio(it.x, it.y, it.label, !!st.on[it.key], { press: pr, disabled: it.key === "mf4" });
+        else if (it.t === "check") uiCheck(it.x, it.y, it.label, !!st.on[it.key], { press: pr });
         else if (it.t === "combo") uiCombo(r, st.combo[it.key] || "", { press: pr, open: st.open === key });
+        else if (it.t === "edit") uiEdit(r, st.edit[it.key] || "", { mono: true, px: 14, focus: st.focus === it.key || pr > 0, caret: st.focus === it.key });
+        else if (it.t === "spin") uiSpin(r, (st.spin && st.spin[it.key]) || "", { press: pr });
+        else if (it.t === "text") txt(it.s, it.x, it.y, UF(14), C.fog);
         else if (it.t === "label") {
           const s = st.label[it.key] || "";
-          txt(s, it.x, it.y + 4, UF(15), it.key === "dbcstatus" && !st.dbc ? C.redHi : C.fog);
+          txt(s, it.x, it.y + 4, UF(15), it.key === "dbcstatus" && !st.dbc ? C.redHi : it.key === "dbcstatus" ? C.green : C.fog);
         }
       });
     });
   }
 
   // ---------- Views ----------
-  const TCOL = [["Time", 16], ["ID", 128], ["Flags", 212], ["DLC", 290], ["Data", 344], ["Message/Signal", 650], ["Value", 870]];
+  // Periodic rows: one per ID and bus, in ID order, after the bus error rows.
+  function periodicRows(st) {
+    const T = st.T, rows = [];
+    MSG_IDS.forEach((id) => {
+      const f = lastFrame(id, T);
+      if (!f) return;
+      const per = id === 0x400 ? 0.1 : 0.4;
+      rows.push({ id, bus: 1, t: f.t, bytes: f.bytes, per: f.t < per - 1e-6 ? null : per });
+    });
+    if (st.buses > 1) {
+      BUS2.forEach((s) => {
+        const f = lastBus2(s, T);
+        if (f) rows.push({ id: s.id, bus: 2, t: f.t, bytes: f.bytes, per: f.j < s.every ? null : s.every * 0.1 });
+      });
+      if (st.gw && fwdCount(T) > 0) {
+        const f = lastFrame(0x100, T);
+        rows.push({ id: 0x100, bus: 2, t: f.t + 0.0012, bytes: f.bytes, per: fwdCount(T) < 2 ? null : 0.4, tx: true });
+      }
+    }
+    rows.sort((a, b) => a.id - b.id || a.bus - b.bus);
+    return rows;
+  }
+  function waterfallRows(st, max) {
+    const T = st.T, n = tickOf(T), out = [];
+    const fwd0 = st.gw ? fwdFirstTick() : Infinity;
+    for (let j = n; j >= 0 && out.length < max + 6; j--) {
+      const t = j * 0.1, ev = [];
+      ev.push({ s: t, t, id: SYN_IDS[j % 4], bus: 1, bytes: synBytes(j) });
+      ev.push({ s: t + 1e-5, t, id: 0x400, bus: 1, bytes: waveBytes(t) });
+      if ((j + 1) % 8 === 0) ev.push({ s: t + 2e-5, t, err: ERR_TYPES[((j + 1) / 8) % 4], bus: 1 });
+      if (st.buses > 1) {
+        BUS2.forEach((s) => { if (j % s.every === 0 && t + s.off <= T) ev.push({ s: t + s.off, t: t + s.off, id: s.id, bus: 2, bytes: bus2Bytes(s.id, j) }); });
+        if (j % 4 === 0 && j >= fwd0) ev.push({ s: t + 0.0012, t: t + 0.0012, id: 0x100, bus: 2, bytes: synBytes(j), tx: true });
+      }
+      ev.sort((a, b) => b.s - a.s).forEach((e) => out.push(e));
+    }
+    return out;
+  }
   function drawTraceView(st) {
-    const R = CONTENT;
+    const R = CONTENT, cols = traceCols(st);
     ctx.fillStyle = "#0f1219";
     ctx.fillRect(R.x, R.y, R.w, R.h);
-    tableHeader(R.x, R.y, R.w, TCOL);
+    // Header: names, or the kept filter underlined; a small sort arrow at each right edge.
+    ctx.fillStyle = "#1b1f2b";
+    ctx.fillRect(R.x, R.y, R.w, 26);
+    const flt = st.filter;
+    cols.forEach(([s]) => {
+      const c = headerCell(st, s), kept = flt && !flt.editing && flt.col === s && flt.text;
+      if (kept) {
+        txt(flt.text, c.x + 8, R.y + 18, UM(15), C.blueHi);
+        ctx.fillStyle = C.blueHi;
+        ctx.fillRect(c.x + 4, R.y + 23, c.w - 30, 2);
+      } else txt(s, c.x + 8, R.y + 18, UF(15), C.dim);
+      const sorted = (st.mode === "periodic" && s === "ID") || (st.mode !== "periodic" && s === "Time");
+      const ax = c.x + c.w - 14, ay = R.y + 13, up = st.mode === "periodic";
+      ctx.fillStyle = sorted ? C.fog : rgba(C.fog, 0.3);
+      ctx.beginPath();
+      if (up) { ctx.moveTo(ax - 4, ay + 3); ctx.lineTo(ax, ay - 3); ctx.lineTo(ax + 4, ay + 3); }
+      else { ctx.moveTo(ax - 4, ay - 3); ctx.lineTo(ax, ay + 3); ctx.lineTo(ax + 4, ay - 3); }
+      ctx.closePath(); ctx.fill();
+    });
+    ctx.fillStyle = C.line;
+    ctx.fillRect(R.x, R.y + 26, R.w, 1);
+    if (flt && flt.editing) {
+      const c = headerCell(st, flt.col);
+      uiEdit({ x: c.x + 2, y: R.y + 1, w: c.w - 4, h: 24 }, flt.text, { mono: true, px: 14, focus: true, caret: true });
+    }
+    LAYOUT.chev = {};
+    LAYOUT.row = {};
     if (st.T == null || st.T < 0) return;
     ctx.save();
     ctx.beginPath(); ctx.rect(R.x, R.y + 27, R.w, R.h - 27); ctx.clip();
-    const rowH = 24, x = R.x;
+    const rowH = 24, x = R.x, hasBus = st.buses > 1;
     let y = R.y + 28;
     const mono = UM(15), iso = UF(16);
-    const row = (time, id, data, name, color, extra) => {
+    const pass = (r) => {
+      if (!flt || !flt.text) return true;
+      const q = flt.text.toLowerCase();
+      if (flt.col === "ID") return !r.err && hexId(r.id).toLowerCase().includes(q);
+      if (flt.col === "Bus") return String(r.bus).includes(q);
+      return true;
+    };
+    const row = (time, r, color, extra) => {
       if (extra && extra.chev !== undefined) {
+        LAYOUT.chev[r.id] = { x: x + 2, y, w: 18, h: rowH };
         ctx.strokeStyle = C.dim; ctx.lineWidth = 1.6; ctx.beginPath();
         const cx = x + 8, cy = y + rowH / 2;
         if (extra.chev) { ctx.moveTo(cx - 4, cy - 2); ctx.lineTo(cx, cy + 2); ctx.lineTo(cx + 4, cy - 2); }
         else { ctx.moveTo(cx - 2, cy - 4); ctx.lineTo(cx + 2, cy); ctx.lineTo(cx - 2, cy + 4); }
         ctx.stroke();
       }
+      if (r.id != null) LAYOUT.row[r.id + ":" + r.bus] = { x, y, w: R.w, h: rowH };
       txt(time, x + 16, y + 17, mono, color || C.fog);
-      if (id) {
-        txt(id, x + 128, y + 17, mono, color || C.paper);
-        txt("STD", x + 212, y + 17, iso, color || C.fog);
-        txt("8", x + 290, y + 17, mono, color || C.fog);
-        txt(data, x + 344, y + 17, mono, color || C.paper);
-      }
-      if (name) txt(name, x + 650, y + 17, iso, color || C.paper);
+      if (!r.err) {
+        txt(hexId(r.id), x + 128, y + 17, mono, color || C.paper);
+        txt(r.tx ? "STD TX" : "STD", x + 212, y + 17, iso, color || C.fog);
+        txt("8", x + 300, y + 17, mono, color || C.fog);
+        txt(r.bytes.map(h2).join(" "), x + 344, y + 17, mono, color || C.paper);
+        if (st.dbc && r.bus === 1) txt(NAMES[r.id], x + 650, y + 17, iso, color || C.paper);
+      } else txt("BUS ERROR: " + r.err, x + 650, y + 17, iso, color);
+      if (hasBus) txt(String(r.bus), x + 1030, y + 17, mono, color || C.fog);
       y += rowH;
     };
     const T = st.T;
+    let total = 0, shown = 0;
     if (st.mode === "periodic") {
-      const errs = [0, 1, 2, 3].map((k) => ({ k, t: lastError(k, T) })).filter((e) => e.t !== null).sort((a, b) => b.t - a.t);
-      errs.forEach((e) => {
+      const errs = [0, 1, 2, 3].map((k) => ({ k, e: lastError(k, T) })).filter((o) => o.e).sort((a, b) => b.e.t - a.e.t);
+      const frames = periodicRows(st);
+      total = errs.length + frames.length;
+      errs.forEach(({ k, e }) => {
+        const r = { err: ERR_TYPES[k], bus: 1 };
+        if (!pass(r)) return;
+        shown++;
         const stale = T - e.t > 2;
-        row(e.t.toFixed(3) + " s", null, null, "BUS ERROR: " + ERR_TYPES[e.k], stale ? "#7a3a40" : C.redHi);
+        row(e.e - 4 < 1 ? "--" : "3.200 s", r, stale ? "#7a3a40" : C.redHi);
       });
-      MSG_IDS.forEach((id) => {
-        const f = lastFrame(id, T);
-        if (!f) return;
-        const k = st.dbc ? clamp((st.openK && st.openK[id]) || 0) : 0;
-        row(f.t.toFixed(3) + " s", hexId(id), f.bytes.map(h2).join(" "), st.dbc ? NAMES[id] : "", null, st.dbc ? { chev: k > 0.5 } : null);
+      frames.forEach((r) => {
+        if (!pass(r)) return;
+        shown++;
+        const k = st.dbc && r.bus === 1 ? clamp((st.openK && st.openK[r.id]) || 0) : 0;
+        row(r.per == null ? "--" : r.per.toFixed(3) + " s", r, r.tx ? C.tx : null, st.dbc && r.bus === 1 ? { chev: k > 0.5 } : null);
         if (k > 0) {
-          decode(id, f.bytes, f.t).forEach(([n, v], j, arr) => {
+          decode(r.id, r.bytes, r.t).forEach(([n, v], j, arr) => {
             const kk = clamp(k * arr.length - j);
             if (kk <= 0) return;
             ctx.save();
@@ -1019,19 +1255,16 @@ details strong { color: var(--fg); font-weight: 400; }
         }
       });
     } else {
-      // Waterfall: newest first; within one 100 ms tick can2pcap writes the frame, the waveform, then any error.
-      const n = Math.floor(T * 10 + 1e-6);
       const max = Math.ceil((R.h - 28) / rowH);
-      let shown = 0;
-      for (let j = n; j >= 0 && shown < max; j--) {
-        const t = j * 0.1;
-        if ((j + 1) % 8 === 0) { row(t.toFixed(3) + " s", null, null, "BUS ERROR: " + ERR_TYPES[((j + 1) / 8) % 4], C.redHi); shown++; }
-        row(t.toFixed(3) + " s", "0x400", waveBytes(t).map(h2).join(" "), st.dbc ? "TestWaveforms" : ""); shown++;
-        const id = SYN_IDS[j % 4];
-        row(t.toFixed(3) + " s", hexId(id), synBytes(j).map(h2).join(" "), st.dbc ? NAMES[id] : ""); shown++;
-      }
+      waterfallRows(st, max).forEach((r) => {
+        if (!pass(r) || shown >= max) return;
+        shown++;
+        row(r.t.toFixed(3) + " s", r, r.err ? C.redHi : r.tx ? C.tx : null);
+      });
+      total = 100000;
     }
     ctx.restore();
+    if (flt && flt.text && st.mode === "periodic") st.statusExtra = `, showing ${shown} of ${total} row(s)`;
   }
 
   function drawGraphView(st) {
@@ -1171,10 +1404,12 @@ details strong { color: var(--fg); font-weight: 400; }
     }
   }
 
+  // One tab per bus; each bus measured against its own bitrate.
   function drawBusLoadView(st) {
-    const R = CONTENT, T = st.T;
+    const R = CONTENT, T = st.T, bus = st.blBus || 1;
     ctx.fillStyle = "#10131a";
     ctx.fillRect(R.x, R.y, R.w, R.h);
+    miniTabs(16, 180, st.buses > 1 ? ["CAN 1", "CAN 2"] : ["CAN 1"], bus - 1, { w: 80, press: (i) => st.press("blt:" + (i + 1)) });
     const box = (x, y, w, h, title) => {
       rect(x, y, w, h, rgba(C.fog, 0.24), null, 1.1);
       const tw = measure(title, UF(14)) + 10;
@@ -1182,20 +1417,20 @@ details strong { color: var(--fg); font-weight: 400; }
       ctx.fillRect(x + 6, y - 6, tw, 12);
       txt(title, x + 11, y + 5, UF(14), C.fog);
     };
-    box(18, 188, 96, 600, "Bus Load");
-    box(126, 188, 670, 600, "Bus Load History");
-    box(808, 188, 330, 600, "Statistics");
-    const load = T > 1 ? 0.5 : 0.5 * clamp(T);
-    // Gauge: ten empty cells, filled from the bottom by the load.
+    box(18, 218, 96, 572, "Bus Load");
+    box(126, 218, 670, 572, "Bus Load History");
+    box(808, 218, 330, 572, "Statistics");
+    const full = bus === 1 ? 0.5 : 0.4;
+    const load = T > 1 ? full : full * clamp(T);
     for (let i = 0; i < 10; i++) {
       ctx.fillStyle = "#1a1e29";
-      ctx.fillRect(32, 740 - (i + 1) * 52 + 4, 68, 46);
+      ctx.fillRect(32, 744 - (i + 1) * 48 + 4, 68, 44);
     }
     ctx.fillStyle = C.green;
-    ctx.fillRect(32, 740 - Math.max(3, (load / 100) * 520), 68, Math.max(3, (load / 100) * 520));
-    txt(Math.round(load) + " %", 66, 770, UF(17), C.paper, "center");
+    ctx.fillRect(32, 744 - Math.max(3, (load / 100) * 480), 68, Math.max(3, (load / 100) * 480));
+    txt(load.toFixed(1) + " %", 66, 774, UF(17), C.paper, "center");
     // History
-    const P = { x: 186, y: 228, w: 584, h: 500 };
+    const P = { x: 186, y: 252, w: 584, h: 478 };
     ctx.fillStyle = "#0b0d12";
     ctx.fillRect(P.x, P.y, P.w, P.h);
     rect(P.x, P.y, P.w, P.h, rgba(C.fog, 0.25), null, 1);
@@ -1208,9 +1443,10 @@ details strong { color: var(--fg); font-weight: 400; }
     ctx.rotate(-Math.PI / 2);
     txt("Bus Load %", 0, 0, UF(14), C.fog, "center");
     ctx.restore();
+    const gwT = capT(GW_T);
     ctx.beginPath();
     for (let t = 0; t <= Math.floor(T); t++) {
-      const v = t < 1 ? 0 : t < 2 ? 0.3 : 0.5;
+      const v = bus === 1 ? (t < 1 ? 0 : t < 2 ? 0.3 : 0.5) : (t < 1 ? 0 : t < gwT ? 0.32 : 0.4);
       if (t === 0) ctx.moveTo(X(t), Y(v)); else ctx.lineTo(X(t), Y(v));
     }
     ctx.strokeStyle = C.blueHi;
@@ -1218,32 +1454,45 @@ details strong { color: var(--fg); font-weight: 400; }
     ctx.stroke();
     // Statistics
     uiBtn(rectOf("bl:reset"), "Reset", { press: st.press("bl:reset") });
-    const frames = frameCount(T), errors = Math.floor((Math.floor(T * 10) + 1) / 8);
-    const stats = [
-      ["Maximum Bus Load:", "0.5 %"], ["Minimum Bus Load:", "0.0 %"], ["Time of max. Bus Load:", "21:41:10"], ["Time of min. Bus Load:", "21:41:08"],
-      ["Bus Load Mean Value:", "0.5 %"], ["Frame Rate (inst. / avg.):", "21 / 20 fps"], ["Total Frames:", String(frames - errors)],
-      ["Total Bytes:", ((frames - errors) * 8 / 1000).toFixed(2) + " KB"], ["Error Frame Rate:", `1.2 /s (${errors} total)`], ["Peak Burst Rate:", "30 fps"],
-    ];
+    let stats, table;
+    if (bus === 1) {
+      const errors = errorCount(T), frames = frameCount(T) - errors;
+      stats = [
+        ["Maximum Bus Load:", "0.5 %"], ["Minimum Bus Load:", "0.0 %"], ["Time of max. Bus Load:", "17:41:13"], ["Time of min. Bus Load:", "17:41:11"],
+        ["Bus Load Mean Value:", "0.5 %"], ["Frame Rate (inst. / avg.):", "21 / 20 fps"], ["Total Frames:", String(frames)],
+        ["Total Bytes:", ((frames * 8) / 1000).toFixed(2) + " KB"], ["Error Frame Rate:", `1.2 /s (${errors} total)`], ["Peak Burst Rate:", "30 fps"],
+      ];
+      table = [[0x400, 50.0, 0.5], [0x100, 12.5, 0.125], [0x200, 12.5, 0.125], [0x300, 12.5, 0.125], [0x7e8, 12.5, 0.125]].map(([id, p, sh]) => [id, p, Math.floor(frames * sh)]);
+    } else {
+      const c4 = lastBus2(BUS2[0], T), b0 = lastBus2(BUS2[1], T), fw = fwdCount(T);
+      const n4 = c4 ? c4.j + 1 : 0, nb = b0 ? b0.j / 5 + 1 : 0, frames = n4 + nb + fw;
+      stats = [
+        ["Maximum Bus Load:", "0.4 %"], ["Minimum Bus Load:", "0.0 %"], ["Time of max. Bus Load:", "17:42:36"], ["Time of min. Bus Load:", "17:41:11"],
+        ["Bus Load Mean Value:", "0.4 %"], ["Frame Rate (inst. / avg.):", "15 / 13 fps"], ["Total Frames:", String(frames)],
+        ["Total Bytes:", ((frames * 8) / 1000).toFixed(2) + " KB"], ["Error Frame Rate:", "0.0 /s (0 total)"], ["Peak Burst Rate:", "20 fps"],
+      ];
+      table = [[0x0c4, 69.0, n4], [0x100, 17.2, fw], [0x2b0, 13.8, nb]];
+    }
     stats.forEach(([a, b], i) => {
-      txt(a, 822, 262 + i * 30, UF(15), C.fog);
-      txt(b, 1124, 262 + i * 30, UF(15), C.paper, "right");
+      txt(a, 822, 288 + i * 28, UF(15), C.fog);
+      txt(b, 1124, 288 + i * 28, UF(15), C.paper, "right");
     });
-    txt("Bus Load by CAN ID:", 822, 572, UF(15), C.fog);
-    tableHeader(822, 582, 302, [["ID", 8], ["% of Bus", 90], ["Frames", 200]]);
-    [[0x400, 50.0, 1], [0x100, 12.5, 0.25], [0x200, 12.5, 0.25], [0x300, 12.5, 0.25], [0x7e8, 12.5, 0.25]].forEach(([id, p, share], i) => {
-      const y = 628 + i * 24;
+    txt("Bus Load by CAN ID:", 822, 580, UF(15), C.fog);
+    tableHeader(822, 590, 302, [["ID", 8], ["% of Bus", 90], ["Frames", 200]]);
+    table.forEach(([id, p, n], i) => {
+      const y = 636 + i * 24;
       txt(hexId(id), 830, y, UM(14), C.paper);
       txt(p.toFixed(1) + " %", 912, y, UM(14), C.paper);
-      txt(String(Math.floor(((frames - errors) / 2) * share)), 1022, y, UM(14), C.paper);
+      txt(String(n), 1022, y, UM(14), C.paper);
     });
   }
 
   const TXLIST = [
-    { cyc: "100 ms", id: "0x123", flags: "STD", dlc: "8", data: "01 A2 00 00 00 00 00 00", note: "Heartbeat" },
-    { cyc: "500 ms", id: "0x18FF50E5", flags: "EXT", dlc: "8", data: "FF 00 FA 0C 00 00 00 00", note: "J1939-style status" },
-    { cyc: "One-shot", id: "0x456", flags: "STD FD", dlc: "64", data: "00 11 22 33 44 55 66 77 ...", note: "FD payload" },
+    { cyc: "100 ms", id: "0x123", bus: 2, flags: "STD", dlc: "8", data: "01 A2 00 00 00 00 00 00", note: "Heartbeat" },
+    { cyc: "500 ms", id: "0x18FF50E5", bus: 2, flags: "EXT", dlc: "8", data: "FF 00 FA 0C 00 00 00 00", note: "J1939-style status" },
+    { cyc: "One-shot", id: "0x456", bus: 2, flags: "STD FD BRS", dlc: "64", data: "00 11 22 33 44 55 66 77 ...", note: "FD payload" },
   ];
-  const SCOL = [["Time", 12], ["ID", 120], ["Flags", 236], ["DLC", 336], ["Data", 392], ["Message/Signal", 720], ["Value", 920]];
+  const SCOL = [["Time", 12], ["ID", 120], ["Flags", 300], ["DLC", 420], ["Data", 460], ["Message/Signal", 770], ["Value", 960]];
   function drawStimView(st) {
     const R = CONTENT;
     ctx.fillStyle = "#10131a";
@@ -1266,20 +1515,55 @@ details strong { color: var(--fg); font-weight: 400; }
       const y = 182 + 28 + i * 24 + 17;
       txt(r.time, 56, y, UM(14), C.tx);
       txt(r.id, 164, y, UM(14), C.tx);
-      txt(r.flags + " TX", 280, y, UF(15), C.tx);
-      txt(r.dlc, 380, y, UM(14), C.tx);
-      txt(r.data, 436, y, UM(14), C.tx);
+      txt(r.flags + " TX", 344, y, UF(15), C.tx);
+      txt(r.dlc, 464, y, UM(14), C.tx);
+      txt(r.data, 504, y, UM(14), C.tx);
     });
     (st.txList || []).forEach((m, i) => {
       const y = 484 + 28 + i * 24;
       if (st.txSel === i) { ctx.fillStyle = rgba(C.blue, 0.45); ctx.fillRect(45, y, 1084, 24); }
       txt(m.cyc, 56, y + 17, UF(15), C.paper);
-      txt(m.id, 164, y + 17, UM(14), C.paper);
-      txt(m.flags, 280, y + 17, UF(15), C.fog);
-      txt(m.dlc, 380, y + 17, UM(14), C.fog);
-      txt(m.data, 436, y + 17, UM(14), C.paper);
-      txt(m.note, 764, y + 17, UF(15), C.fog);
+      txt(m.bus > 1 ? `CAN ${m.bus}  ${m.id}` : m.id, 164, y + 17, UM(14), C.paper);
+      txt(m.flags, 344, y + 17, UF(15), C.fog);
+      txt(m.dlc, 464, y + 17, UM(14), C.fog);
+      txt(m.data, 504, y + 17, UM(14), C.paper);
+      txt(m.note, 814, y + 17, UF(15), C.fog);
     });
+  }
+
+  // Diagnostics: one row per request and answer, the request line underneath.
+  function drawDiagView(st) {
+    const R = CONTENT;
+    ctx.fillStyle = "#0f1219";
+    ctx.fillRect(R.x, R.y, R.w, R.h);
+    tableHeader(R.x, R.y, R.w, [["Time", 10], ["", 130], ["Bytes", 230], ["Meaning", 560]]);
+    LAYOUT.diag = [];
+    const rows = diagRows(st.t);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(R.x, R.y + 27, R.w, 560); ctx.clip();
+    rows.forEach((r, i) => {
+      const y = R.y + 28 + i * 24, k = easeOutCubic(prog(st.t, r.t, r.t + 0.25));
+      LAYOUT.diag[i] = { x: R.x, y, w: R.w, h: 24 };
+      ctx.save();
+      ctx.globalAlpha *= k;
+      if (i === rows.length - 1 && st.t - r.t < 1.2) { ctx.fillStyle = rgba(C.blue, 0.25 * (1 - (st.t - r.t) / 1.2)); ctx.fillRect(R.x, y, R.w, 24); }
+      const col = r.bad ? C.redHi : C.paper;
+      txt(clockAt(r.t).slice(0, 12), R.x + 10, y + 17, UM(14), r.bad ? C.redHi : C.fog);
+      txt(r.kind, R.x + 130, y + 17, UF(15), r.bad ? C.redHi : C.fog);
+      txt(fit(r.bytes, UM(14), 316), R.x + 230, y + 17, UM(14), col);
+      txt(fit(r.meaning, UF(15), 556), R.x + 560, y + 17, UF(15), r.bad ? C.redHi : r.kind === "Response" ? C.green : C.paper);
+      ctx.restore();
+    });
+    ctx.restore();
+    // Request line
+    ctx.fillStyle = "#10131a";
+    ctx.fillRect(R.x, 756, R.w, 42);
+    txt("Request:", 22, 782, UF(15), C.fog);
+    const rq = st.diagReq || "";
+    uiEdit(rectOf("dg:req"), rq || "e.g: 22 F1 90", { mono: true, px: 14, dim: !rq, focus: st.diagReqFocus, caret: st.diagReqFocus });
+    uiBtn(rectOf("dg:send"), "Send", { press: st.press("dg:send"), disabled: st.diagBusy });
+    uiBtn({ x: 836, y: 763, w: 90, h: 28 }, "Clear log", {});
+    if (st.diagBusy) txt("Waiting for the ECU...", 940, 782, UF(15), C.amber);
   }
 
   // ---------- Dialogs ----------
@@ -1304,41 +1588,108 @@ details strong { color: var(--fg); font-weight: 400; }
     return () => ctx.restore();
   }
   function formRow(r, y, label) { txt(label, r.x + 16, r.y + y + 18, UF(15), C.fog); }
+  function okCancel(r, okKey, st, y) {
+    const yy = y != null ? y : r.y + r.h - 42;
+    uiBtn({ x: r.x + r.w - 196, y: yy, w: 84, h: 28 }, "OK", { press: okKey ? st.press(okKey) : 0 });
+    uiBtn({ x: r.x + r.w - 104, y: yy, w: 84, h: 28 }, "Cancel");
+  }
+  function drawMoreBuses(st, k) {
+    const done = dlgFrame(MB, "More buses", k);
+    const rows = [["CAN 1", true, SYN_NAME, true], ["CAN 2", st.mbChk2, st.mbCh2, false], ["CAN 3", false, PEAK_NAME, false], ["CAN 4", false, PEAK_NAME, false]];
+    rows.forEach(([name, on, ch, fixed], i) => {
+      const y = mbRowY(i);
+      uiCheck(MB.x + 16, y + 14, name, on, { dim: fixed, press: i === 1 ? st.press("mb:chk2") : 0 });
+      uiCombo({ x: MB.x + 110, y, w: 390, h: 28 }, ch, { dim: !on, press: i === 1 ? st.press("mb:combo2") : 0, open: i === 1 && st.mbOpen, px: 14 });
+    });
+    txt("More", MB.x + 18, mbRowY(4) + 19, UF(15), C.fog);
+    uiBtn(rectOf("mb:add"), "+", { press: st.press("mb:add") });
+    okCancel(MB, "mb:ok", st);
+    if (st.mbOpen) uiList({ x: MB.x + 110, y: mbRowY(1) + 28, w: 390 }, CHANNELS, { hover: st.mbHover });
+    done();
+  }
   function drawCanController(st, k) {
     const done = dlgFrame(CC, "CAN Controller", k);
-    const fd = st.ccMode === "ISO CAN FD";
-    formRow(CC, 46, "Mode:");
-    uiCombo(rectOf("cc:mode"), st.ccMode, { press: st.press("cc:mode"), open: st.ccModeOpen });
-    formRow(CC, 82, "Baudrate:");
-    uiCombo({ x: CC.x + 150, y: CC.y + 82, w: 162, h: 26 }, "500 kbit/s");
+    miniTabs(CC.x + 12, CC.y + 40, ["CAN 1", "CAN 2"], st.ccTab - 1, { w: 72, press: (i) => st.press("cc:tab" + (i + 1)) });
+    rect(CC.x + 12, CC.y + 68, CC.w - 24, 452, rgba(C.fog, 0.2), null, 1);
+    const b = ccBase(), mode = st.ccTab === 1 ? "CAN" : st.ccMode, fd = mode === "ISO CAN FD";
+    const row = (dy, label) => txt(label, CC.x + 28, b + dy + 18, UF(15), C.fog);
+    row(0, "Mode:");
+    uiCombo(rectOf("cc:mode"), mode, { press: st.press("cc:mode"), open: st.ccModeOpen });
+    row(36, "Baudrate:");
+    uiCombo({ x: CC.x + 170, y: b + 36, w: 166, h: 26 }, "500 kbit/s");
     if (fd) {
-      formRow(CC, 118, "Data Rate:");
-      uiCombo({ x: CC.x + 150, y: CC.y + 118, w: 162, h: 26 }, "2 Mbit/s");
-      formRow(CC, 172, "Nominal Sample Point:");
+      row(72, "Data Rate:");
+      uiCombo({ x: CC.x + 170, y: b + 72, w: 166, h: 26 }, "2 Mbit/s");
+      row(126, "Nominal Sample Point:");
       uiEdit(rectOf("cc:sp"), "70 %", { px: 15 });
-      formRow(CC, 208, "Data Sample Point:");
-      uiEdit({ x: CC.x + 210, y: CC.y + 208, w: 102, h: 26 }, "70 %", { px: 15 });
+      row(162, "Data Sample Point:");
+      uiEdit({ x: CC.x + 234, y: b + 162, w: 102, h: 26 }, "70 %", { px: 15 });
       const ak = st.ccAchievedK;
       if (ak > 0) {
-        const lines = wrap("Achieved: nominal 70.0% (BRP 2, TSEG1 55, TSEG2 24, SJW 24), data 70.0% (BRP 2, TSEG1 13, TSEG2 6, SJW 6)", UF(15), CC.w - 32);
-        lines.forEach((l, i) => txt(l, CC.x + 16, CC.y + 262 + i * 22, UF(15), C.paper, "left", ak));
+        const lines = wrap("Achieved: nominal 70.0% (BRP 2, TSEG1 55, TSEG2 24, SJW 24), data 70.0% (BRP 2, TSEG1 13, TSEG2 6, SJW 6)", UF(15), CC.w - 56);
+        lines.forEach((l, i) => txt(l, CC.x + 28, b + 216 + i * 22, UF(15), C.paper, "left", ak));
       }
     }
-    uiCheck(CC.x + 16, CC.y + 421, "Request bus configuration", true, { press: st.press("cc:check") });
-    uiBtn(rectOf("cc:ok"), "OK", { press: st.press("cc:ok") });
-    uiBtn({ x: CC.x + 232, y: CC.y + 456, w: 84, h: 28 }, "Cancel");
-    if (st.ccModeOpen) uiList({ x: CC.x + 150, y: CC.y + 72, w: 162 }, ["CAN", "ISO CAN FD", "Expert CAN FD"], { hover: st.ccModeHover, rowH: 26 });
+    uiCheck(CC.x + 28, CC.y + 493, "Request bus configuration", true, { press: st.press("cc:check") });
+    okCancel(CC, "cc:ok", st, CC.y + 538);
+    if (st.ccModeOpen) uiList({ x: CC.x + 170, y: b + 26, w: 166 }, ["CAN", "ISO CAN FD", "Expert CAN FD"], { hover: st.ccModeHover, rowH: 26 });
+    done();
+  }
+  function drawGateway(st, k) {
+    const done = dlgFrame(GW, "Gateway", k);
+    uiCheck(GW.x + 16, GW.y + 57, "Forward frames between buses", st.gwOn, { press: st.press("gw:enable") });
+    ctx.fillStyle = "#0f1219";
+    ctx.fillRect(GW.x + 12, GW.y + 78, GW.w - 24, 156);
+    rect(GW.x + 12, GW.y + 78, GW.w - 24, 156, rgba(C.fog, 0.2), null, 1);
+    tableHeader(GW.x + 12, GW.y + 78, GW.w - 24, [["From", 8], ["To", 120], ["IDs", 232]]);
+    if (st.gwRule) {
+      const y = GW.y + 106;
+      ctx.fillStyle = rgba(C.blue, 0.25);
+      ctx.fillRect(GW.x + 13, y, GW.w - 26, 28);
+      uiCombo({ x: GW.x + 14, y: y + 1, w: 104, h: 26 }, "CAN 1", { px: 14 });
+      uiCombo({ x: GW.x + 126, y: y + 1, w: 104, h: 26 }, "CAN 2", { px: 14 });
+      if (st.gwEditing) uiEdit({ x: GW.x + 238, y: y + 1, w: 206, h: 26 }, st.gwIds, { mono: true, px: 14, focus: true, caret: true });
+      else txt(st.gwIds, GW.x + 246, y + 19, UM(14), C.paper);
+    }
+    uiBtn(rectOf("gw:add"), "+", { press: st.press("gw:add") });
+    uiBtn({ x: GW.x + 50, y: GW.y + 246, w: 80, h: 28 }, "Remove", { disabled: !st.gwRule });
+    txt(st.gwTotals || "", GW.x + GW.w - 16, GW.y + 265, UF(15), C.fog, "right");
+    okCancel(GW, "gw:ok", st);
+    done();
+  }
+  function drawDbcManagement(st, k) {
+    const done = dlgFrame(DM, "DBC management", k);
+    const tx = DM.x + 12, ty = DM.y + 42, tw = DM.w - 24;
+    ctx.fillStyle = "#0f1219";
+    ctx.fillRect(tx, ty, tw, 250);
+    rect(tx, ty, tw, 250, rgba(C.fog, 0.2), null, 1);
+    tableHeader(tx, ty, tw, [["Bus / DBC file", 8], ["Messages", 410]]);
+    const items = [[0, "CAN 1", 1]];
+    if (st.dbcFile) items.push([1, "sample.dbc", 1, "5"]);
+    items.push([0, "CAN 2", 2]);
+    items.forEach(([lvl, s, bus, n], i) => {
+      const y = ty + 28 + i * 26;
+      if (lvl === 0 && bus === st.dmSel) { ctx.fillStyle = rgba(C.blue, 0.45); ctx.fillRect(tx + 1, y, tw - 2, 26); }
+      if (lvl === 0) {
+        ctx.strokeStyle = C.fog; ctx.lineWidth = 1.4; ctx.beginPath();
+        const cx = tx + 12, cy = y + 13;
+        ctx.moveTo(cx - 4, cy - 2); ctx.lineTo(cx, cy + 2); ctx.lineTo(cx + 4, cy - 2); ctx.stroke();
+      }
+      txt(s, tx + 24 + lvl * 22, y + 18, lvl === 0 ? F.iso(15) : UF(15), C.paper, "left", 1, lvl === 0 ? 0.5 : 0);
+      if (n) txt(n, tx + 418, y + 18, UM(14), C.fog);
+    });
+    uiBtn(rectOf("dm:import"), `Import DBC for CAN ${st.dmSel}...`, { press: st.press("dm:import") });
+    uiBtn({ x: DM.x + 214, y: DM.y + DM.h - 44, w: 80, h: 28 }, "Remove", { disabled: true });
+    uiBtn(rectOf("dm:close"), "Close", { press: st.press("dm:close") });
     done();
   }
   function drawFileDialog(st, k, title, fileName, button) {
     const done = dlgFrame(FD, title, k);
     ctx.fillStyle = "#11141c";
     ctx.fillRect(FD.x + 12, FD.y + 42, 146, 240);
-    ["Desktop", "Documents", "Downloads", "CANtrip-v1.5.0_yukari"].forEach((s, i) => {
+    ["Desktop", "Documents", "Downloads", "CANtrip-v2.0.0_nagato"].forEach((s, i) => {
       if (i === 3) { ctx.fillStyle = rgba(C.blue, 0.35); ctx.fillRect(FD.x + 12, FD.y + 48 + i * 26, 146, 24); }
-      let px = 14;
-      while (px > 10 && measure(s, UF(px)) > 136) px--;
-      txt(s, FD.x + 20, FD.y + 65 + i * 26, UF(px), C.paper);
+      txt(fit(s, UF(14), 134), FD.x + 20, FD.y + 65 + i * 26, UF(14), C.paper);
     });
     tableHeader(FD.x + 170, FD.y + 42, 390, [["Name", 8], ["Type", 250]]);
     (st.files || []).forEach((f, i) => {
@@ -1355,26 +1706,29 @@ details strong { color: var(--fg); font-weight: 400; }
   }
   function drawTxDialog(st, k) {
     const done = dlgFrame(TX, "New Transmit Message", k);
-    txt("Bus: CAN FD, 500000 bps / 2000000 bps", TX.x + 16, TX.y + 62, UF(15), C.paper);
-    uiBtn({ x: TX.x + 346, y: TX.y + 44, w: 80, h: 26 }, "Change...", { px: 14 });
-    uiCheck(TX.x + 16, TX.y + 92, "FD Frame", true);
-    formRow(TX, 116, "ID (hex):");
+    const fdBus = st.txBus === 2;
+    formRow(TX, 44, "Bus:");
+    uiCombo(rectOf("tx:bus"), TXBUSES[st.txBus - 1], { press: st.press("tx:bus"), open: st.txBusOpen, px: 14 });
+    txt(fdBus ? "CAN FD, 500000 bps / 2000000 bps" : "CAN, 500000 bps", TX.x + 130, TX.y + 98, UF(15), C.dim);
+    uiBtn({ x: TX.x + TX.w - 104, y: TX.y + 80, w: 88, h: 26 }, "Change...", { px: 14 });
+    uiCheck(TX.x + 16, TX.y + 124, "FD Frame", fdBus, { dim: !fdBus });
+    formRow(TX, 140, "ID (hex):");
     uiEdit(rectOf("tx:id"), st.txId, { mono: true, focus: st.txIdFocus, caret: st.txIdFocus });
-    formRow(TX, 152, "Length:");
+    formRow(TX, 176, "Length:");
     uiCombo(rectOf("tx:len"), st.txLen, { press: st.press("tx:len"), open: st.txLenOpen });
-    formRow(TX, 188, "Data (hex):");
-    for (let i = 0; i < 8; i++) uiEdit({ x: TX.x + 130 + i * 34, y: TX.y + 188, w: 30, h: 26 }, h2((i * 0x11) & 255), { mono: true, center: true, px: 13 });
-    uiBtn(rectOf("tx:dots"), "...", { press: st.press("tx:dots") });
-    formRow(TX, 224, "Cycle Time:");
+    formRow(TX, 212, "Data (hex):");
+    for (let i = 0; i < 8; i++) uiEdit({ x: TX.x + 130 + i * 34, y: TX.y + 212, w: 30, h: 26 }, h2((i * 0x11) & 255), { mono: true, center: true, px: 13 });
+    uiBtn(rectOf("tx:dots"), "...", { press: st.press("tx:dots"), disabled: !fdBus });
+    formRow(TX, 248, "Cycle Time:");
     uiEdit(rectOf("tx:cycle"), "0 ms", { focus: st.txCycleFocus });
-    uiCheck(TX.x + 130, TX.y + 270, "Paused", false);
-    uiCheck(TX.x + 130, TX.y + 298, "Extended Frame", false);
-    uiCheck(TX.x + 130, TX.y + 326, "Bit Rate Switch", st.txBrs, { press: st.press("tx:brs") });
-    formRow(TX, 356, "Comment:");
-    uiEdit({ x: TX.x + 130, y: TX.y + 356, w: 290, h: 26 }, st.txComment, {});
-    uiBtn(rectOf("tx:ok"), "OK", { press: st.press("tx:ok") });
-    uiBtn({ x: TX.x + 334, y: TX.y + 470, w: 90, h: 28 }, "Cancel");
-    if (st.txLenOpen) uiList({ x: TX.x + 130, y: TX.y + 178, w: 120 }, LENGTHS, { hover: st.txLenHover, rowH: 22 });
+    uiCheck(TX.x + 130, TX.y + 296, "Paused", false);
+    uiCheck(TX.x + 130, TX.y + 324, "Extended Frame", false);
+    uiCheck(TX.x + 130, TX.y + 352, fdBus ? "Bit Rate Switch" : "Remote Request", fdBus && st.txBrs, { press: st.press("tx:brs") });
+    formRow(TX, 380, "Comment:");
+    uiEdit({ x: TX.x + 130, y: TX.y + 380, w: 340, h: 26 }, st.txComment, {});
+    okCancel(TX, "tx:ok", st, TX.y + 542);
+    if (st.txLenOpen) uiList({ x: TX.x + 130, y: TX.y + 202, w: 120 }, LENGTHS, { hover: st.txLenHover, rowH: 22 });
+    if (st.txBusOpen) uiList({ x: TX.x + 130, y: TX.y + 70, w: 414 }, TXBUSES, { hover: st.txBusHover, rowH: 26 });
     done();
   }
   function drawEditData(st, k) {
@@ -1405,7 +1759,7 @@ details strong { color: var(--fg); font-weight: 400; }
       uiEdit({ x: LO.x + 16, y: LO.y + 108, w: 508, h: 28 }, "[user]_[bus]_[date]_[time]", { mono: true });
       ["[date]", "[time]", "[user]", "[bus]"].forEach((s, i) => uiBtn({ x: LO.x + 16 + i * 78, y: LO.y + 148, w: 72, h: 26 }, s, { px: 14 }));
       txt("Preview:", LO.x + 16, LO.y + 206, UF(15), C.fog);
-      txt("user_AVLBS_CAN_2026-10-15_214107.asc", LO.x + 16, LO.y + 234, UM(15), C.paper);
+      txt("user_AVLBS_CAN_2026-11-16_174107.asc", LO.x + 16, LO.y + 234, UM(15), C.paper);
     } else {
       txt("Max file size before splitting:", LO.x + 16, LO.y + 102, UF(15), C.fog);
       uiCombo({ x: LO.x + 250, y: LO.y + 84, w: 150, h: 26 }, "Unlimited");
@@ -1419,6 +1773,34 @@ details strong { color: var(--fg); font-weight: 400; }
     uiBtn({ x: LO.x + 444, y: LO.y + 300, w: 84, h: 28 }, "Cancel");
     done();
   }
+  // A Qt input dialog: a prompt, a line edit, OK and Cancel.
+  function drawInput(st, k, title, lines, text, caret) {
+    const done = dlgFrame(IN, title, k);
+    lines.forEach((l, i) => txt(l, IN.x + 18, IN.y + 62 + i * 24, UF(15), C.paper));
+    uiEdit({ x: IN.x + 16, y: IN.y + 62 + lines.length * 24 - 6, w: IN.w - 32, h: 28 }, text, { mono: true, px: 15, focus: true, caret });
+    okCancel(IN, "in:ok", st);
+    done();
+  }
+  function drawAbout(st, k) {
+    const done = dlgFrame(AB, "CANtrip v2.0.0 - Nagato", k);
+    drawLogoTile(AB.x + 22, AB.y + 52, 80);
+    const x = AB.x + 124, w = AB.w - 146;
+    let y = AB.y + 66;
+    txt("CANtrip", x, y, F.iso(18), C.paper, "left", 1, 0.5);
+    y += 28;
+    const para = (s, font, color, gap = 14) => {
+      wrap(s, font, w).forEach((l) => { txt(l, x, y, font, color); y += font === UF(13) ? 18 : 21; });
+      y += gap;
+    };
+    para("An open-source, free alternative to Vector CANalyzer for viewing and decoding CAN / CAN-FD bus traffic on Windows.", UF(15), C.paper);
+    para("Created by Avesta Molaei.", UF(15), C.paper, 0);
+    para("https://github.com/avmolaei/CANtrip", UF(15), C.blueHi);
+    para("Licensed under the GNU General Public License v3.0 (GPL-3.0).", UF(15), C.paper);
+    para("Vector, CANalyzer, and CANoe are trademarks of Vector Informatik GmbH. CANtrip is an independent, unaffiliated open-source project.", UF(13), C.fog);
+    uiBtn(rectOf("ab:ok"), "OK", { press: st.press("ab:ok") });
+    done();
+  }
+
 
   // ---------- Cursor, camera and the step layout ----------
   const VP = { x: 690, y: 132, w: 1150, h: 830 };
@@ -1483,7 +1865,7 @@ details strong { color: var(--fg); font-weight: 400; }
       ctx.restore();
     }
   }
-  // The app inside the viewport, seen through a camera; extra() draws overlays in app space.
+  // The app inside the viewport, seen through a camera; overlay() draws in app space.
   function appView(lt, spec, st) {
     const cam = camAt(lt, spec.cam);
     ctx.save();
@@ -1537,8 +1919,9 @@ details strong { color: var(--fg); font-weight: 400; }
     });
     return y;
   }
+  const STEPS = 17;
   function stepHeading(lt, n, area, title) {
-    return heading(lt, `Step ${String(n).padStart(2, "0")} / 11 · ${area}`, title, null, 96, 140, 560, 54);
+    return heading(lt, `Step ${String(n).padStart(2, "0")} / ${STEPS} · ${area}`, title, null, 96, 140, 560, 54);
   }
   function noteBox(lt, at, text, y, color = C.amber) {
     const k = easeOutCubic(prog(lt, at, at + 0.5));
@@ -1572,121 +1955,87 @@ details strong { color: var(--fg); font-weight: 400; }
     ctx.restore();
   }
 
-  // Base app state at film time t; scenes override what they change.
+  // Base app state at film time t; sheets override what they change.
   function baseState(t, lt, clicks) {
     const capturing = t >= CAP_CLICK;
+    const buses = t >= MB_T ? 2 : 1, gw = t >= GW_T;
+    const periodic = t >= PERIODIC_T;
     return {
-      t, tab: "Home", view: "trace", cap: capturing,
+      t, tab: "Home", view: "trace", cap: capturing, buses, gw,
       T: t >= CAP0 ? capT(t) : null,
-      mode: t >= 41.0 ? "periodic" : "waterfall",
-      dbc: t >= 49.0,
-      status: !capturing ? "" : t < CAP0 ? `Starting capture on ${SYN_NAME}...` : `Captured ${frameCount(capT(t))} frame(s)`,
+      mode: periodic ? "periodic" : "waterfall",
+      dbc: t >= DBC_T,
+      status: !capturing ? "" : t < CAP0 ? `Starting capture on ${SYN_NAME}...` : `Captured ${totalFrames(capT(t))} frame(s)`,
       press: pressFn(lt, clicks || []),
-      on: { waterfall: t < 41.0, periodic: t >= 41.0, asc: true, rxper: true },
-      combo: { rate: "30 Hz", channel: SYN_NAME },
-      dis: { "Stop Replay": true, logstop: true, stopsend: true, startsend: !capturing },
-      label: { dbcstatus: t >= 49.0 ? "sample.dbc loaded!" : "No DBC loaded...", outfile: "(default location)" },
-      openK: {},
+      on: { waterfall: !periodic, periodic, asc: true, rxper: true, tester: t >= TESTER_T },
+      combo: { rate: "30 Hz", channel: t >= CH_T ? SYN_NAME : PEAK_NAME, session: t >= SESSION_T ? "Extended" : "Default" },
+      edit: { reqid: t >= REQ_T ? "0x7E1" : "0x7E0", resid: t >= RES_T ? "0x7E9" : "0x7E8" },
+      spin: { diagbus: "CAN 1" },
+      btnText: { morebuses: buses > 1 ? "More buses (1)..." : "More buses...", gateway: gw ? "Gateway (1)..." : "Gateway..." },
+      dis: { "Stop Replay": true, logstop: true, stopsend: true, startsend: !capturing, "Write...": false },
+      label: { dbcstatus: t >= DBC_T ? "sample.dbc loaded!" : "No DBC loaded...", outfile: "(default location)" },
+      openK: {}, filter: null, blBus: 1,
     };
   }
 
-  // ---------- Sheet 1: title ----------
+  // ---------- Sheet: title ----------
   function drawTitle(lt) {
     drawWave(200, 1720, 820, 38, easeInOutCubic(prog(lt, 0.2, 5.6)), 0.8, false, 2.2);
     lockup(W / 2, 330, 190, 160, 42, prog(lt, 0.3, 1.2), lt);
-    rise(["How to use CANtrip v1.5.0"], W / 2, 560, 60, F.iso(54), C.paper, lt, 1.0, 0, "center", 1.4);
-    rise(["Install, capture, decode, plot, send and log. No hardware needed to follow along."], W / 2, 630, 40, F.iso(28), C.fog, lt, 1.5, 0, "center");
+    rise(["How to use CANtrip v2.0.0"], W / 2, 560, 60, F.iso(54), C.paper, lt, 1.0, 0, "center", 1.4);
+    rise(["Every tab, step by step. Most of it needs no hardware at all."], W / 2, 630, 40, F.iso(28), C.fog, lt, 1.5, 0, "center");
   }
 
-  // ---------- Sheet 2: install ----------
-  const INSTALL_ITEMS = [
-    [0.6, "Install Wireshark. Npcap is not needed."],
-    [2.2, "Unzip the CANtrip release anywhere."],
-    [3.8, "Copy can2pcap.exe into Wireshark's extcap folder."],
-    [7.6, "Launch cantrip.exe."],
-  ];
-  const COPY_CMD = 'copy can2pcap.exe "$env:APPDATA\\Wireshark\\extcap\\"';
+  // ---------- Sheet: install ----------
   function drawInstall(lt) {
     const y0 = stepHeading(lt, 1, "Install", ["Install it once."]);
-    stepList(lt, INSTALL_ITEMS, y0 + 60);
-    noteBox(lt, 5.8, "Updating CANtrip later? Copy can2pcap.exe again: Wireshark keeps running the old copy.", 760, C.amber);
+    const y1 = stepList(lt, [
+      [0.6, "Install Wireshark. Npcap is not needed."],
+      [2.2, "Unzip the CANtrip release anywhere."],
+      [4.4, "Launch cantrip.exe."],
+    ], y0 + 60);
+    noteBox(lt, 5.8, "Nothing to copy into Wireshark any more: CANtrip opens the hardware itself and hands the frames to tshark.", Math.max(y1 + 20, 620), C.blueHi);
     const ox = VP.x + 40, oy = VP.y + 40;
     rect(VP.x, VP.y, VP.w, VP.h, rgba(C.fog, 0.2), null, 1.2, [6, 8]);
-    block(ox, oy, 330, 110, "Wireshark", "provides tshark and dumpcap", easeOutCubic(prog(lt, 0.6, 1.1)), { stroke: C.blueHi });
+    block(ox, oy, 330, 110, "Wireshark", "provides tshark", easeOutCubic(prog(lt, 0.6, 1.1)), { stroke: C.blueHi });
     const nk = easeOutCubic(prog(lt, 1.0, 1.4));
     if (nk > 0) txt("Npcap: not needed", ox + 350, oy + 64, F.iso(20), C.dim, "left", nk);
     // The release folder
     const fk = easeOutCubic(prog(lt, 2.2, 2.7));
-    const files = [["cantrip.exe", "the app"], ["can2pcap.exe", "the extcap"], ["sample.dbc", "for the synthetic source"], ["dbcppp.dll", ""], ["Qt6Core.dll, Qt6Widgets.dll, ...", "Qt runtime"]];
-    const fy = oy + 180;
+    const files = [["cantrip.exe", "the app"], ["sample.dbc", "for the synthetic source"], ["can2pcap.exe", "optional, CANtrip doesn't use it"], ["dbcppp.dll", ""], ["Qt6Core.dll, Qt6Widgets.dll, ...", "Qt runtime"]];
+    const fy = oy + 180, fw = 640;
     if (fk > 0) {
       ctx.save();
       ctx.globalAlpha *= fk;
-      rect(ox, fy, 470, 250, C.rule, rgba(C.panel, 0.9), 1.5);
-      txt("CANtrip-v1.5.0_yukari\\", ox + 18, fy + 34, F.mono(500, 19), C.paper);
+      rect(ox, fy, fw, 250, C.rule, rgba(C.panel, 0.9), 1.5);
+      txt("CANtrip-v2.0.0_nagato\\", ox + 18, fy + 34, F.mono(500, 19), C.paper);
       files.forEach(([n, d], i) => {
         const y = fy + 72 + i * 34;
-        const hot = (i === 1 && lt >= 3.8 && lt < 5.4) || (i === 0 && lt >= 7.4);
-        if (hot) { ctx.fillStyle = rgba(C.red, 0.18); ctx.fillRect(ox + 10, y - 22, 450, 30); }
+        const hot = i === 0 && lt >= 4.2;
+        if (hot) { ctx.fillStyle = rgba(C.red, 0.18); ctx.fillRect(ox + 10, y - 22, fw - 20, 30); }
         txt(n, ox + 40, y, F.mono(400, 17), hot ? C.paper : C.fog);
-        if (d) txt(d, ox + 450, y, F.iso(18), C.dim, "right");
+        if (d) txt(d, ox + fw - 20, y, F.iso(18), C.dim, "right");
       });
       ctx.restore();
     }
-    // extcap folder
-    const ek = easeOutCubic(prog(lt, 3.8, 4.3));
-    const ex = VP.x + 620, ey = fy + 40;
-    if (ek > 0) {
-      ctx.save();
-      ctx.globalAlpha *= ek;
-      rect(ex, ey, 480, 150, C.redHi, rgba(C.panel, 0.9), 1.5);
-      txt("%APPDATA%\\Wireshark\\extcap\\", ex + 18, ey + 36, F.mono(500, 19), C.paper);
-      if (lt >= 5.0) txt("can2pcap.exe", ex + 40, ey + 92, F.mono(400, 17), C.paper, "left", easeOutCubic(prog(lt, 5.0, 5.3)));
-      else txt("(empty)", ex + 40, ey + 92, F.iso(18), C.dim);
-      ctx.restore();
-    }
-    const path = [[ox + 470, fy + 100], [ex - 40, fy + 100], [ex - 40, ey + 86], [ex, ey + 86]];
-    wire(path, easeInOutCubic(prog(lt, 4.0, 4.6)), C.redHi, 2);
-    const ck = prog(lt, 4.4, 5.0);
-    if (ck > 0 && ck < 1) {
-      const [x, y] = pointAt(path, pathLen(path) * easeInOutCubic(ck));
-      glow(x, y, 30, C.red, 0.6);
-      rect(x - 50, y - 14, 100, 28, C.redHi, C.ink, 1.5);
-      txt("can2pcap.exe", x, y + 6, F.mono(500, 13), C.paper, "center");
-    }
-    // Terminal line
-    const tk = easeOutCubic(prog(lt, 3.9, 4.3));
-    if (tk > 0) {
-      ctx.save();
-      ctx.globalAlpha *= tk;
-      const ty = VP.y + 560;
-      ctx.fillStyle = C.ink;
-      ctx.fillRect(ox, ty, 600, 120);
-      rect(ox, ty, 600, 120, C.rule, null, 1.5);
-      label("PowerShell", ox + 16, ty + 26, 13, C.fog);
-      const typed = COPY_CMD.slice(0, Math.floor(prog(lt, 4.0, 5.2) * COPY_CMD.length));
-      txt("PS> ", ox + 16, ty + 72, F.mono(400, 16), C.redHi);
-      txt(typed, ox + 56, ty + 72, F.mono(400, 16), C.paper);
-      ctx.restore();
-    }
     // Launch
-    const lk = easeOutCubic(prog(lt, 8.0, 8.6));
+    const lk = easeOutCubic(prog(lt, 5.0, 5.6));
     if (lk > 0) {
-      const s = 0.36, ax = VP.x + 650, ay = VP.y + 516;
+      const s = 0.4, ax = VP.x + 676, ay = VP.y + 300;
       ctx.save();
       ctx.globalAlpha *= lk;
       ctx.translate(ax, ay + (1 - lk) * 30);
       ctx.scale(s, s);
-      const st = baseState(36, 0, []);
-      st.cap = false; st.T = null; st.status = "";
+      const st = baseState(0, 0, []);
+      st.cap = false; st.T = null; st.status = ""; st.buses = 1;
       drawApp(st);
       ctx.restore();
+      wire([[ox + fw, fy + 66], [ax - 20, fy + 66]], easeInOutCubic(prog(lt, 4.8, 5.2)), C.redHi, 2);
     }
-    // Cursor clicks cantrip.exe
-    if (lt >= 7.0) {
+    if (lt >= 3.8) {
       const target = [ox + 90, fy + 66];
-      const [cx, cy] = keyAt(lt, [[7.0, VP.x + 900, VP.y + 700], [7.6, target[0], target[1]], [10, target[0], target[1]]]);
-      const u = prog(lt, 7.7, 8.2);
+      const [cx, cy] = keyAt(lt, [[3.8, VP.x + 900, VP.y + 700], [4.4, target[0], target[1]], [10, target[0], target[1]]]);
+      const u = prog(lt, 4.5, 5.0);
       if (u > 0 && u < 1) {
         ctx.strokeStyle = rgba(C.redHi, 1 - u);
         ctx.lineWidth = 2.5;
@@ -1696,131 +2045,210 @@ details strong { color: var(--fg); font-weight: 400; }
     }
   }
 
-  // ---------- Sheet 3: the ribbon ----------
-  const RIBBON_CLICKS = [[0.8, "tab:Home"], [1.8, "tab:Hardware"], [2.8, "tab:Analysis & Measurement"], [3.8, "tab:Logging"], [4.8, "tab:Stimulation"]];
+  // ---------- Sheet: the ribbon ----------
+  const RIBBON_CLICKS = [[0.8, "tab:Home"], [1.5, "tab:Hardware"], [2.2, "tab:Analysis & Measurement"], [2.9, "tab:Logging"], [3.6, "tab:Stimulation"], [4.3, "tab:Diagnostics"], [5.0, "tab:About..."]];
   const RIBBON_SPEC = {
-    cam: [[0, 575, 415, 1], [0.5, 470, 330, 1.28]],
+    cam: [[0, 575, 415, 1], [0.5, 500, 330, 1.15]],
     clicks: RIBBON_CLICKS,
-    cur: [[0, [600, 420]], [0.6, "tab:Home"], [0.8, "tab:Home"], [1.6, "tab:Hardware"], [1.8, "tab:Hardware"], [2.6, "tab:Analysis & Measurement"], [2.8, "tab:Analysis & Measurement"],
-      [3.6, "tab:Logging"], [3.8, "tab:Logging"], [4.6, "tab:Stimulation"], [4.8, "tab:Stimulation"], [5.6, "pin:start"], [8, "pin:start"]],
+    cur: [[0, [600, 420]], ...RIBBON_CLICKS.flatMap(([t, k]) => [[t - 0.25, k], [t, k]]), [5.8, "pin:start"], [8, "pin:start"]],
     overlay(lt, st, cam) {
-      const k = easeOutCubic(prog(lt, 5.8, 6.3));
+      const k = easeOutCubic(prog(lt, 5.9, 6.4));
       if (k > 0) {
         ctx.save();
         ctx.globalAlpha *= k;
         rect(6, 34, 218, 42, C.redHi, null, 2 / cam.s, [6, 4]);
         ctx.restore();
-        callout(lt, 6.0, [115, 76], 150, 240, "pinned: works from every tab", cam);
+        callout(lt, 6.1, [115, 76], 150, 260, "pinned: works from every tab", cam);
       }
     },
   };
   function drawRibbonSheet(lt, t) {
-    const y0 = stepHeading(lt, 2, "Find your way", ["Six tabs and a", "pinned Start/Stop."]);
+    const y0 = stepHeading(lt, 2, "Find your way", ["Seven tabs and a", "pinned Start/Stop."]);
     stepList(lt, [
-      [0.8, "Home: display mode, display rate, runes."],
-      [1.8, "Hardware: channel, bus timing, bus load."],
-      [2.8, "Analysis & Measurement: DBC import, trace and graphs."],
-      [3.8, "Logging: record and replay."],
-      [4.8, "Stimulation: send frames."],
-      [5.8, "Start and Stop stay pinned on every tab."],
-    ], y0 + 50);
+      [0.8, "Home: display, trace filters, runes."],
+      [1.5, "Hardware: channels, buses, timing, bus load, gateway."],
+      [2.2, "Analysis & Measurement: DBC files, trace, graphs."],
+      [2.9, "Logging: record and replay."],
+      [3.6, "Stimulation: send frames."],
+      [4.3, "Diagnostics: talk UDS to an ECU. New in 2.0."],
+      [5.0, "About: version and license."],
+      [5.9, "Start and Stop stay pinned on every tab."],
+    ], y0 + 46);
     const st = baseState(t, lt, RIBBON_SPEC.clicks);
     let tab = "Home";
     RIBBON_CLICKS.forEach(([c, k]) => { if (lt >= c) tab = k.slice(4); });
     st.tab = tab;
-    st.view = tab === "Stimulation" ? "stim" : "trace";
+    st.view = tab === "Stimulation" ? "stim" : tab === "Diagnostics" ? "diag" : "trace";
     st.txList = [];
     appView(lt, RIBBON_SPEC, st);
   }
 
-  // ---------- Sheet 4: channel and bus timing ----------
-  const BUS_SPEC = {
-    cam: [[0, 575, 415, 1], [0.4, 372, 230, 1.6], [3.3, 372, 230, 1.6], [3.9, 575, 420, 1.45], [9.5, 575, 420, 1.45], [10.0, 620, 220, 1.6]],
-    clicks: [[0.9, "rb:Hardware|channel"], [2.2, "dd:2"], [3.6, "rb:Hardware|CAN Controller..."], [4.5, "cc:mode"], [5.0, "cc:isofd"], [9.4, "cc:ok"]],
-    cur: [[0, [700, 500]], [0.7, "rb:Hardware|channel"], [0.9, "rb:Hardware|channel"], [1.7, "dd:2"], [2.2, "dd:2"], [3.2, "rb:Hardware|CAN Controller..."], [3.6, "rb:Hardware|CAN Controller..."],
-      [4.3, "cc:mode"], [4.5, "cc:mode"], [4.9, "cc:isofd"], [5.0, "cc:isofd"], [6.0, "cc:sp"], [8.2, "cc:check"], [9.0, "cc:check"], [9.3, "cc:ok"], [9.4, "cc:ok"],
-      [10.3, "rb:Hardware|Click to check"], [12, "rb:Hardware|Click to check"]],
+  // ---------- Sheet: channels and more buses ----------
+  const BUSES_SPEC = {
+    cam: [[0, 575, 415, 1], [0.5, 480, 260, 1.45], [2.9, 480, 260, 1.45], [3.4, 575, 380, 1.18], [7.9, 575, 380, 1.18], [8.4, 575, 415, 1]],
+    clicks: [[0.6, "tab:Hardware"], [1.1, "rb:Hardware|channel"], [2.3, "dd:3"], [3.2, "rb:Hardware|morebuses"], [4.2, "mb:chk2"], [4.9, "mb:combo2"], [5.7, "mbdd:1"], [7.6, "mb:ok"]],
+    cur: [[0, [600, 420]], [0.45, "tab:Hardware"], [0.6, "tab:Hardware"], [1.0, "rb:Hardware|channel"], [1.1, "rb:Hardware|channel"], [1.9, "dd:3"], [2.3, "dd:3"],
+      [3.0, "rb:Hardware|morebuses"], [3.2, "rb:Hardware|morebuses"], [4.0, "mb:chk2"], [4.2, "mb:chk2"], [4.7, "mb:combo2"], [4.9, "mb:combo2"], [5.4, "mbdd:1"], [5.7, "mbdd:1"],
+      [6.5, "mb:add"], [7.3, "mb:ok"], [7.6, "mb:ok"], [8.6, "rb:Hardware|morebuses"], [12, "rb:Hardware|morebuses"]],
     overlay(lt, st, cam) {
-      if (lt >= 0.95 && lt < 2.25) {
-        const hover = lt < 1.7 ? -1 : 2;
-        uiList({ x: 26, y: 132, w: 330 }, CHANNELS, { hover, rowH: 28 });
+      if (lt >= 1.15 && lt < 2.35) uiList({ x: 26, y: 132, w: 380 }, CHANNELS, { hover: lt < 1.9 ? -1 : 3, rowH: 28 });
+      const k = easeOutCubic(prog(lt, 3.3, 3.55)) * (1 - easeOutCubic(prog(lt, 7.65, 7.9)));
+      if (k > 0) {
+        st.mbChk2 = lt >= 4.2;
+        st.mbCh2 = lt >= 5.7 ? VEC1 : PEAK_NAME;
+        st.mbOpen = lt >= 4.95 && lt < 5.7;
+        st.mbHover = lt >= 5.35 ? 1 : -1;
+        drawMoreBuses(st, k);
+        if (lt < 7.6) callout(lt, 6.5, "mb:add", MB.x + 140, MB.y + MB.h + 40, "adds a bus, up to 16", cam);
       }
-      const dk = easeOutCubic(prog(lt, 3.7, 3.95)) * (1 - easeOutCubic(prog(lt, 9.45, 9.7)));
-      if (dk > 0) {
-        st.ccMode = lt >= 5.0 ? "ISO CAN FD" : "CAN";
-        st.ccModeOpen = lt >= 4.55 && lt < 5.0;
-        st.ccModeHover = lt >= 4.8 ? 1 : 0;
-        st.ccAchievedK = easeOutCubic(prog(lt, 5.6, 6.2));
-        drawCanController(st, dk);
-        if (lt < 9.4) callout(lt, 8.3, "cc:check", CC.x + 250, CC.y + 380, "uncheck to listen only", cam);
-      }
-      callout(lt, 10.4, "rb:Hardware|Click to check", 660, 200, "classic CAN presets, real hardware", cam);
+      callout(lt, 8.6, "rb:Hardware|morebuses", 560, 230, "CAN 2 on its own channel", cam);
     },
   };
-  function drawBus(lt, t) {
-    const y0 = stepHeading(lt, 3, "Hardware tab", ["Pick a channel", "and bus timing."]);
-    stepList(lt, [
-      [0.6, "Choose a channel. The synthetic source needs no hardware."],
-      [3.2, "CAN Controller...: pick the mode, bitrate and sample point. CANtrip computes the timing registers."],
-      [8.2, "Request bus configuration stays checked; uncheck it to listen only next to another tool."],
-      [10.2, "Unsure of the bitrate? Autodetect tries the classic CAN presets on real hardware."],
+  function drawBuses(lt, t) {
+    const y0 = stepHeading(lt, 3, "Hardware tab", ["Pick a channel,", "add more buses."]);
+    const y1 = stepList(lt, [
+      [0.6, "Choose a channel for CAN 1. The synthetic source needs no hardware."],
+      [3.2, "More buses...: tick CAN 2, 3 or 4 and give each its own channel. + adds more, up to 16."],
+      [7.6, "Start and Stop now run every bus together, on one timeline."],
     ], y0 + 50);
-    const st = baseState(t, lt, BUS_SPEC.clicks);
-    st.tab = "Hardware";
-    st.combo.channel = lt >= 2.2 ? SYN_NAME : PEAK_NAME;
-    st.open = lt >= 0.95 && lt < 2.25 ? "rb:Hardware|channel" : null;
-    appView(lt, BUS_SPEC, st);
+    noteBox(lt, 8.4, "Every bus needs its own channel. Here CAN 2 is a Vector channel; with only the synthetic source, stay on CAN 1.", Math.max(y1 + 10, 700));
+    const st = baseState(t, lt, BUSES_SPEC.clicks);
+    st.tab = lt >= 0.6 ? "Hardware" : "About...";
+    st.view = "trace";
+    st.open = lt >= 1.15 && lt < 2.35 ? "rb:Hardware|channel" : null;
+    appView(lt, BUSES_SPEC, st);
   }
 
-  // ---------- Sheet 5: first capture ----------
-  const CAP_SPEC = {
-    cam: [[0, 470, 330, 1.28], [1.0, 470, 330, 1.28], [1.8, 575, 415, 1.0], [4.4, 575, 415, 1.0], [4.9, 420, 330, 1.3], [7.2, 420, 330, 1.3], [7.7, 380, 260, 1.5]],
-    clicks: [[1.0, "pin:start"], [5.0, "rb:Home|periodic"]],
-    cur: [[0, [500, 420]], [0.8, "pin:start"], [1.0, "pin:start"], [2.0, [760, 520]], [4.6, "rb:Home|periodic"], [5.0, "rb:Home|periodic"], [7.4, "rb:Home|rate"], [10, "rb:Home|rate"]],
+  // ---------- Sheet: bus timing, per bus ----------
+  const TIMING_SPEC = {
+    cam: [[0, 575, 415, 1], [0.4, 575, 418, 1.25], [8.2, 575, 418, 1.25], [8.7, 760, 220, 1.6]],
+    clicks: [[0.5, "rb:Hardware|CAN Controller..."], [2.4, "cc:tab2"], [3.2, "cc:mode"], [3.7, "cc:isofd"], [8.0, "cc:ok"]],
+    cur: [[0, [700, 500]], [0.35, "rb:Hardware|CAN Controller..."], [0.5, "rb:Hardware|CAN Controller..."], [1.4, [640, 330]], [2.2, "cc:tab2"], [2.4, "cc:tab2"],
+      [3.0, "cc:mode"], [3.2, "cc:mode"], [3.6, "cc:isofd"], [3.7, "cc:isofd"], [4.6, "cc:sp"], [6.1, "cc:check"], [7.0, "cc:check"], [7.8, "cc:ok"], [8.0, "cc:ok"],
+      [8.9, "rb:Hardware|Click to check"], [12, "rb:Hardware|Click to check"]],
     overlay(lt, st, cam) {
+      const dk = easeOutCubic(prog(lt, 0.6, 0.85)) * (1 - easeOutCubic(prog(lt, 8.05, 8.3)));
+      if (dk > 0) {
+        st.ccTab = lt >= 2.4 ? 2 : 1;
+        st.ccMode = lt >= 3.7 ? "ISO CAN FD" : "CAN";
+        st.ccModeOpen = lt >= 3.25 && lt < 3.7;
+        st.ccModeHover = lt >= 3.5 ? 1 : 0;
+        st.ccAchievedK = easeOutCubic(prog(lt, 4.3, 4.9));
+        drawCanController(st, dk);
+        if (lt < 8.0) {
+          callout(lt, 1.0, "cc:tab1", CC.x - 230, CC.y + 120, "one tab per bus", cam);
+          callout(lt, 6.2, "cc:check", CC.x + CC.w + 30, CC.y + 420, "uncheck to listen only", cam);
+        }
+      }
+      callout(lt, 9.0, "rb:Hardware|Click to check", 640, 230, "e.g. CAN 1: 500k, CAN 2: 250k", cam);
+    },
+  };
+  function drawTiming(lt, t) {
+    const y0 = stepHeading(lt, 4, "Hardware tab", ["Bus timing,", "bus by bus."]);
+    stepList(lt, [
+      [0.5, "CAN Controller...: one tab per bus, so CAN 1 can stay classic while CAN 2 runs CAN FD."],
+      [3.2, "Pick the mode, bitrate and sample point. CANtrip computes the timing registers."],
+      [6.1, "Request bus configuration stays checked; uncheck it to listen only next to another tool."],
+      [8.7, "Unsure of a bitrate? Autodetect checks each bus in turn against the classic CAN presets."],
+    ], y0 + 50);
+    const st = baseState(t, lt, TIMING_SPEC.clicks);
+    st.tab = "Hardware";
+    appView(lt, TIMING_SPEC, st);
+  }
+
+  // ---------- Sheet: first capture ----------
+  const CAP_SPEC = {
+    cam: [[0, 575, 415, 1], [0.4, 500, 330, 1.15], [1.3, 500, 330, 1.15], [1.9, 575, 415, 1.0], [4.4, 575, 415, 1.0], [4.9, 420, 330, 1.3], [7.2, 420, 330, 1.3], [7.7, 380, 260, 1.5]],
+    clicks: [[1.0, "pin:start"], [3.7, "tab:Home"], [5.0, "rb:Home|periodic"]],
+    cur: [[0, [600, 420]], [0.8, "pin:start"], [1.0, "pin:start"], [2.2, [900, 330]], [3.5, "tab:Home"], [3.7, "tab:Home"], [4.6, "rb:Home|periodic"], [5.0, "rb:Home|periodic"], [7.4, "rb:Home|rate"], [10, "rb:Home|rate"]],
+    overlay(lt, st, cam) {
+      if (lt < 4.4) callout(lt, 2.6, "hdr:Bus", 860, 300, "which bus it came from", cam);
       callout(lt, 7.6, "rb:Home|rate", 300, 230, "redraws only; logging keeps every frame", cam);
     },
   };
   function drawCapture(lt, t) {
-    const y0 = stepHeading(lt, 4, "Capture", ["Start capturing."]);
+    const y0 = stepHeading(lt, 5, "Home tab", ["Start capturing."]);
     stepList(lt, [
-      [0.8, "Press Start. It's pinned, so it works from any tab."],
+      [0.8, "Press Start. It starts every bus at once, from any tab."],
       [2.4, "Waterfall: every frame on its own row, newest first. Bus errors show in red."],
-      [5.0, "Periodic: one row per ID, updated in place."],
+      [5.0, "Periodic: one row per ID and bus, showing its period. A row that goes quiet for 2 s grays out."],
       [7.4, "Display Rate limits redraws on busy buses. Logging still gets every frame."],
     ], y0 + 50);
     const st = baseState(t, lt, CAP_SPEC.clicks);
+    st.tab = lt >= 3.7 ? "Home" : "Hardware";
     appView(lt, CAP_SPEC, st);
   }
 
-  // ---------- Sheet 6: DBC ----------
+  // ---------- Sheet: filter and sort ----------
+  const FILTER_SPEC = {
+    cam: [[0, 575, 415, 1], [0.4, 560, 380, 1.04]],
+    clicks: [[0.6, "hdr:ID"], [3.6, "hdr:Bus"], [7.0, "hdr:Bus"]],
+    cur: [[0, [700, 500]], [0.4, "hdr:ID"], [0.6, "hdr:ID"], [1.9, [330, 420]], [3.3, "hdr:Bus"], [3.6, "hdr:Bus"], [5.2, "hdrarrow:ID"], [6.6, "hdrarrow:ID"], [6.8, "hdr:Bus"], [7.0, "hdr:Bus"], [8.0, [760, 560]], [12, [760, 560]]],
+    overlay(lt, st, cam) {
+      const s = 1 / cam.s;
+      const idc = headerCell(st, "ID"), bc = headerCell(st, "Bus");
+      keycap(lt, 2.6, "Esc", idc.x + 20, 206, s);
+      keycap(lt, 4.8, "Enter", bc.x - 20, 206, s);
+      keycap(lt, 7.4, "Esc", bc.x - 10, 206, s);
+      callout(lt, 5.5, "hdrarrow:ID", 330, 460, "sort; drag a header to reorder", cam);
+    },
+  };
+  function drawFilter(lt, t) {
+    const y0 = stepHeading(lt, 6, "Home tab", ["Filter and sort", "the trace."]);
+    stepList(lt, [
+      [0.6, "Click a column's name and type: rows filter live, even mid-capture."],
+      [2.6, "Esc clears the filter."],
+      [3.6, "Filter the Bus column to watch one bus. Enter keeps the filter, shown in the header."],
+      [5.4, "The arrow at a column's edge sorts it. Drag a header to reorder."],
+      [7.0, "Filters only change the screen: logging, graphs and bus load still see every frame."],
+    ], y0 + 50);
+    const st = baseState(t, lt, FILTER_SPEC.clicks);
+    let f = null;
+    if (lt >= 0.6 && lt < 2.6) f = { col: "ID", editing: true, text: "0x7".slice(0, Math.floor(prog(lt, 0.9, 1.6) * 3)) };
+    else if (lt >= 3.6 && lt < 4.8) f = { col: "Bus", editing: true, text: lt >= 4.0 ? "2" : "" };
+    else if (lt >= 4.8 && lt < 7.0) f = { col: "Bus", editing: false, text: "2" };
+    else if (lt >= 7.0 && lt < 7.4) f = { col: "Bus", editing: true, text: "2" };
+    st.filter = f;
+    appView(lt, FILTER_SPEC, st);
+  }
+
+  // ---------- Sheet: DBC management ----------
   const DBC_SPEC = {
-    cam: [[0, 470, 300, 1.28], [1.3, 470, 300, 1.28], [1.6, 575, 400, 1.2], [3.0, 575, 400, 1.2], [3.4, 575, 415, 1.0], [4.7, 575, 415, 1.0], [5.1, 575, 380, 1.06]],
-    clicks: [[0.7, "tab:Analysis & Measurement"], [1.3, "rb:Analysis & Measurement|Import DBC..."], [2.3, "file:sample"], [2.9, "file:open"], [5.2, "chev:256"], [6.6, "chev:1024"]],
-    cur: [[0, [600, 500]], [0.5, "tab:Analysis & Measurement"], [0.7, "tab:Analysis & Measurement"], [1.1, "rb:Analysis & Measurement|Import DBC..."], [1.3, "rb:Analysis & Measurement|Import DBC..."],
-      [2.0, "file:sample"], [2.3, "file:sample"], [2.7, "file:open"], [2.9, "file:open"], [4.0, [700, 520]], [5.0, "chev:256"], [5.2, "chev:256"], [6.4, "chev:1024"], [6.6, "chev:1024"], [10, [760, 560]]],
-    overlay(lt, st) {
-      const k = easeOutCubic(prog(lt, 1.4, 1.65)) * (1 - easeOutCubic(prog(lt, 2.95, 3.2)));
+    cam: [[0, 575, 415, 1], [0.4, 500, 330, 1.15], [1.4, 500, 330, 1.15], [1.8, 575, 400, 1.22], [6.0, 575, 400, 1.22], [6.4, 575, 415, 1.0], [7.2, 575, 415, 1.0], [7.6, 560, 395, 1.04]],
+    clicks: [[0.6, "tab:Analysis & Measurement"], [1.2, "rb:Analysis & Measurement|DBC management..."], [2.0, "dm:import"], [2.8, "file:sample"], [3.3, "file:open"], [4.5, "dm:can2"], [5.6, "dm:close"], [7.6, "chev:256"], [8.8, "chev:1024"]],
+    cur: [[0, [600, 500]], [0.45, "tab:Analysis & Measurement"], [0.6, "tab:Analysis & Measurement"], [1.0, "rb:Analysis & Measurement|DBC management..."], [1.2, "rb:Analysis & Measurement|DBC management..."],
+      [1.8, "dm:import"], [2.0, "dm:import"], [2.6, "file:sample"], [2.8, "file:sample"], [3.1, "file:open"], [3.3, "file:open"], [4.3, "dm:can2"], [4.5, "dm:can2"],
+      [5.4, "dm:close"], [5.6, "dm:close"], [6.6, [700, 560]], [7.4, "chev:256"], [7.6, "chev:256"], [8.6, "chev:1024"], [8.8, "chev:1024"], [11, [760, 600]]],
+    overlay(lt, st, cam) {
+      const k = easeOutCubic(prog(lt, 1.3, 1.55)) * (1 - easeOutCubic(prog(lt, 5.65, 5.9)));
       if (k > 0) {
-        st.files = [{ name: "sample.dbc", type: "DBC file", sel: lt >= 2.3 }];
-        drawFileDialog(st, k, "Import DBC", lt >= 2.3 ? "sample.dbc" : "", "Open");
+        st.dbcFile = lt >= 3.35;
+        st.dmSel = lt >= 4.5 ? 2 : 1;
+        drawDbcManagement(st, k);
+        if (lt < 5.6) callout(lt, 4.7, "dm:can2", DM.x + DM.w - 120, DM.y + 210, "each bus gets its own files", cam);
+      }
+      const fk = easeOutCubic(prog(lt, 2.1, 2.35)) * (1 - easeOutCubic(prog(lt, 3.35, 3.6)));
+      if (fk > 0) {
+        st.files = [{ name: "sample.dbc", type: "DBC file", sel: lt >= 2.8 }];
+        drawFileDialog(st, fk, "Import DBC", lt >= 2.8 ? "sample.dbc" : "", "Open");
       }
     },
   };
   function drawDbc(lt, t) {
-    const y0 = stepHeading(lt, 5, "Analysis & Measurement", ["Decode with a DBC."]);
+    const y0 = stepHeading(lt, 7, "Analysis & Measurement", ["Decode with", "DBC files."]);
     stepList(lt, [
-      [0.7, "Import DBC... and pick your .dbc file. sample.dbc ships with the release and matches the synthetic source."],
-      [3.2, "Every matching frame now shows its message name."],
-      [5.0, "Expand a row to read its signals in real units."],
+      [0.6, "DBC management...: a tree of your buses. Select one and import as many .dbc files as it needs."],
+      [4.5, "Each bus has its own files. If two files on a bus define the same ID, the clash is listed in red."],
+      [5.6, "Frames on that bus now show their message names. sample.dbc matches the synthetic source."],
+      [7.4, "Expand a row to read its signals in real units."],
     ], y0 + 50);
     const st = baseState(t, lt, DBC_SPEC.clicks);
-    st.tab = lt >= 0.7 ? "Analysis & Measurement" : "Home";
-    st.openK = { 0x100: easeInOutCubic(prog(lt, 5.25, 5.7)), 0x400: easeInOutCubic(prog(lt, 6.65, 7.1)) };
+    st.tab = lt >= 0.6 ? "Analysis & Measurement" : "Home";
+    st.openK = { 0x100: easeInOutCubic(prog(lt, 7.65, 8.1)), 0x400: easeInOutCubic(prog(lt, 8.85, 9.3)) };
     appView(lt, DBC_SPEC, st);
   }
 
-  // ---------- Sheet 7: graphs ----------
+  // ---------- Sheet: graphs ----------
   const GRAPH_SPEC = {
     cam: [[0, 470, 300, 1.28], [0.9, 470, 300, 1.28], [1.3, 575, 415, 1.0], [7.8, 575, 415, 1.0], [8.3, 700, 500, 1.25], [10.3, 700, 500, 1.25], [10.7, 575, 415, 1.0]],
     clicks: [[0.9, "rb:Analysis & Measurement|Graphics"], [1.9, "g:addaxis"], [2.9, "g:sig:TestWaveforms.SineWave"], [5.6, "g:sig:TestWaveforms.SawtoothWave"],
@@ -1845,14 +2273,14 @@ details strong { color: var(--fg); font-weight: 400; }
       show(6.75, 7.5, ["TestWaveforms.SawtoothWave", "TestWaveforms.TriangleWave"]);
     },
     overlay(lt, st, cam) {
-      callout(lt, 10.7, "g:Export...", 760, 200, "PNG, SVG or PDF; Export All for every window", cam);
+      callout(lt, 10.7, "g:Export...", 690, 200, "PNG, SVG or PDF; Export All for every window", cam);
     },
   };
   function drawGraphs(lt, t) {
-    const y0 = stepHeading(lt, 6, "Graphics", ["Plot signals live."]);
+    const y0 = stepHeading(lt, 8, "Analysis & Measurement", ["Plot signals live."]);
     stepList(lt, [
       [0.7, "Views: Graphics opens the graph view."],
-      [1.7, "Add Y Axis, then drag a signal onto that axis in the Axes list."],
+      [1.7, "Add Y Axis, then drag a signal onto that axis in the Axes list. It plots from the start of the capture."],
       [5.2, "Ctrl-click several signals and drag them together onto a second axis."],
       [7.9, "Cursor tool: hover to read values, drag between two points for a delta."],
       [10.5, "Up to 6 graph windows. Export as PNG, SVG or PDF."],
@@ -1860,9 +2288,9 @@ details strong { color: var(--fg); font-weight: 400; }
     const st = baseState(t, lt, GRAPH_SPEC.clicks);
     st.tab = "Analysis & Measurement";
     st.view = lt >= 0.95 ? "graph" : "trace";
-    const T = st.T;
-    // Every decoded signal is recorded from the moment the DBC loaded, so a dropped signal plots its whole history.
-    const since = capT(49.0);
+    const T = st.T, start = SCENE.graphs.start;
+    // Every decoded signal is kept from the moment the DBC loaded, so a dropped signal plots its whole history.
+    const since = capT(DBC_T);
     const axes = [];
     if (lt >= 1.9) axes.push({ name: "Axis 1", sigs: [] });
     if (lt >= 4.0) axes[0].sigs.push({ name: "SineWave", color: C.redHi, fn: sine, since });
@@ -1879,7 +2307,7 @@ details strong { color: var(--fg); font-weight: 400; }
     const g = { axes, sel, cursorTool: lt >= 8.1, hoverX: null, delta: null };
     if (lt >= 8.4 && lt < 9.35) g.hoverX = cursorAt(lt, GRAPH_SPEC.cur)[0];
     if (lt >= 9.4) {
-      const P = GV.plot, t0 = Math.max(0, T - 20), at = (x, tt) => Math.max(0, capT(tt + GRAPHS_START) - 20) + ((x - P.x) / P.w) * 20;
+      const P = GV.plot, t0 = Math.max(0, T - 20), at = (x, tt) => Math.max(0, capT(tt + start) - 20) + ((x - P.x) / P.w) * 20;
       const ta = at(600, 9.4), xb = cursorAt(Math.min(lt, 10.2), GRAPH_SPEC.cur)[0];
       g.delta = { ta, tb: t0 + ((xb - P.x) / P.w) * 20 };
       if (lt > 10.2) g.delta.tb = at(880, 10.2);
@@ -1888,101 +2316,75 @@ details strong { color: var(--fg); font-weight: 400; }
     st.dropTarget = lt >= 3.4 && lt < 4.0 ? 0 : lt >= 7.1 && lt < 7.5 ? 1 : -1;
     appView(lt, GRAPH_SPEC, st);
   }
+  const fullGraph = () => {
+    const since = capT(DBC_T);
+    return { sel: [], hoverX: null, axes: [
+      { name: "Axis 1", sigs: [{ name: "SineWave", color: C.redHi, fn: sine, since }] },
+      { name: "Axis 2", sigs: [{ name: "SawtoothWave", color: C.blueHi, fn: saw, since, jumps: true }, { name: "TriangleWave", color: C.amber, fn: tri, since }] },
+    ] };
+  };
 
-  // ---------- Sheet 8: bus load ----------
-  const BL_SPEC = {
-    cam: [[0, 470, 300, 1.28], [1.3, 470, 300, 1.28], [1.7, 575, 415, 1.0], [3.3, 575, 415, 1.0], [3.8, 920, 470, 1.45]],
-    clicks: [[0.6, "tab:Hardware"], [1.2, "rb:Hardware|Bus Load..."]],
-    cur: [[0, [600, 500]], [0.4, "tab:Hardware"], [0.6, "tab:Hardware"], [1.0, "rb:Hardware|Bus Load..."], [1.2, "rb:Hardware|Bus Load..."], [2.4, [460, 470]], [3.6, [960, 400]], [5.4, "bl:reset"], [8, "bl:reset"]],
+  // ---------- Sheet: gateway ----------
+  const GW_SPEC = {
+    cam: [[0, 575, 415, 1], [2.0, 575, 415, 1], [2.4, 575, 370, 1.35], [6.5, 575, 370, 1.35], [6.9, 575, 415, 1]],
+    clicks: [[0.6, "rb:Analysis & Measurement|CAN Trace"], [1.2, "tab:Hardware"], [1.8, "rb:Hardware|gateway"], [2.8, "gw:enable"], [3.4, "gw:add"], [4.1, "gw:ids"], [4.25, "gw:ids"], [6.3, "gw:ok"]],
+    cur: [[0, [600, 500]], [0.4, "rb:Analysis & Measurement|CAN Trace"], [0.6, "rb:Analysis & Measurement|CAN Trace"], [1.0, "tab:Hardware"], [1.2, "tab:Hardware"],
+      [1.6, "rb:Hardware|gateway"], [1.8, "rb:Hardware|gateway"], [2.6, "gw:enable"], [2.8, "gw:enable"], [3.2, "gw:add"], [3.4, "gw:add"], [3.9, "gw:ids"], [4.25, "gw:ids"],
+      [5.6, "gw:ids"], [6.1, "gw:ok"], [6.3, "gw:ok"], [7.2, [640, 600]], [12, [640, 600]]],
     overlay(lt, st, cam) {
-      callout(lt, 5.6, "bl:reset", 640, 150, "clears the graph and every statistic", cam);
+      const k = easeOutCubic(prog(lt, 1.9, 2.15)) * (1 - easeOutCubic(prog(lt, 6.35, 6.6)));
+      if (k > 0) {
+        st.gwOn = lt >= 2.8;
+        st.gwRule = lt >= 3.45;
+        st.gwEditing = lt >= 4.3 && lt < 5.6;
+        st.gwIds = lt < 4.3 ? "all" : "0x100-0x1FF".slice(0, Math.max(0, Math.floor(prog(lt, 4.4, 5.2) * 11)));
+        st.gwTotals = "0 forwarded";
+        drawGateway(st, k);
+      }
+      callout(lt, 7.0, "row:256:2", 520, 520, "forwarded: a Tx row on CAN 2", cam, C.tx);
+    },
+  };
+  function drawGatewaySheet(lt, t) {
+    const y0 = stepHeading(lt, 9, "Hardware tab", ["Gateway between", "buses."]);
+    const y1 = stepList(lt, [
+      [0.6, "Gateway... forwards frames from one bus to another while a capture runs."],
+      [2.8, "Tick Forward frames between buses. + adds a rule: From, To, and IDs: all, one ID, or a range."],
+      [6.3, "Forwarded frames show up as Tx rows on the bus they went out on, and are logged the same way."],
+    ], y0 + 50);
+    noteBox(lt, 7.4, "Field-tested on PEAK and Vector. A test bench tool, not a certified gateway.", Math.max(y1 + 10, 700));
+    const st = baseState(t, lt, GW_SPEC.clicks);
+    st.tab = lt >= 1.2 ? "Hardware" : "Analysis & Measurement";
+    st.view = lt >= 0.65 ? "trace" : "graph";
+    if (st.view === "graph") st.graph = fullGraph();
+    appView(lt, GW_SPEC, st);
+  }
+
+  // ---------- Sheet: bus load ----------
+  const BL_SPEC = {
+    cam: [[0, 575, 415, 1], [3.2, 575, 415, 1], [3.7, 920, 480, 1.45]],
+    clicks: [[0.6, "rb:Hardware|Bus Load..."], [2.6, "blt:2"]],
+    cur: [[0, [640, 600]], [0.4, "rb:Hardware|Bus Load..."], [0.6, "rb:Hardware|Bus Load..."], [1.6, [460, 470]], [2.4, "blt:2"], [2.6, "blt:2"], [3.6, [960, 420]], [5.2, "bl:reset"], [8, "bl:reset"]],
+    overlay(lt, st, cam) {
+      if (lt < 3.3) callout(lt, 1.3, "blt:1", 260, 150, "one tab per bus", cam);
+      callout(lt, 5.4, "bl:reset", 640, 170, "clears the graph and every statistic", cam);
     },
   };
   function drawBusLoadSheet(lt, t) {
-    const y0 = stepHeading(lt, 7, "Hardware tab", ["Watch the bus load."]);
+    const y0 = stepHeading(lt, 10, "Hardware tab", ["Watch the bus load."]);
     const y1 = stepList(lt, [
-      [0.6, "Hardware: Bus Load... opens the bus load view."],
-      [1.8, "A live gauge and history, costed bit by bit at your bitrate."],
+      [0.6, "Bus Load... opens the bus load view: one tab per bus, each measured at its own bitrate."],
+      [1.6, "A live gauge and history, costed bit by bit."],
       [3.4, "Statistics and a per-ID table. Reset clears both."],
     ], y0 + 50);
-    noteBox(lt, 4.4, "The synthetic source sends about 20 frames/s, about 0.5% of a 500 kbit/s bus.", Math.max(y1 + 10, 700), C.blueHi);
+    noteBox(lt, 4.4, "CAN 1: the synthetic source sends about 20 frames/s, about 0.5% of a 500 kbit/s bus.", Math.max(y1 + 10, 700), C.blueHi);
     const st = baseState(t, lt, BL_SPEC.clicks);
-    st.tab = lt >= 0.6 ? "Hardware" : "Analysis & Measurement";
-    st.view = lt >= 1.25 ? "busload" : "graph";
-    // Until Bus Load opens, the graph from the previous step keeps running.
-    if (st.view === "graph") {
-      const since = capT(49.0);
-      st.graph = { sel: [], hoverX: null, axes: [
-        { name: "Axis 1", sigs: [{ name: "SineWave", color: C.redHi, fn: sine, since }] },
-        { name: "Axis 2", sigs: [{ name: "SawtoothWave", color: C.blueHi, fn: saw, since, jumps: true }, { name: "TriangleWave", color: C.amber, fn: tri, since }] },
-      ] };
-    }
+    st.tab = "Hardware";
+    st.view = lt >= 0.65 ? "busload" : "trace";
+    st.blBus = lt >= 2.6 ? 2 : 1;
     appView(lt, BL_SPEC, st);
   }
 
-  // ---------- Sheet 9: sending ----------
-  const SEND_SPEC = {
-    cam: [[0, 470, 300, 1.28], [1.4, 470, 300, 1.28], [1.8, 590, 410, 1.45], [7.9, 590, 410, 1.45], [8.4, 575, 415, 1.0]],
-    clicks: [[0.8, "tab:Stimulation"], [1.4, "rb:Stimulation|New Message..."], [2.0, "tx:id"], [3.0, "tx:len"], [3.5, "tx:len64"], [3.9, "tx:brs"], [4.6, "tx:dots"],
-      [6.6, "ed:ok"], [7.3, "tx:cycle"], [8.0, "tx:ok"], [8.8, "rb:Stimulation|startsend"], [9.6, "st:row3"], [9.9, "rb:Stimulation|Send Now"]],
-    cur: [[0, [600, 500]], [0.6, "tab:Stimulation"], [0.8, "tab:Stimulation"], [1.2, "rb:Stimulation|New Message..."], [1.4, "rb:Stimulation|New Message..."], [1.9, "tx:id"], [2.0, "tx:id"],
-      [2.8, "tx:len"], [3.0, "tx:len"], [3.4, "tx:len64"], [3.5, "tx:len64"], [3.8, "tx:brs"], [3.9, "tx:brs"], [4.5, "tx:dots"], [4.6, "tx:dots"], [6.3, "ed:ok"], [6.6, "ed:ok"],
-      [7.2, "tx:cycle"], [7.3, "tx:cycle"], [7.9, "tx:ok"], [8.0, "tx:ok"], [8.6, "rb:Stimulation|startsend"], [8.8, "rb:Stimulation|startsend"], [9.4, "st:row3"], [9.6, "st:row3"],
-      [9.8, "rb:Stimulation|Send Now"], [9.9, "rb:Stimulation|Send Now"], [11, [700, 330]], [14, [700, 330]]],
-    overlay(lt, st) {
-      const tk = easeOutCubic(prog(lt, 1.5, 1.75)) * (1 - easeOutCubic(prog(lt, 8.05, 8.3)));
-      if (tk > 0) {
-        st.txId = "456".slice(0, Math.floor(prog(lt, 2.05, 2.5) * 3)) || "000";
-        st.txIdFocus = lt >= 2.0 && lt < 2.9;
-        st.txLen = lt >= 3.5 ? "64" : "8";
-        st.txLenOpen = lt >= 3.05 && lt < 3.5;
-        st.txLenHover = lt >= 3.35 ? 7 : -1;
-        st.txBrs = lt >= 3.9;
-        st.txCycleFocus = lt >= 7.3 && lt < 8.0;
-        st.txComment = lt >= 7.4 ? "FD payload" : "";
-        drawTxDialog(st, tk);
-      }
-      const ek = easeOutCubic(prog(lt, 4.7, 4.95)) * (1 - easeOutCubic(prog(lt, 6.65, 6.9)));
-      if (ek > 0) {
-        st.edK = prog(lt, 4.9, 6.1);
-        drawEditData(st, ek);
-      }
-    },
-  };
-  function drawSend(lt, t) {
-    const y0 = stepHeading(lt, 8, "Stimulation", ["Send frames."]);
-    const y1 = stepList(lt, [
-      [0.8, "New Message...: ID, length and data."],
-      [3.0, "With FD Frame, lengths go up to 64 bytes; ... opens the full data grid."],
-      [7.2, "Cycle time 0 sends once. Higher values repeat on that interval."],
-      [8.8, "Start Sending runs the cyclic messages; Send Now fires the selected one."],
-      [10.2, "Your own frames come back tagged TX, in light blue."],
-    ], y0 + 50);
-    noteBox(lt, 0.3, "Sending needs a PEAK or Vector adapter. The synthetic source only receives.", Math.max(y1 + 10, 806), C.amber);
-    const st = baseState(t, lt, SEND_SPEC.clicks);
-    st.tab = lt >= 0.8 ? "Stimulation" : "Hardware";
-    st.view = lt >= 0.85 ? "stim" : "busload";
-    st.combo.channel = PEAK_NAME;
-    st.status = `Captured ${frameCount(capT(t)) + 1200} frame(s)`;
-    st.txList = lt >= 8.05 ? TXLIST : TXLIST.slice(0, 2);
-    st.txSel = lt >= 9.6 ? 2 : -1;
-    const sending = lt >= 8.8;
-    st.dis.startsend = sending;
-    st.dis.stopsend = !sending;
-    st.on.startsend = sending;
-    const rx = [];
-    if (sending) {
-      const s = 31.2 + (lt - 8.8);
-      rx.push({ time: (31.2 + Math.floor((lt - 8.8) * 10) / 10).toFixed(3) + " s", id: "0x123", flags: "STD", dlc: "8", data: TXLIST[0].data });
-      rx.push({ time: (31.2 + Math.floor((lt - 8.8) * 2) / 2).toFixed(3) + " s", id: "0x18FF50E5", flags: "EXT", dlc: "8", data: TXLIST[1].data });
-      void s;
-    }
-    if (lt >= 9.9) rx.push({ time: (31.2 + 1.1).toFixed(3) + " s", id: "0x456", flags: "STD FD", dlc: "64", data: "00 11 22 33 44 55 66 77 ..." });
-    st.rx = rx;
-    appView(lt, SEND_SPEC, st);
-  }
-
-  // ---------- Sheet 10: logging and replay ----------
+  // ---------- Sheet: logging and replay ----------
   const LOG_SPEC = {
     cam: [[0, 470, 300, 1.28], [2.0, 470, 300, 1.28], [2.4, 580, 370, 1.5], [5.0, 580, 370, 1.5], [5.4, 470, 300, 1.28], [7.2, 470, 300, 1.28], [7.6, 640, 220, 1.6]],
     clicks: [[0.6, "tab:Logging"], [2.0, "rb:Logging|Other options..."], [3.4, "lo:tab2"], [5.0, "lo:ok"], [5.9, "rb:Logging|logstart"]],
@@ -1994,37 +2396,193 @@ details strong { color: var(--fg); font-weight: 400; }
         st.loTab = lt >= 3.4 ? 2 : 1;
         drawLogOptions(st, k);
       }
+      if (lt < 7.2) callout(lt, 6.1, "rb:Logging|logstart", 330, 250, "every bus, one file", cam);
       callout(lt, 7.8, "rb:Logging|Start Replay...", 520, 440, "plays a .asc or .csv back through every view", cam);
     },
   };
   function drawLog(lt, t) {
-    const y0 = stepHeading(lt, 9, "Logging", ["Log it, replay it."]);
+    const y0 = stepHeading(lt, 11, "Logging", ["Log it, replay it."]);
     stepList(lt, [
       [0.6, "Pick a format: .asc (readable by other CAN tools) or .csv."],
       [1.8, "Other options...: filename template, splitting, existing files, auto-start."],
-      [5.7, "Start writes every frame, even when the display is throttled."],
-      [7.4, "Start Replay... plays a saved log back through the same views."],
+      [5.7, "Start writes every frame of every bus to one file. The bus is the channel column."],
+      [7.4, "Start Replay... plays a saved log back through the same views, buses included."],
     ], y0 + 50);
     const st = baseState(t, lt, LOG_SPEC.clicks);
-    st.tab = lt >= 0.6 ? "Logging" : "Stimulation";
-    st.view = lt >= 0.6 ? "trace" : "stim";
-    st.txList = TXLIST;
+    st.tab = lt >= 0.6 ? "Logging" : "Hardware";
+    st.view = lt >= 0.6 ? "trace" : "busload";
+    st.blBus = 2;
     const logging = lt >= 5.9;
     st.dis.logstart = logging;
     st.dis.logstop = !logging;
     appView(lt, LOG_SPEC, st);
   }
 
-  // ---------- Sheet 11: runes ----------
-  const RUNE_ITEMS = ["Channel and bus timing", "Listen-only setting", "Display mode and rate", "DBC file", "Graph windows and axes", "Transmit messages", "Trace column layout"];
+  // ---------- Sheet: sending ----------
+  const SEND_SPEC = {
+    cam: [[0, 470, 300, 1.28], [1.4, 470, 300, 1.28], [1.8, 585, 405, 1.4], [9.3, 585, 405, 1.4], [9.8, 575, 415, 1.0]],
+    clicks: [[0.8, "tab:Stimulation"], [1.4, "rb:Stimulation|New Message..."], [2.0, "tx:bus"], [2.7, "tx:bus1"], [3.3, "tx:id"], [4.2, "tx:len"], [4.7, "tx:len64"], [5.1, "tx:brs"], [5.8, "tx:dots"],
+      [7.8, "ed:ok"], [8.4, "tx:cycle"], [9.2, "tx:ok"], [10.0, "rb:Stimulation|startsend"], [10.8, "st:row3"], [11.1, "rb:Stimulation|Send Now"]],
+    cur: [[0, [600, 500]], [0.6, "tab:Stimulation"], [0.8, "tab:Stimulation"], [1.2, "rb:Stimulation|New Message..."], [1.4, "rb:Stimulation|New Message..."], [1.9, "tx:bus"], [2.0, "tx:bus"],
+      [2.5, "tx:bus1"], [2.7, "tx:bus1"], [3.2, "tx:id"], [3.3, "tx:id"], [4.0, "tx:len"], [4.2, "tx:len"], [4.6, "tx:len64"], [4.7, "tx:len64"], [5.0, "tx:brs"], [5.1, "tx:brs"],
+      [5.7, "tx:dots"], [5.8, "tx:dots"], [7.5, "ed:ok"], [7.8, "ed:ok"], [8.3, "tx:cycle"], [8.4, "tx:cycle"], [9.1, "tx:ok"], [9.2, "tx:ok"], [9.8, "rb:Stimulation|startsend"],
+      [10.0, "rb:Stimulation|startsend"], [10.6, "st:row3"], [10.8, "st:row3"], [11.0, "rb:Stimulation|Send Now"], [11.1, "rb:Stimulation|Send Now"], [12.2, [700, 330]], [15, [700, 330]]],
+    overlay(lt, st) {
+      const tk = easeOutCubic(prog(lt, 1.5, 1.75)) * (1 - easeOutCubic(prog(lt, 9.25, 9.5)));
+      if (tk > 0) {
+        st.txBus = lt >= 2.7 ? 2 : 1;
+        st.txBusOpen = lt >= 2.05 && lt < 2.7;
+        st.txBusHover = lt >= 2.45 ? 1 : -1;
+        st.txId = "456".slice(0, Math.floor(prog(lt, 3.35, 3.8) * 3)) || "000";
+        st.txIdFocus = lt >= 3.3 && lt < 4.1;
+        st.txLen = lt >= 4.7 ? "64" : "8";
+        st.txLenOpen = lt >= 4.25 && lt < 4.7;
+        st.txLenHover = lt >= 4.55 ? 7 : -1;
+        st.txBrs = lt >= 5.1;
+        st.txCycleFocus = lt >= 8.4 && lt < 9.2;
+        st.txComment = lt >= 8.5 ? "FD payload" : "";
+        drawTxDialog(st, tk);
+      }
+      const ek = easeOutCubic(prog(lt, 5.9, 6.15)) * (1 - easeOutCubic(prog(lt, 7.85, 8.1)));
+      if (ek > 0) {
+        st.edK = prog(lt, 6.1, 7.3);
+        drawEditData(st, ek);
+      }
+    },
+  };
+  function drawSend(lt, t) {
+    const y0 = stepHeading(lt, 12, "Stimulation", ["Send frames."]);
+    const y1 = stepList(lt, [
+      [0.8, "New Message...: pick the bus first. It decides whether FD frames are possible."],
+      [3.3, "ID, length and data. With FD Frame, lengths go up to 64 bytes; ... opens the full grid."],
+      [8.4, "Cycle time 0 sends once. Higher values repeat on that interval."],
+      [10.0, "Start Sending runs the cyclic messages; Send Now fires the selected one."],
+      [11.4, "Your own frames come back tagged TX, in light blue."],
+    ], y0 + 50);
+    noteBox(lt, 0.3, "Sending needs a real adapter: these messages go out on CAN 2, the Vector channel.", Math.max(y1 + 10, 830));
+    const st = baseState(t, lt, SEND_SPEC.clicks);
+    st.tab = lt >= 0.8 ? "Stimulation" : "Logging";
+    st.view = lt >= 0.85 ? "stim" : "trace";
+    st.dis.logstart = true;
+    st.dis.logstop = false;
+    st.txList = lt >= 9.25 ? TXLIST : TXLIST.slice(0, 2);
+    st.txSel = lt >= 10.8 ? 2 : -1;
+    const sending = lt >= 10.0;
+    st.dis.startsend = sending;
+    st.dis.stopsend = !sending;
+    st.on.startsend = sending;
+    const T0 = capT(t - (lt - 10.0)), rx = [];
+    if (sending) {
+      rx.push({ time: (T0 + Math.floor((lt - 10.0) * 10) / 10).toFixed(3) + " s", id: "0x123", flags: "STD", dlc: "8", data: TXLIST[0].data });
+      rx.push({ time: (T0 + Math.floor((lt - 10.0) * 2) / 2).toFixed(3) + " s", id: "0x18FF50E5", flags: "EXT", dlc: "8", data: TXLIST[1].data });
+    }
+    if (lt >= 11.1) rx.push({ time: (T0 + 1.1).toFixed(3) + " s", id: "0x456", flags: "STD FD BRS", dlc: "64", data: "00 11 22 33 44 55 66 77 ..." });
+    st.rx = rx;
+    appView(lt, SEND_SPEC, st);
+  }
+
+  // ---------- Diagnostics: the log, as DiagnosticsView words it ----------
+  const VIN_HEX = "62 F1 90 " + [..."CANTR1PSYNTH00001"].map((c) => h2(c.charCodeAt(0))).join(" ");
+  function diagRows(t) {
+    const a = SCENE.diag1.start, b = SCENE.diag2.start;
+    const all = [
+      [a + 5.35, "Request", "22 F1 90", "ReadDataByIdentifier 0xF190 (VIN)"],
+      [a + 5.65, "Response", VIN_HEX, '0xF190 (VIN) = "CANTR1PSYNTH00001"'],
+      [a + 7.3, "Request", "19 02 FF", "ReadDTCInformation: codes matching status mask 0xFF"],
+      [a + 7.55, "Response", "59 02 FF 03 01 00 09 C1 00 87 08 40 35 11 24", "3 trouble codes: P0301-00 [testFailed, confirmedDTC], U0100-87 [confirmedDTC], C0035-11 [pendingDTC, testFailedSinceLastClear]"],
+      [b + 0.75, "Request", "27 01", "SecurityAccess: request seed, level 1"],
+      [b + 1.0, "Response", "7F 27 7F", "SecurityAccess refused: serviceNotSupportedInActiveSession (0x7F). Switch to another diagnostic session first.", true],
+      [b + 3.5, "Request", "10 03", "DiagnosticSessionControl: extended session"],
+      [b + 3.7, "Response", "50 03 00 32 01 F4", "Now in extended session"],
+      [b + 5.15, "Request", "27 01", "SecurityAccess: request seed, level 1"],
+      [b + 5.35, "Response", "67 01 3A 7F 10 C5", "Seed: 3A 7F 10 C5"],
+      [b + 7.35, "Request", "27 02 F0 81 AA 7B", "SecurityAccess: send key, level 1"],
+      [b + 7.55, "Response", "67 02", "Unlocked, level 1"],
+      [b + 9.7, "Request", "31 01 FF 00", "RoutineControl: start routine 0xFF00"],
+      [b + 9.9, "Response", "7F 31 78", "The ECU is working on it and will answer later"],
+      [b + 10.3, "Response", "71 01 FF 00", "Routine 0xFF00 done"],
+    ];
+    return all.filter((r) => t >= r[0]).map(([tt, kind, bytes, meaning, bad]) => ({ t: tt, kind, bytes, meaning, bad: !!bad }));
+  }
+
+  // ---------- Sheet: diagnostics, reading an ECU ----------
+  const DIAG1_SPEC = {
+    cam: [[0, 575, 415, 1], [0.9, 575, 415, 1], [1.2, 340, 250, 1.7], [3.6, 340, 250, 1.7], [3.9, 575, 415, 1], [4.2, 575, 415, 1], [4.5, 575, 410, 1.35], [5.25, 575, 410, 1.35], [5.7, 690, 332, 1.25]],
+    clicks: [[0.6, "tab:Diagnostics"], [1.4, "rb:Diagnostics|reqid"], [2.6, "rb:Diagnostics|resid"], [4.2, "rb:Diagnostics|Read..."], [5.2, "in:ok"], [7.2, "rb:Diagnostics|dtcread"]],
+    cur: [[0, [600, 500]], [0.45, "tab:Diagnostics"], [0.6, "tab:Diagnostics"], [1.3, "rb:Diagnostics|reqid"], [1.4, "rb:Diagnostics|reqid"], [2.4, "rb:Diagnostics|resid"], [2.6, "rb:Diagnostics|resid"],
+      [4.0, "rb:Diagnostics|Read..."], [4.2, "rb:Diagnostics|Read..."], [5.0, "in:ok"], [5.2, "in:ok"], [7.0, "rb:Diagnostics|dtcread"], [7.2, "rb:Diagnostics|dtcread"], [8.4, [760, 420]], [12, [760, 420]]],
+    overlay(lt, st, cam) {
+      const k = easeOutCubic(prog(lt, 4.3, 4.55)) * (1 - easeOutCubic(prog(lt, 5.25, 5.5)));
+      if (k > 0) drawInput(st, k, "Read Data", ["Identifier, in hex (F190 is the VIN):"], "F190".slice(0, Math.max(0, Math.floor(prog(lt, 4.5, 4.9) * 4))), true);
+      callout(lt, 6.0, "dl:1", 600, 400, "17 bytes: three frames, reassembled (ISO-TP)", cam, C.green);
+      callout(lt, 8.0, "dl:3", 420, 520, "P0301-00, U0100-87, C0035-11, each with its status", cam, C.green);
+    },
+  };
+  function drawDiag1(lt, t) {
+    const y0 = stepHeading(lt, 13, "Diagnostics", ["Read an ECU."]);
+    const y1 = stepList(lt, [
+      [0.6, "Diagnostics talks UDS to one ECU: set its bus, request ID and response ID."],
+      [4.2, "Read... asks for a data identifier. F190 is the VIN."],
+      [7.2, "Trouble Codes, Read lists every stored code with its status."],
+    ], y0 + 50);
+    noteBox(lt, 1.4, "The synthetic source has a simulated ECU on 0x7E1 / 0x7E9. A capture has to be running on its bus.", Math.max(y1 + 10, 700), C.blueHi);
+    const st = baseState(t, lt, DIAG1_SPEC.clicks);
+    st.tab = lt >= 0.6 ? "Diagnostics" : "Stimulation";
+    st.view = lt >= 0.65 ? "diag" : "stim";
+    st.txList = TXLIST;
+    st.edit.reqid = lt < 1.6 ? "0x7E0" : lt < 1.8 ? "0x7E" : "0x7E1";
+    st.edit.resid = lt < 2.8 ? "0x7E8" : lt < 3.0 ? "0x7E" : "0x7E9";
+    st.focus = lt >= 1.4 && lt < 2.6 ? "reqid" : lt >= 2.6 && lt < 3.6 ? "resid" : null;
+    st.diagBusy = (lt >= 5.35 && lt < 5.65) || (lt >= 7.3 && lt < 7.55);
+    appView(lt, DIAG1_SPEC, st);
+  }
+
+  // ---------- Sheet: diagnostics, sessions and security ----------
+  const DIAG2_SPEC = {
+    cam: [[0, 690, 332, 1.25], [5.4, 690, 332, 1.25], [5.8, 575, 410, 1.35], [7.4, 575, 410, 1.35], [7.8, 690, 332, 1.25], [8.0, 690, 332, 1.25], [8.3, 575, 453, 1.1]],
+    clicks: [[0.6, "rb:Diagnostics|Unlock..."], [2.4, "rb:Diagnostics|session"], [2.9, "sesdd:1"], [3.4, "rb:Diagnostics|Switch"], [4.2, "rb:Diagnostics|tester"], [5.0, "rb:Diagnostics|Unlock..."],
+      [7.2, "in:ok"], [8.4, "dg:req"], [9.6, "dg:send"]],
+    cur: [[0, [700, 500]], [0.45, "rb:Diagnostics|Unlock..."], [0.6, "rb:Diagnostics|Unlock..."], [1.6, [700, 260]], [2.3, "rb:Diagnostics|session"], [2.4, "rb:Diagnostics|session"],
+      [2.8, "sesdd:1"], [2.9, "sesdd:1"], [3.3, "rb:Diagnostics|Switch"], [3.4, "rb:Diagnostics|Switch"], [4.1, "rb:Diagnostics|tester"], [4.2, "rb:Diagnostics|tester"],
+      [4.9, "rb:Diagnostics|Unlock..."], [5.0, "rb:Diagnostics|Unlock..."], [7.0, "in:ok"], [7.2, "in:ok"], [8.2, "dg:req"], [8.4, "dg:req"], [9.4, "dg:send"], [9.6, "dg:send"], [10.6, [700, 600]], [13, [700, 600]]],
+    overlay(lt, st, cam) {
+      if (lt >= 2.45 && lt < 2.9) uiList({ x: 358, y: 122, w: 118 }, SESSIONS, { hover: lt >= 2.7 ? 1 : -1, rowH: 26 });
+      const k = easeOutCubic(prog(lt, 5.5, 5.75)) * (1 - easeOutCubic(prog(lt, 7.25, 7.5)));
+      if (k > 0) drawInput(st, k, "Unlock", ["The ECU's seed is 3A 7F 10 C5.", "", "Key, in hex:"], "F0 81 AA 7B".slice(0, Math.max(0, Math.floor(prog(lt, 6.0, 6.9) * 11))), true);
+      if (lt < 5.4) callout(lt, 1.3, "dl:5", 700, 520, "refused, with what usually fixes it", cam);
+      if (lt < 4.6) callout(lt, 4.3, "rb:Diagnostics|tester", 520, 230, "keeps the ECU in its session", cam);
+    },
+  };
+  function drawDiag2(lt, t) {
+    const y0 = stepHeading(lt, 14, "Diagnostics", ["Sessions and", "security access."]);
+    const y1 = stepList(lt, [
+      [0.6, "Unlock... in the default session is refused, in red, with what usually fixes it."],
+      [2.4, "Switch to Extended. Tick Tester present to stay there."],
+      [5.0, "Unlock... again: CANtrip shows the seed and asks for the key. On the simulated ECU, key = seed XOR CAFEBABE."],
+      [8.4, "The Request line sends any request you type as hex bytes."],
+    ], y0 + 50);
+    noteBox(lt, 10.4, "Classic CAN and normal addressing; not in headless mode yet.", Math.max(y1 + 10, 760));
+    const st = baseState(t, lt, DIAG2_SPEC.clicks);
+    st.tab = "Diagnostics";
+    st.view = "diag";
+    st.open = lt >= 2.45 && lt < 2.9 ? "rb:Diagnostics|session" : null;
+    st.diagReq = lt < 8.4 ? "" : lt < 9.65 ? "31 01 FF 00".slice(0, Math.floor(prog(lt, 8.5, 9.3) * 11)) : "";
+    st.diagReqFocus = lt >= 8.4;
+    st.diagBusy = (lt >= 0.75 && lt < 1.0) || (lt >= 3.5 && lt < 3.7) || (lt >= 5.15 && lt < 5.35) || (lt >= 7.35 && lt < 7.55) || (lt >= 9.7 && lt < 10.3);
+    appView(lt, DIAG2_SPEC, st);
+  }
+
+  // ---------- Sheet: runes ----------
+  const RUNE_ITEMS = ["Channel and bus timing, per bus", "More buses and their channels", "Listen-only setting", "Display mode and rate", "DBC files, per bus",
+    "Gateway rules", "Diagnostics ECU and IDs", "Graph windows and axes", "Transmit messages", "Trace column layout"];
   const RUNE_SPEC = {
     cam: [[0, 470, 300, 1.28], [1.4, 470, 300, 1.28], [1.8, 575, 415, 1.0]],
     clicks: [[0.8, "tab:Home"], [1.3, "rb:Home|Save Rune..."]],
-    cur: [[0, [600, 500]], [0.6, "tab:Home"], [0.8, "tab:Home"], [1.1, "rb:Home|Save Rune..."], [1.3, "rb:Home|Save Rune..."], [2.2, [900, 640]], [6, [900, 640]]],
+    cur: [[0, [600, 500]], [0.6, "tab:Home"], [0.8, "tab:Home"], [1.1, "rb:Home|Save Rune..."], [1.3, "rb:Home|Save Rune..."], [2.2, [930, 700]], [6, [930, 700]]],
     overlay(lt) {
       const k = easeOutCubic(prog(lt, 1.6, 2.0));
       if (k <= 0) return;
-      const r = { x: 330, y: 230, w: 490, h: 380 };
+      const r = { x: 330, y: 168, w: 490, h: 500 };
       ctx.save();
       ctx.globalAlpha *= k;
       ctx.fillStyle = "rgba(4,5,8,0.5)";
@@ -2035,7 +2593,7 @@ details strong { color: var(--fg); font-weight: 400; }
       txt("bench.rune", r.x + 24, r.y + 44, F.mono(600, 22), C.paper);
       txt("saved", r.x + r.w - 24, r.y + 44, F.iso(18), C.green, "right");
       RUNE_ITEMS.forEach((s, i) => {
-        const kk = easeOutCubic(prog(lt, 2.0 + i * 0.18, 2.4 + i * 0.18));
+        const kk = easeOutCubic(prog(lt, 2.0 + i * 0.14, 2.4 + i * 0.14));
         const y = r.y + 92 + i * 40;
         ctx.save();
         ctx.globalAlpha *= kk;
@@ -2050,27 +2608,50 @@ details strong { color: var(--fg); font-weight: 400; }
     },
   };
   function drawRune(lt, t) {
-    const y0 = stepHeading(lt, 10, "Home tab", ["Save it as a Rune."]);
+    const y0 = stepHeading(lt, 15, "Home tab", ["Save it as a Rune."]);
     stepList(lt, [
-      [0.8, "Save Rune... writes your whole setup to one .rune file."],
-      [3.4, "Load Rune... brings all of it back next time."],
+      [0.8, "Save Rune... writes your whole setup to one .rune file, every bus included."],
+      [3.6, "Load Rune... brings all of it back next time."],
     ], y0 + 50);
     const st = baseState(t, lt, RUNE_SPEC.clicks);
-    st.tab = lt >= 0.8 ? "Home" : "Logging";
+    st.tab = lt >= 0.8 ? "Home" : "Diagnostics";
+    st.view = lt >= 0.8 ? "trace" : "diag";
     st.dis.logstart = true;
     st.dis.logstop = false;
     appView(lt, RUNE_SPEC, st);
   }
 
-  // ---------- Sheet 12: headless ----------
-  const HL_CMD = `cantrip.exe --headless --channel "${SYN_NAME}" --dbc sample.dbc --duration 10 --log run.asc`;
+  // ---------- Sheet: about ----------
+  const ABOUT_SPEC = {
+    cam: [[0, 575, 415, 1], [1.2, 575, 415, 1], [1.6, 575, 410, 1.12]],
+    clicks: [[0.6, "tab:About..."], [1.3, "rb:About...|About CANtrip..."]],
+    cur: [[0, [600, 500]], [0.45, "tab:About..."], [0.6, "tab:About..."], [1.1, "rb:About...|About CANtrip..."], [1.3, "rb:About...|About CANtrip..."], [2.2, [880, 700]], [6, [880, 700]]],
+    overlay(lt, st) {
+      const k = easeOutCubic(prog(lt, 1.4, 1.65));
+      if (k > 0) drawAbout(st, k);
+    },
+  };
+  function drawAboutSheet(lt, t) {
+    const y0 = stepHeading(lt, 16, "About tab", ["Version and license."]);
+    stepList(lt, [
+      [0.6, "GitHub opens the project page: source, releases, issues."],
+      [1.3, "About CANtrip...: version and codename, license, and the trademark notice."],
+    ], y0 + 50);
+    const st = baseState(t, lt, ABOUT_SPEC.clicks);
+    st.tab = lt >= 0.6 ? "About..." : "Home";
+    appView(lt, ABOUT_SPEC, st);
+  }
+
+  // ---------- Sheet: headless ----------
+  const HL_CMD = `cantrip.exe --headless --channel "${SYN_NAME}" --dbc sample.dbc --bus 2 --channel "${VEC1}" --fd --data-bitrate 2000000 --gateway 1:2:0x100-0x1FF --duration 10 --log run.asc`;
   function drawHeadless(lt) {
-    const y0 = stepHeading(lt, 11, "No window", ["Or run it headless."]);
+    const y0 = stepHeading(lt, 17, "No window", ["Or run it headless."]);
     stepList(lt, [
       [0.6, "The same capture runs from a terminal, with no window: for CI and test benches."],
-      [3.6, "Add --rune to reuse a saved setup. Exit code 0 means a clean stop."],
+      [2.8, "--bus 2 starts a second bus, --dbc can repeat per bus, --gateway forwards between them."],
+      [4.4, "Add --rune to reuse a saved setup. Exit code 0 means a clean stop."],
     ], y0 + 50);
-    const tx = VP.x, ty = VP.y + 60, tw = VP.w, th = 560;
+    const tx = VP.x, ty = VP.y + 30, tw = VP.w, th = 600;
     const k = easeOutCubic(prog(lt, 0.3, 0.8));
     if (k <= 0) return;
     ctx.save();
@@ -2081,21 +2662,24 @@ details strong { color: var(--fg); font-weight: 400; }
     ctx.fillStyle = C.panel;
     ctx.fillRect(tx + 1, ty + 1, tw - 2, 40);
     label("PowerShell", tx + 18, ty + 27, 14, C.fog, "left", 1, 0.2);
-    const tf = F.mono(400, 21), cw = measure("M", tf), maxC = Math.floor((tw - 48) / cw), lh = 34;
+    const tf = F.mono(400, 20), cw = measure("M", tf), maxC = Math.floor((tw - 48) / cw), lh = 32;
     const prompt = "PS C:\\bench> ";
     const first = prompt + HL_CMD.slice(0, Math.floor(prog(lt, 0.8, 2.6) * HL_CMD.length));
-    let y = ty + 84;
+    let y = ty + 80;
     for (let i = 0; i < Math.max(1, Math.ceil(first.length / maxC)); i++) {
       const s = first.slice(i * maxC, (i + 1) * maxC);
       if (i === 0) { txt(prompt, tx + 24, y, tf, C.redHi); txt(s.slice(prompt.length), tx + 24 + cw * prompt.length, y, tf, C.paper); }
       else txt(s, tx + 24, y, tf, C.paper);
       y += lh;
     }
+    y += lh * 0.4;
     if (lt >= 2.8) {
       wrap(`cantrip: capturing on '${SYN_NAME}', logging to run.asc`, tf, tw - 48).forEach((l) => { txt(l, tx + 24, y, tf, C.fog); y += lh; });
+      txt(`cantrip: bus 2 capturing on '${VEC1}'`, tx + 24, y, tf, C.fog);
+      y += lh;
     }
     if (lt >= 3.6) {
-      txt("cantrip: captured 213 frame(s) in 10.0s", tx + 24, y, tf, C.paper);
+      txt("cantrip: captured 383 frame(s) in 10.0s", tx + 24, y, tf, C.paper);
       y += lh * 1.5;
       txt(prompt, tx + 24, y, tf, C.redHi);
       const ex = "$LASTEXITCODE".slice(0, Math.floor(prog(lt, 3.9, 4.3) * 13));
@@ -2104,16 +2688,19 @@ details strong { color: var(--fg); font-weight: 400; }
     }
     if (lt >= 2.8 && lt < 3.6) txt("(10 s run, skipped ahead)", tx + tw - 24, ty + th - 24, F.iso(18), C.dim, "right");
     ctx.restore();
-    const nk = easeOutCubic(prog(lt, 4.6, 5.1));
-    if (nk > 0) txt("Every flag is in the docs: Headless Mode.", VP.x, VP.y + 690, F.iso(24), C.fog, "left", nk);
+    const nk = easeOutCubic(prog(lt, 5.0, 5.5));
+    if (nk > 0) {
+      txt("Every flag is in the docs: Headless Mode.", VP.x, VP.y + 690, F.iso(24), C.fog, "left", nk);
+      txt("Diagnostics isn't available headless yet.", VP.x, VP.y + 726, F.iso(24), C.dim, "left", nk);
+    }
   }
 
-  // ---------- Sheet 13: outro ----------
+  // ---------- Sheet: outro ----------
   function drawOutro(lt) {
     drawWave(200, 1720, 900, 30, easeInOutCubic(prog(lt, 0.1, 4.6)), 0.5, false, 2);
     lockup(W / 2, 300, 170, 140, 38, prog(lt, 0.2, 1.0), lt);
     rise(["That's the tour."], W / 2, 500, 60, F.iso(54), C.paper, lt, 0.8, 0, "center", 1.4);
-    rise(["Docs and troubleshooting: avmolaei.github.io/CANtrip"], W / 2, 580, 40, F.iso(30), C.fog, lt, 1.3, 0, "center");
+    rise(["Docs and troubleshooting: avmolaei.com/CANtrip"], W / 2, 580, 40, F.iso(30), C.fog, lt, 1.3, 0, "center");
     const uk = easeOutCubic(prog(lt, 1.8, 2.3));
     if (uk > 0) {
       const f = F.mono(500, 34), s = "github.com/avmolaei/CANtrip", w = measure(s, f) + 64;
@@ -2124,28 +2711,54 @@ details strong { color: var(--fg); font-weight: 400; }
       txt(s, W / 2, 690, f, C.paper, "center", uk);
     }
     const mk = easeOutCubic(prog(lt, 2.4, 3.0));
-    if (mk > 0) txt("v1.5.0 - Yukari   ·   Windows   ·   GPLv3", W / 2, 780, F.mono(400, 21), C.dim, "center", mk);
+    if (mk > 0) txt("v2.0.0 - Nagato   ·   Windows   ·   GPLv3", W / 2, 780, F.mono(400, 21), C.dim, "center", mk);
   }
 
   // ---------- Timeline ----------
-  const GRAPHS_START = 56;
-  const SCENES = [
-    { title: "Using CANtrip", start: 0, end: 6, color: C.redHi, draw: drawTitle },
-    { title: "Install it once", start: 6, end: 16, color: C.blueHi, draw: drawInstall },
-    { title: "Find your way", start: 16, end: 24, color: C.redHi, draw: drawRibbonSheet },
-    { title: "Pick a channel and bus timing", start: 24, end: 36, color: C.blueHi, draw: drawBus },
-    { title: "Start capturing", start: 36, end: 46, color: C.redHi, draw: drawCapture },
-    { title: "Decode with a DBC", start: 46, end: 56, color: C.blueHi, draw: drawDbc },
-    { title: "Plot signals live", start: GRAPHS_START, end: 68, color: C.redHi, draw: drawGraphs },
-    { title: "Watch the bus load", start: 68, end: 76, color: C.blueHi, draw: drawBusLoadSheet },
-    { title: "Send frames", start: 76, end: 90, color: C.redHi, draw: drawSend },
-    { title: "Log it, replay it", start: 90, end: 100, color: C.blueHi, draw: drawLog },
-    { title: "Save it as a Rune", start: 100, end: 106, color: C.redHi, draw: drawRune },
-    { title: "Or run it headless", start: 106, end: 112, color: C.blueHi, draw: drawHeadless },
-    { title: "That's the tour", start: 112, end: 118, color: C.redHi, draw: drawOutro },
-  ];
+  const SCENE = {};
+  const SCENES = (() => {
+    const list = [
+      ["title", "Using CANtrip", 6, drawTitle],
+      ["install", "Install it once", 8, drawInstall],
+      ["tour", "Find your way", 8, drawRibbonSheet, RIBBON_SPEC],
+      ["buses", "Channels and buses", 11, drawBuses, BUSES_SPEC],
+      ["timing", "Bus timing, per bus", 11, drawTiming, TIMING_SPEC],
+      ["capture", "Start capturing", 10, drawCapture, CAP_SPEC],
+      ["filter", "Filter and sort", 9, drawFilter, FILTER_SPEC],
+      ["dbc", "Decode with DBC files", 11, drawDbc, DBC_SPEC],
+      ["graphs", "Plot signals live", 12, drawGraphs, GRAPH_SPEC],
+      ["gateway", "Gateway between buses", 10, drawGatewaySheet, GW_SPEC],
+      ["busload", "Watch the bus load", 8, drawBusLoadSheet, BL_SPEC],
+      ["log", "Log it, replay it", 10, drawLog, LOG_SPEC],
+      ["send", "Send frames", 14, drawSend, SEND_SPEC],
+      ["diag1", "Read an ECU", 11, drawDiag1, DIAG1_SPEC],
+      ["diag2", "Sessions and unlock", 12, drawDiag2, DIAG2_SPEC],
+      ["rune", "Save it as a Rune", 6, drawRune, RUNE_SPEC],
+      ["about", "Version and license", 5, drawAboutSheet, ABOUT_SPEC],
+      ["headless", "Or run it headless", 8, drawHeadless],
+      ["outro", "That's the tour", 6, drawOutro],
+    ];
+    let at = 0;
+    return list.map(([id, title, dur, draw, spec], i) => {
+      const s = { id, title, start: at, end: at + dur, color: i % 2 ? C.blueHi : C.redHi, draw, spec };
+      at += dur;
+      SCENE[id] = s;
+      return s;
+    });
+  })();
+  CH_T = SCENE.buses.start + 2.3;
+  MB_T = SCENE.buses.start + 7.6;
+  CC2FD_T = SCENE.timing.start + 3.7;
+  CAP_CLICK = SCENE.capture.start + 1.0;
+  CAP0 = CAP_CLICK + 0.6;
+  PERIODIC_T = SCENE.capture.start + 5.0;
+  DBC_T = SCENE.dbc.start + 5.6;
+  GW_T = SCENE.gateway.start + 6.3;
+  REQ_T = SCENE.diag1.start + 1.8;
+  RES_T = SCENE.diag1.start + 3.0;
+  SESSION_T = SCENE.diag2.start + 2.9;
+  TESTER_T = SCENE.diag2.start + 4.2;
   const TR = 0.7;
-  const SPECS = { 2: RIBBON_SPEC, 3: BUS_SPEC, 4: CAP_SPEC, 5: DBC_SPEC, 6: GRAPH_SPEC, 7: BL_SPEC, 8: SEND_SPEC, 9: LOG_SPEC, 10: RUNE_SPEC };
 
   function sceneAt(t) {
     for (let i = SCENES.length - 1; i >= 0; i--) if (t >= SCENES[i].start) return i;
@@ -2196,6 +2809,7 @@ details strong { color: var(--fg); font-weight: 400; }
     ctx.restore();
   }
 
+
   // ---------- Fonts ----------
   const fontsReady = (async () => {
     if (!document.fonts) return;
@@ -2223,13 +2837,13 @@ details strong { color: var(--fg); font-weight: 400; }
     const NB = Math.ceil(DURATION / BAR);
     for (let bar = 0; bar < NB; bar++) {
       const t0 = bar * BAR, ch = CHORDS[Math.floor(bar / 2) % 4];
-      const intro = bar < 3, main = bar >= 3 && bar < 53, outro = bar >= 56;
+      const intro = bar < 3, main = bar >= 3 && bar < NB - 6, outro = bar >= NB - 3;
       if (bar % 2 === 0) at(t0, "pad", { notes: ch.pad, dur: BAR * 2 + 0.2, vel: intro || outro ? 0.8 : 0.7, pump: main });
       for (let e = 0; e < 8; e++) {
         let cut = 1000 + 250 * Math.sin(bar * 0.6);
         if (intro) cut = 300 + (bar * 8 + e) * 24;
-        if (outro) cut = lerp(800, 300, (bar - 56) / 3);
-        at(t0 + (e * BEAT) / 2, "pulse", { m: ch.root + 12, cut, vel: (e % 2 ? 0.5 : 0.8) * (outro ? lerp(1, 0.4, (bar - 56) / 3) : 1) });
+        if (outro) cut = lerp(800, 300, (bar - (NB - 3)) / 3);
+        at(t0 + (e * BEAT) / 2, "pulse", { m: ch.root + 12, cut, vel: (e % 2 ? 0.5 : 0.8) * (outro ? lerp(1, 0.4, (bar - (NB - 3)) / 3) : 1) });
       }
       if (main) {
         for (let b = 0; b < 4; b++) {
@@ -2246,13 +2860,19 @@ details strong { color: var(--fg); font-weight: 400; }
       }
     }
     at(1.0, "impact", { vel: 0.6 });
-    at(112.0, "impact", { vel: 0.55 });
-    at(110.0, "riser", { dur: 2.0 });
+    at(SCENE.outro.start, "impact", { vel: 0.55 });
+    at(SCENE.outro.start - 2, "riser", { dur: 2.0 });
     for (let i = 1; i < SCENES.length; i++) at(SCENES[i].start - TR / 2, "scan", {});
-    Object.entries(SPECS).forEach(([i, spec]) => (spec.clicks || []).forEach(([t]) => at(SCENES[i].start + t, "tick", { vel: 1.6 })));
-    at(SCENES[1].start + 7.7, "tick", { vel: 1.6 });
-    for (let i = 0; i < COPY_CMD.length; i += 2) at(SCENES[1].start + 4.0 + (i / COPY_CMD.length) * 1.2, "tick", { vel: 0.5 });
-    for (let i = 0; i < HL_CMD.length; i += 3) at(SCENES[11].start + 0.8 + (i / HL_CMD.length) * 1.8, "tick", { vel: 0.5 });
+    SCENES.forEach((s) => ((s.spec && s.spec.clicks) || []).forEach(([t]) => at(s.start + t, "tick", { vel: 1.6 })));
+    at(SCENE.install.start + 4.5, "tick", { vel: 1.6 });
+    // Typing: filters, gateway IDs, diagnostics IDs and requests, the headless command.
+    const typing = (s, a, b, n) => { for (let i = 0; i < n; i++) at(s.start + a + ((b - a) * i) / n, "tick", { vel: 0.5 }); };
+    typing(SCENE.filter, 0.9, 1.6, 3); typing(SCENE.filter, 4.0, 4.1, 1);
+    typing(SCENE.gateway, 4.4, 5.2, 11);
+    typing(SCENE.send, 3.35, 3.8, 3);
+    typing(SCENE.diag1, 1.6, 1.8, 2); typing(SCENE.diag1, 2.8, 3.0, 2); typing(SCENE.diag1, 4.5, 4.9, 4);
+    typing(SCENE.diag2, 6.0, 6.9, 11); typing(SCENE.diag2, 8.5, 9.3, 11);
+    for (let i = 0; i < HL_CMD.length; i += 3) at(SCENE.headless.start + 0.8 + (i / HL_CMD.length) * 1.8, "tick", { vel: 0.5 });
     at(DURATION - 1.4, "fade", { dur: 1.3 });
     ev.sort((a, b) => a.t - b.t);
     return ev;
@@ -2688,6 +3308,5 @@ details strong { color: var(--fg); font-weight: 400; }
   Promise.all([fontsReady, imagesReady]).then(() => { if (!playing) render(t); });
 })();
 </script>
-
 
 </body></html>

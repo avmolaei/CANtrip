@@ -60,8 +60,7 @@ void setItemGrayed(QTreeWidgetItem* item, bool grayed) {
 } // namespace
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
-    // An experimental build says so where it cannot be missed.
-    setWindowTitle(QString(kVersion).contains("experimental") ? QString("CANtrip v%1 - %2").arg(kVersion, kCodename) : QString("CANtrip"));
+    setWindowTitle("CANtrip");
     resize(1000, 600);
     connect(&gatewayTimer_, &QTimer::timeout, this, &MainWindow::pumpGateway);
     gatewayTimer_.start(20);

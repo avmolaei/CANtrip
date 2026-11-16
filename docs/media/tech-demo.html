@@ -76,7 +76,7 @@ details strong { color: var(--fg); font-weight: 400; }
         <p>A two-minute tech demo</p>
       </div>
     </div>
-    <span class="meta">v2.0.0-experimental - Nagato · Qt 6 · C++20 · GPLv3</span>
+    <span class="meta">v2.0.0 - Nagato · Qt 6 · C++20 · GPLv3</span>
   </header>
 
   <div class="stage" id="stage">
@@ -101,10 +101,10 @@ details strong { color: var(--fg); font-weight: 400; }
   <ol class="chapters" id="chapters"></ol>
 
   <div class="foot">
-    <p class="note">Everything the film shows as built is in CANtrip v2.0.0-experimental (Nagato), and the formats, field names, IDs and constants on screen come from the source. Multi-bus capture, per-bus DBC files, the gateway and UDS diagnostics have been run on the synthetic source and in unit tests only, not yet on real PEAK or Vector hardware: v1.7.0 stays the release for real work. File names and frame counts are examples.</p>
+    <p class="note">Everything the film shows as built is in CANtrip v2.0.0 (Nagato), and the formats, field names, IDs and constants on screen come from the source. Multi-bus capture, per-bus DBC files, the gateway and UDS diagnostics have been tested in the field on PEAK and Vector hardware. File names and frame counts are examples.</p>
     <nav class="links" aria-label="Project links">
       <a href="https://github.com/avmolaei/CANtrip" target="_blank" rel="noopener">Source on GitHub</a>
-      <a href="https://github.com/avmolaei/CANtrip/releases/tag/v2.0.0-experimental_nagato" target="_blank" rel="noopener">Download v2.0.0-experimental</a>
+      <a href="https://github.com/avmolaei/CANtrip/releases/tag/v2.0.0_nagato" target="_blank" rel="noopener">Download v2.0.0</a>
       <a href="https://avmolaei.com/CANtrip/" target="_blank" rel="noopener">Documentation</a>
     </nav>
   </div>
@@ -112,7 +112,7 @@ details strong { color: var(--fg); font-weight: 400; }
   <details>
     <summary>Transcript</summary>
     <ol>
-      <li><strong>CANtrip.</strong> An open-source CAN and CAN FD analyzer for Windows. Version 2.0.0-experimental, Nagato. GPLv3.</li>
+      <li><strong>CANtrip.</strong> An open-source CAN and CAN FD analyzer for Windows. Version 2.0.0, Nagato. GPLv3.</li>
       <li><strong>Why CANtrip.</strong> Commercial analyzer licenses run from a few thousand to tens of thousands of euros per seat, and free tools are mostly command-line first. CANtrip aims for the free, graphical corner.</li>
       <li><strong>Standing on proven parts.</strong> CANtrip writes what is specific to CAN analysis (the Qt 6 interface, the C++20 core with TsharkCapture, DbcDecoder, GatewayRouter and UdsClient, the capture thread and the AVlabs CAN backend) and reuses Wireshark's tshark for dissection and dbcppp for DBC files. Vendor DLLs load at runtime.</li>
       <li><strong>One capture thread and one tshark per bus.</strong> Inside cantrip.exe, a capture thread reads the adapter through the vendor-neutral backend and serves SocketCAN pcap records on a named pipe, \\.\pipe\cantrip_capture_&lt;pid&gt;_&lt;n&gt;. A stock tshark reads that pipe and emits JSON, and TsharkCapture, BusTimeAligner and DbcDecoder feed the trace, graphs and log writer. Each bus gets its own thread and tshark, up to 16, and one GatewayRouter, shared by every capture thread, carries the gateway, Send Message and UDS traffic. Why: no frame parser to maintain, nothing to copy into Wireshark (can2pcap stays an optional extcap), one class per new adapter, buses that scale independently, and a GUI-free core that runs headless.</li>
@@ -121,9 +121,9 @@ details strong { color: var(--fg); font-weight: 400; }
       <li><strong>Up to 16 buses, one timeline.</strong> Each bus has its own channel, bitrate and classic or FD setting. BusTimeAligner puts every bus on one clock that starts at the first frame on any bus: spacing within a bus is what the adapter reported, alignment across buses is good to a few milliseconds. The Trace view gains a Bus column, graph signals are named like CAN2.EngineData.EngineSpeed, and DBC management holds any number of files per bus; when two files on a bus define the same ID, the one higher in the list wins and the clash is listed in red.</li>
       <li><strong>Forwarding between buses.</strong> Gateway rules forward frames by ID or ID range, in either direction, such as 1 to 2 for all IDs and 2 to 1 for 0x700-0x7FF. The capture thread reading the source bus calls route(), the thread owning the destination calls take() and transmits, with a queue of up to 4096 frames: about 1 to 2 ms, with no tshark or window in the path. No echo between paired rules, one copy per destination, no bus error frames, and forwarded frames show and log as Tx. Headless: --gateway 1:2 --gateway 2:1:0x700-0x7FF.</li>
       <li><strong>UDS over ISO-TP.</strong> DiagnosticsView, UdsClient and IsoTpChannel send through the GatewayRouter; answers come back through tshark like any frame. Reading F190 from the simulated ECU on 0x7E1/0x7E9: a single frame request, a first frame announcing 20 bytes, flow control, two consecutive frames, and the log reads VIN = CANTR1PSYNTH00001. Security Access in the default session is refused with serviceNotSupportedInActiveSession, and the log suggests switching session. Classic CAN and normal addressing only, simulated ECU only so far, not in headless mode yet.</li>
-      <li><strong>What's in 2.0, experimental.</strong> CAN and CAN FD on PEAK and Vector; new: up to 16 buses, several DBC files per bus, the gateway and UDS diagnostics; plus trace filter and sort, graphs of the whole capture, bus load statistics, cyclic and one-shot transmit, ASC and CSV logging with replay, runes, bit timing, autodetect, headless mode and a synthetic source. The new parts have not yet run on real adapters.</li>
+      <li><strong>What's in 2.0.</strong> CAN and CAN FD on PEAK and Vector; new: up to 16 buses, several DBC files per bus, the gateway and UDS diagnostics; plus trace filter and sort, graphs of the whole capture, bus load statistics, cyclic and one-shot transmit, ASC and CSV logging with replay, runes, bit timing, autodetect, headless mode and a synthetic source. All of it tested in the field on PEAK and Vector hardware.</li>
       <li><strong>Same core, no window.</strong> With --headless, main.cpp starts a QCoreApplication and a HeadlessRunner instead of the Qt window, on the same capture, decode, gateway, send and logging classes. New flags: --bus N, --dbc per bus, and --gateway &lt;from&gt;:&lt;to&gt;[:&lt;ids&gt;].</li>
-      <li><strong>Where it goes next.</strong> v1.7 was the last release. v2.0-experimental today. v2.0: vehicle and bench testing. v3.0: scripting, counter and CRC checks, trigger-based logging. v4.0: Linux and SocketCAN. Unscheduled: MF4 logging, a programmatic API, more adapters.</li>
+      <li><strong>Where it goes next.</strong> v1.7 was the previous release. v2.0 today, field-tested. v2.x: diagnostics in headless mode. v3.0: scripting, counter and CRC checks, trigger-based logging. v4.0: Linux and SocketCAN. Unscheduled: MF4 logging, a programmatic API, more adapters.</li>
       <li><strong>One bus to sniff them all.</strong> Free software under GPLv3. github.com/avmolaei/CANtrip, documentation at avmolaei.com/CANtrip.</li>
     </ol>
   </details>
@@ -641,7 +641,7 @@ details strong { color: var(--fg); font-weight: 400; }
     lockup(W / 2, 340, 200, 168, 44, prog(lt, 0.9, 1.9), lt);
     rise(["Open-source CAN and CAN FD analyzer for Windows"], W / 2, 545, 50, F.iso(40), C.fog, lt, 1.7, 0, "center");
     const mk = easeOutCubic(prog(lt, 2.3, 2.9));
-    if (mk > 0) txt("v2.0.0-experimental - Nagato   ·   GPLv3   ·   Qt 6 / C++20", W / 2, 612, F.mono(500, 22), C.dim, "center", mk);
+    if (mk > 0) txt("v2.0.0 - Nagato   ·   GPLv3   ·   Qt 6 / C++20", W / 2, 612, F.mono(500, 22), C.dim, "center", mk);
   }
 
   // ---------- Sheet 2: why ----------
@@ -1335,7 +1335,7 @@ details strong { color: var(--fg); font-weight: 400; }
     ["Headless mode, synthetic source"],
   ];
   function drawToday(lt) {
-    heading(lt, "Today", ["What's in 2.0, experimental."], null, 96, 140, 1200, 58);
+    heading(lt, "Today", ["What's in 2.0."], null, 96, 140, 1200, 58);
     const tiles = [
       { img: "trace", name: "Detail A · Decoded trace", x: 96, y: 236, w: 540, h: 330, zoom: 1.75, fx: 0.78, fy: 0.42 },
       { img: "graph", name: "Detail B · Graph windows", x: 666, y: 236, w: 540, h: 330, zoom: 2.0, fx: 0.2, fy: 0.3 },
@@ -1374,7 +1374,7 @@ details strong { color: var(--fg); font-weight: 400; }
       txt(f, 1302, y, F.iso(25), C.paper, "left", k, 0.4);
       if (isNew) label("new", 1302 + measure(f, F.iso(25)) + 16, y - 2, 13, C.redHi, "left", k, 0.25);
     });
-    rise(["New in 2.0: run on the synthetic source and in unit tests, not yet on real adapters. v1.7.0 is the release for real work."],
+    rise(["New in 2.0, and tested in the field on PEAK and Vector hardware."],
       96, 966, 30, F.iso(20), C.fog, lt, 4.6, 0);
   }
 
@@ -1464,9 +1464,9 @@ details strong { color: var(--fg); font-weight: 400; }
 
   // ---------- Sheet 12: roadmap ----------
   const ROAD = [
-    { v: "v1.7", note: "last release", x: 230, items: ["Whole-capture graphs", "Nothing to install", "in Wireshark"], done: true },
-    { v: "v2.0-exp", note: "today", x: 590, items: ["16 buses, one window", "Per-bus DBC files", "Gateway", "UDS diagnostics"], now: true },
-    { v: "v2.0", note: "planned", x: 960, items: ["Vehicle and bench", "testing"] },
+    { v: "v1.7", note: "previous release", x: 230, items: ["Whole-capture graphs", "Nothing to install", "in Wireshark"], done: true },
+    { v: "v2.0", note: "today", x: 590, items: ["16 buses, one window", "Per-bus DBC files", "Gateway", "UDS diagnostics"], now: true },
+    { v: "v2.x", note: "planned", x: 960, items: ["Diagnostics in", "headless mode"] },
     { v: "v3.0", note: "planned", x: 1320, items: ["Scripting", "Counter and CRC checks", "Trigger-based logging"] },
     { v: "v4.0", note: "planned", x: 1660, items: ["Linux and", "SocketCAN"] },
   ];
@@ -1532,7 +1532,7 @@ details strong { color: var(--fg); font-weight: 400; }
     }
     rise(["Docs: avmolaei.com/CANtrip"], W / 2, 750, 40, F.iso(28), C.fog, lt, 2.0, 0, "center");
     const mk = easeOutCubic(prog(lt, 2.5, 3.1));
-    if (mk > 0) txt("v2.0.0-experimental - Nagato   ·   Windows   ·   Qt 6 / C++20   ·   GPLv3", W / 2, 812, F.mono(400, 21), C.dim, "center", mk);
+    if (mk > 0) txt("v2.0.0 - Nagato   ·   Windows   ·   Qt 6 / C++20   ·   GPLv3", W / 2, 812, F.mono(400, 21), C.dim, "center", mk);
   }
 
   // ---------- Timeline ----------

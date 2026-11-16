@@ -23,6 +23,7 @@ fixed list - pick something when you get there.
 |---|---|
 | v0.1_mugi ... v0.5_Sawako | one-off names, pre-1.0 only |
 | v1.0.0_yukari, v1.1.0_yukari, ... | yukari (all of v1.x) |
+| v2.0.0_nagato, ... | nagato (all of v2.x) |
 
 ## Cutting a release
 

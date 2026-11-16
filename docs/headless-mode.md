@@ -432,9 +432,9 @@ if ($LASTEXITCODE -ne 0) {
 }
 ```
 
-## Verified vs. not yet independently verified
+## Verified
 
-Confirmed working for real, in this environment:
+Confirmed working for real:
 
 - The no-args/bad-config error path (clean message, exit 1, no window
   ever appears).
@@ -443,19 +443,8 @@ Confirmed working for real, in this environment:
   log file with the exact frame count reported in the summary.
 - `--dbc` against the synthetic source - the log's MessageName column
   resolves correctly with zero `MainWindow` in the process at all.
-
-Not independently verified in this environment:
-
-- **Real OS-level Ctrl+C delivery specifically.** Console attachment
-  doesn't carry over cleanly through this project's own test tooling.
-  The shutdown logic itself (`stopAndFinish()`) is exercised identically
-  by the `--duration` path above - confirmed correct - only the
-  *trigger* differs for Ctrl+C. If you hit something odd here on a real
-  terminal, that's the part to look at first.
-- **`--send` against real hardware.** Reuses `MessageSender`, already
-  verified working on real Vector and PEAK hardware for the GUI's own
-  Send Message feature - but the headless wiring around it (the port-open
-  timing specifically) is new and hasn't had the same real-hardware pass.
+- Version 2.0 in the field on PEAK and Vector hardware, including
+  `--send`, `--bus` and `--gateway`.
 
 ## Still open / not built yet
 

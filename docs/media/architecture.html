@@ -1,4 +1,5 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body><script>if (location.hash === "#embed") document.documentElement.classList.add("embed");</script><style>.embed body{padding:0!important}.embed .top,.embed .chapters,.embed .foot,.embed details{display:none!important}.embed .wrap{gap:12px;max-width:none}.embed .scrub{order:0;flex-basis:80px}.embed #mutelabel{display:none}.embed #full{font-size:0;gap:0}</style><title>CANtrip Architecture</title>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<script>if (location.hash === "#embed") document.documentElement.classList.add("embed");</script><style>.embed body{padding:0!important}.embed .top,.embed .chapters,.embed .foot,.embed details{display:none!important}.embed .wrap{gap:12px;max-width:none}.embed .scrub{order:0;flex-basis:80px}.embed #mutelabel{display:none}.embed #full{font-size:0;gap:0}</style><title>CANtrip Architecture</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
 /* Layout: an engineering drawing sheet. One 16:9 film stage, a transport bar under it, then chapters and transcript. */
@@ -74,11 +75,11 @@ details strong { color: var(--fg); font-weight: 400; }
         <p>How it's built: an architecture walkthrough</p>
       </div>
     </div>
-    <span class="meta">v1.5.0 - Yukari · Qt 6 · C++20 · GPLv3</span>
+    <span class="meta">v2.0.0 - Nagato · Qt 6 · C++20 · GPLv3</span>
   </header>
 
   <div class="stage" id="stage">
-    <canvas id="film" width="1920" height="1080" role="img" aria-label="Animated architecture walkthrough of CANtrip: its three processes, the vendor-neutral CAN backend, the pcap wire format, Wireshark dissection, the single frame pipeline, the DLC trap, transmit internals, bus load math, rune persistence and headless mode. The chapters and transcript below list every sheet."></canvas>
+    <canvas id="film" width="1920" height="1080" role="img" aria-label="Animated architecture walkthrough of CANtrip 2.0: in-process capture feeding tshark, one capture lane per bus, the vendor-neutral CAN backend, the pcap wire format, Wireshark dissection, the single frame pipeline, the DLC trap, transmit internals, the gateway between buses, UDS diagnostics over ISO-TP, bus load math, rune persistence and headless mode. The chapters and transcript below list every sheet."></canvas>
     <button class="bigplay" id="bigplay" type="button" aria-label="Play the film">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4l14 8-14 8z" fill="currentColor"/></svg>
     </button>
@@ -86,8 +87,8 @@ details strong { color: var(--fg); font-weight: 400; }
 
   <div class="controls">
     <button class="btn" id="play" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="playicon" d="M6 4l14 8-14 8z" fill="currentColor"/></svg><span id="playlabel">Play</span></button>
-    <span class="time" id="time">0:00 / 2:58</span>
-    <div class="scrub" id="scrub" role="slider" tabindex="0" aria-label="Position in the film" aria-valuemin="0" aria-valuemax="178" aria-valuenow="0">
+    <span class="time" id="time">0:00 / 3:48</span>
+    <div class="scrub" id="scrub" role="slider" tabindex="0" aria-label="Position in the film" aria-valuemin="0" aria-valuemax="228" aria-valuenow="0">
       <div class="track"><div class="rest" id="rest"></div></div>
       <div id="ticks"></div>
       <div class="thumb" id="thumb"></div>
@@ -99,9 +100,9 @@ details strong { color: var(--fg); font-weight: 400; }
   <ol class="chapters" id="chapters"></ol>
 
   <div class="foot">
-    <p class="note">Every code panel is quoted from the CANtrip v1.5.0 source, lightly trimmed where marked. The incidents are real bugs found and fixed on real hardware.</p>
+    <p class="note">Every code panel is quoted from the CANtrip v2.0.0 source, lightly trimmed where marked. The incidents are real bugs found and fixed on real hardware. Multi-bus, the gateway and diagnostics have been tested in the field on PEAK and Vector hardware.</p>
     <nav class="links" aria-label="Project links">
-      <a href="https://avmolaei.github.io/CANtrip/architecture/overview/" target="_blank" rel="noopener">Architecture docs</a>
+      <a href="https://avmolaei.com/CANtrip/architecture/overview/" target="_blank" rel="noopener">Architecture docs</a>
       <a href="https://github.com/avmolaei/CANtrip" target="_blank" rel="noopener">Source on GitHub</a>
     </nav>
   </div>
@@ -109,19 +110,22 @@ details strong { color: var(--fg); font-weight: 400; }
   <details>
     <summary>Transcript</summary>
     <ol>
-      <li><strong>How CANtrip is built.</strong> Processes, interfaces, wire formats and the decisions behind them.</li>
-      <li><strong>Windows has no SocketCAN.</strong> On Linux every adapter is a network interface behind one kernel API; on Windows every vendor ships its own DLL. The goals: don't write a capture stack, don't write a frame parser, keep every vendor behind one interface.</li>
-      <li><strong>Three processes, three channels.</strong> cantrip.exe starts tshark, tshark starts can2pcap.exe as an extcap. Frames travel as pcap records through a fifo and come back as JSON on stdout. can2pcap owns the hardware handle; transmit goes through a named pipe on PEAK or a second port on Vector.</li>
+      <li><strong>How CANtrip is built.</strong> Version 2.0: processes, threads, interfaces, wire formats and the decisions behind them.</li>
+      <li><strong>Windows has no SocketCAN.</strong> On Linux every adapter is a network interface behind one kernel API; on Windows every vendor ships its own DLL. The goals: don't invent a wire format, don't write a frame parser, keep every vendor behind one interface.</li>
+      <li><strong>cantrip.exe captures, tshark dissects.</strong> Since 1.7 a capture thread inside cantrip.exe (PcapPipeFeeder) owns the hardware and serves pcap records on a named pipe; TsharkCapture spawns tshark -i on that pipe and reads EK JSON from its stdout. Nothing is installed into Wireshark; can2pcap.exe remains as an optional extcap running the same loop. Send Message transmits through the capture thread's pipe on PEAK and its own second XL port on Vector.</li>
+      <li><strong>One lane per bus.</strong> Up to 16 buses, each its own capture thread, tshark and TsharkCapture stamping the bus number. BusTimeAligner shifts each bus by when its first frame arrived so all buses share one timeline. DBC files load per bus or for every bus, signals beyond CAN 1 get a CANn prefix, and logs carry the bus as the channel.</li>
       <li><strong>One interface, any vendor.</strong> IAvlabsCanBackend has initialize, uninitialize, a non-blocking readFrame and writeFrame. Each backend loads its vendor DLL at runtime, so a missing DLL just hides that vendor's channels.</li>
-      <li><strong>Vendor struct in, pcap record out.</strong> can2pcap's loop reads a frame and writes a 16-byte SocketCAN record (72 for CAN FD) in network byte order under LINKTYPE 227. The FD DLC code becomes a byte length here. Incident: frames once lost their tail because the raw code was written as the length.</li>
-      <li><strong>Wireshark does the parsing.</strong> tshark -T ek emits one JSON object per frame; TsharkCapture reads the can or canfd layer and data_data_data into a DecodedCanFrame. Gotcha: AUTOSAR NM matches ID 0, so tshark runs with that dissector disabled.</li>
-      <li><strong>Every frame takes the same path.</strong> Capture, your own transmits and replay all feed onFrameReceived. Logging sees every frame first; the display is throttled to the display rate. BusLoadTracker taps the capture directly and ignores replay. Incident: the UI froze on a busy bus until the throttle existed.</li>
+      <li><strong>Vendor struct in, pcap record out.</strong> The capture loop in PcapCapture.cpp reads a frame, writes a 16-byte SocketCAN record (72 for CAN FD) under LINKTYPE 227, hands it to the gateway, then transmits whatever other buses queued for it. Incident: frames once lost their tail because the raw FD DLC code was written as the length.</li>
+      <li><strong>Wireshark does the parsing.</strong> tshark -T ek emits one JSON object per frame; TsharkCapture reads the can or canfd layer and data_data_data into a DecodedCanFrame and stamps its bus. Gotcha: AUTOSAR NM matches ID 0, so tshark runs with that dissector disabled.</li>
+      <li><strong>Every frame takes the same path.</strong> Captures on every bus, your own transmits, replay and gateway-forwarded frames all feed onFrameReceived. Logging and the Graph view's history see every frame; the Trace view is throttled to the display rate. One BusLoadTracker per bus taps capture, transmit and the gateway, and ignores replay. Incident: the UI froze on a busy bus until the throttle existed.</li>
       <li><strong>DLC code or byte count?</strong> Above 8, FD DLC codes map to 12 to 64 bytes. CANtrip converts at three boundaries. Incident: a byte count of 64 sent as a DLC code caused bus errors and a crash on a Vector adapter.</li>
-      <li><strong>Sending while capturing.</strong> Vector allows a second port with a zero permission mask. PCAN-Basic refuses a second initialization, so frames go through a named pipe to can2pcap, which writes on its own handle. Incident: opening the port at capture start killed PEAK captures, so it now opens on the first send.</li>
-      <li><strong>Bus load, bit by bit.</strong> Each frame is costed in bits with a stuffing factor and timed at the right bitrate, then aggregated over a rolling one-second window and graphed through the existing Graph view.</li>
-      <li><strong>Runes: JSON that tolerates absence.</strong> No version field: a missing key gets its default, the graph layout migrates by shape, and the trace header is Qt's own saved state.</li>
-      <li><strong>Same classes, no widgets.</strong> main.cpp checks for --headless before creating any Qt application; QCoreApplication and HeadlessRunner reuse the plain classes. Ctrl+C sets a flag that a 200 ms timer reads on the main thread.</li>
-      <li><strong>Design rules.</strong> Reuse proven parts, one interface per vendor, plain non-GUI classes, one path for every frame, tolerate absence.</li>
+      <li><strong>Sending while capturing.</strong> Vector allows a second port with a zero permission mask. PCAN-Basic refuses a second initialization, so frames go through a named pipe to the capture thread, which writes on its own handle. A message for a bus beyond CAN 1 goes through the gateway router to that bus's capture thread. Incident: opening the port at capture start killed PEAK captures, so it now opens on the first send.</li>
+      <li><strong>The capture threads do the forwarding.</strong> The thread reading one bus hands each frame to a shared GatewayRouter; rules by source bus and ID range queue it for the destination, whose own thread transmits it within a millisecond or two. Forwarded frames come back to the window as Tx rows. Queues are 4096 deep, error frames are never forwarded, and nothing ping-pongs.</li>
+      <li><strong>UDS over ISO-TP, on the same pipeline.</strong> UdsClient sends requests through the router; IsoTpChannel splits and joins long messages; answers arrive as ordinary captured frames. On the synthetic source a simulated ECU answers on 7E9; reading F190 returns a 20-byte answer in a first frame and two consecutive frames. Classic CAN, normal addressing, not headless yet.</li>
+      <li><strong>Bus load, bit by bit.</strong> Each frame is costed in bits with a stuffing factor and timed at the right bitrate, then aggregated over a rolling one-second window per bus and graphed through the existing Graph view.</li>
+      <li><strong>Runes: JSON that tolerates absence.</strong> No version field: a rune from before 2.0 has no extraBuses, dbcFiles or gateway keys, so it opens as one bus, its dbcPath loads for every bus and the gateway is off.</li>
+      <li><strong>Same classes, no widgets.</strong> main.cpp checks for --headless before creating any Qt application; QCoreApplication and HeadlessRunner reuse the plain classes, now with --bus, a --dbc per bus and --gateway. Ctrl+C sets a flag that a 200 ms timer reads on the main thread.</li>
+      <li><strong>Design rules.</strong> Reuse proven parts, one interface per vendor, plain non-GUI classes, one path for every frame, tolerate absence, and the owner of a handle does its I/O.</li>
     </ol>
   </details>
 </main>
@@ -131,7 +135,7 @@ details strong { color: var(--fg); font-weight: 400; }
   "use strict";
 
   // ---------- Constants ----------
-  const W = 1920, H = 1080, DURATION = 178, POSTER_T = 4.4;
+  const W = 1920, H = 1080, DURATION = 228, POSTER_T = 4.4;
   const C = {
     sheet: "#0c0e13", ink: "#07080c", panel: "#121520", line: "#2b3142", rule: "#495268",
     paper: "#eef1f7", fog: "#b8c0d3", dim: "#7c869c",
@@ -464,7 +468,7 @@ details strong { color: var(--fg); font-weight: 400; }
   function drawTitleBlock(si) {
     const sc = SCENES[si];
     const x = 1292, y = 990, h = 62;
-    const cells = [["Project", "CANtrip", 150], ["Title", sc.title, 260], ["Sheet", `${String(si + 1).padStart(2, "0")} / ${SCENES.length}`, 96], ["Rev", "1.5.0", 72]];
+    const cells = [["Project", "CANtrip", 150], ["Title", sc.title, 260], ["Sheet", `${String(si + 1).padStart(2, "0")} / ${SCENES.length}`, 96], ["Rev", "2.0.0", 72]];
     ctx.save();
     ctx.fillStyle = C.sheet;
     ctx.fillRect(x, y, W - 28 - x, h);
@@ -803,7 +807,7 @@ details strong { color: var(--fg); font-weight: 400; }
     drawWave(200, 1720, 820, 38, easeInOutCubic(prog(lt, 0.2, 5.6)), 0.8, true, 2.2);
     lockup(W / 2, 330, 190, 160, 42, prog(lt, 0.3, 1.2), lt);
     rise(["How CANtrip is built"], W / 2, 560, 60, F.iso(54), C.paper, lt, 1.0, 0, "center", 1.4);
-    rise(["An architecture walkthrough: processes, interfaces, wire formats and the decisions behind them."], W / 2, 630, 40, F.iso(28), C.fog, lt, 1.5, 0, "center");
+    rise(["Version 2.0: processes, threads, interfaces, wire formats and the decisions behind them."], W / 2, 630, 40, F.iso(28), C.fog, lt, 1.5, 0, "center");
   }
 
   // ---------- Sheet 2: the constraint ----------
@@ -834,7 +838,7 @@ details strong { color: var(--fg); font-weight: 400; }
     });
     note(lt, 4.4, wx, 566, "A different API, struct layout and error model per vendor.", ww);
     // Goals
-    const goals = [["Don't write a capture stack", "Reuse Wireshark's capture pipeline."], ["Don't write a frame parser", "Reuse Wireshark's SocketCAN dissector."], ["Keep vendors behind one wall", "One interface: IAvlabsCanBackend."]];
+    const goals = [["Don't invent a wire format", "Speak pcap: Wireshark already reads it."], ["Don't write a frame parser", "Reuse Wireshark's SocketCAN dissector."], ["Keep vendors behind one wall", "One interface: IAvlabsCanBackend."]];
     label("So the design goals were", 96, 690, 17, C.fog, "left", bk(lt, 5.2));
     goals.forEach(([a, b], i) => {
       const k = bk(lt, 5.6 + i * 0.8);
@@ -852,50 +856,51 @@ details strong { color: var(--fg); font-weight: 400; }
 
   // ---------- Sheet 3: process map ----------
   function drawProcesses(lt) {
-    heading(lt, "Process map", ["Three processes, three channels."], null, 96, 140, 1200, 54);
-    procBox(96, 260, 504, 440, "Process · cantrip.exe", bk(lt, 0.4));
-    [["MainWindow", 116, 300], ["DbcDecoder", 116, 380], ["ILogWriter (ASC, CSV)", 116, 460], ["TsharkCapture", 356, 300], ["BusLoadTracker", 356, 380], ["MessageSender", 356, 460]]
+    heading(lt, "Process map · since 1.7", ["cantrip.exe captures, tshark dissects."], null, 96, 140, 1200, 54);
+    procBox(96, 260, 1744, 410, "Process · cantrip.exe", bk(lt, 0.4));
+    [["MainWindow", 116, 300], ["DbcDecoder", 116, 380], ["ILogWriter (ASC, CSV)", 116, 460], ["MessageSender", 356, 300], ["BusLoadTracker", 356, 380], ["TsharkCapture", 356, 460]]
       .forEach(([s, x, y], i) => block(x, y, 224, 56, s, null, bk(lt, 0.6 + i * 0.1), { stroke: C.redHi, mono: true, px: 15 }));
     txt("Qt 6 · C++20", 116, 568, F.iso(19), C.dim, "left", bk(lt, 1.3));
-    procBox(780, 330, 380, 300, "Process · tshark -T ek", bk(lt, 1.5), C.blueHi);
-    block(806, 370, 328, 70, "dumpcap", "reads the extcap fifo", bk(lt, 1.7), { stroke: C.blueHi, mono: true, px: 18 });
-    block(806, 470, 328, 70, "SocketCAN dissector", "Wireshark's own", bk(lt, 1.9), { stroke: C.blueHi, px: 21 });
-    procBox(1280, 260, 560, 440, "Process · can2pcap.exe", bk(lt, 2.1));
-    [["capture loop", 300], ["IAvlabsCanBackend", 380], ["PeakBackend · VectorBackend", 460], ["PCANBasic.dll · vxlapi64.dll", 540], ["TX pipe server (PEAK)", 620]]
-      .forEach(([s, y], i) => block(1306, y, 508, 56, s, null, bk(lt, 2.3 + i * 0.1), { stroke: i === 4 ? C.redHi : C.rule, mono: true, px: 16 }));
-    block(1280, 800, 560, 86, "CAN adapter", "PEAK or Vector, over USB", bk(lt, 2.9), { stroke: C.fog, px: 24 });
-    // Spawns
-    const sp1 = [[580, 316], [680, 316], [680, 352], [780, 352]];
-    const sp2 = [[1160, 360], [1220, 360], [1220, 290], [1280, 290]];
-    wire(sp1, wk(lt, 3.2), C.fog, 1.4, [6, 5]);
-    wireText("spawns: tshark -i <id> -T ek -l", 690, 248, bk(lt, 3.6), C.fog, 14);
-    wire(sp2, wk(lt, 3.8), C.fog, 1.4, [6, 5]);
-    wireText("spawns as extcap: --capture --fifo <path>", 1060, 250, bk(lt, 4.2), C.fog, 14);
+    procBox(1240, 290, 580, 356, "Thread · capture (PcapPipeFeeder)", bk(lt, 1.5), C.redHi);
+    [["TX pipe server (PEAK)", 326], ["capture loop", 390], ["IAvlabsCanBackend", 454], ["PeakBackend · VectorBackend", 518], ["PCANBasic.dll · vxlapi64.dll", 582]]
+      .forEach(([s, y], i) => block(1262, y, 536, 52, s, null, bk(lt, 1.7 + i * 0.1), { stroke: i === 0 ? C.redHi : i === 1 ? C.paper : C.rule, mono: true, px: 16 }));
+    procBox(380, 726, 420, 160, "Process · tshark -T ek", bk(lt, 2.2), C.blueHi);
+    block(404, 770, 372, 80, "SocketCAN dissector", "Wireshark's own", bk(lt, 2.4), { stroke: C.blueHi, px: 21 });
+    block(1300, 736, 520, 80, "CAN adapter", "PEAK or Vector, over USB", bk(lt, 2.6), { stroke: C.fog, px: 24 });
+    const gk = bk(lt, 2.8);
+    if (gk > 0) {
+      ctx.save();
+      ctx.globalAlpha *= 0.6;
+      block(860, 806, 400, 80, "can2pcap.exe", "optional extcap, same loop", gk, { stroke: C.dim, mono: true, px: 18, dash: [6, 5], color: C.fog });
+      ctx.restore();
+    }
+    // Spawn
+    wire([[440, 516], [440, 726]], wk(lt, 3.2), C.fog, 1.4, [6, 5]);
+    wireText("spawns: tshark -i <pipe> -T ek -l", 428, 702, bk(lt, 3.6), C.fog, 14, "right");
     // Data
-    const fifo = [[1306, 328], [1240, 328], [1240, 405], [1134, 405]];
-    const json = [[806, 505], [720, 505], [720, 342], [580, 342]];
-    wire(fifo, wk(lt, 4.6), C.redHi, 2.4);
-    wireText("fifo: pcap records", 1188, 440, bk(lt, 5.0), C.redHi, 15);
-    wire(json, wk(lt, 5.2), C.blueHi, 2.4);
-    wireText("stdout:", 690, 540, bk(lt, 5.6), C.blueHi, 15);
-    wireText("EK JSON", 690, 560, bk(lt, 5.6), C.blueHi, 15);
-    const hw = [[1560, 596], [1560, 800]];
-    wire([[1560, 800], [1560, 676]], wk(lt, 5.8, 0.4), C.fog, 2.4);
-    wireText("USB", 1580, 760, bk(lt, 6.0), C.fog, 15, "left");
-    packets(fifo, lt, 6.2, C.redHi, 300, 3);
-    packets(json, lt, 6.4, C.blueHi, 320, 3);
-    packets([[1560, 800], [1560, 676]], lt, 6.0, C.paper, 160, 2);
-    void hw;
+    const pcap = [[1262, 416], [1140, 416], [1140, 790], [800, 790]];
+    const json = [[560, 726], [560, 516]];
+    const usb = [[1560, 736], [1560, 636]];
+    wire(pcap, wk(lt, 4.0, 0.8), C.redHi, 2.4);
+    wireText("named pipe: pcap records", 1126, 600, bk(lt, 4.6), C.redHi, 15, "right");
+    wireText("\\\\.\\pipe\\cantrip_capture_<pid>_<n>", 1126, 624, bk(lt, 4.6), C.dim, 13, "right");
+    wire(json, wk(lt, 5.0, 0.4), C.blueHi, 2.4);
+    wireText("stdout: EK JSON", 574, 622, bk(lt, 5.3), C.blueHi, 15, "left");
+    wire(usb, wk(lt, 5.4, 0.4), C.fog, 2.4);
+    wireText("USB", 1580, 702, bk(lt, 5.6), C.fog, 15, "left");
+    packets(pcap, lt, 5.8, C.redHi, 340, 4);
+    packets(json, lt, 6.0, C.blueHi, 200, 2);
+    packets(usb, lt, 5.6, C.paper, 120, 2);
     // Transmit
-    const pipe = [[430, 516], [430, 760], [1260, 760], [1260, 648], [1306, 648]];
-    const port = [[500, 516], [500, 843], [1280, 843]];
-    wire(pipe, wk(lt, 7.0, 0.9), C.redHi, 1.8, [7, 5]);
-    wireText("\\\\.\\pipe\\cantrip_tx_<id>   (PEAK)", 740, 750, bk(lt, 7.8), C.redHi, 15);
-    wire(port, wk(lt, 8.0, 0.9), C.redHi, 1.8, [7, 5]);
-    wireText("2nd XL port, permission mask 0   (Vector)", 740, 833, bk(lt, 8.8), C.redHi, 15);
-    packets(pipe, lt, 9.0, C.redHi, 380, 2);
+    const peak = [[580, 340], [1262, 340]];
+    const vec = [[580, 316], [610, 316], [610, 274], [1830, 274], [1830, 700], [1800, 700], [1800, 736]];
+    wire(peak, wk(lt, 7.0, 0.8), C.redHi, 1.8, [7, 5]);
+    wireText("PEAK: \\\\.\\pipe\\cantrip_tx_<id>", 920, 366, bk(lt, 7.6), C.redHi, 15);
+    wire(vec, wk(lt, 8.0, 1.0), C.redHi, 1.8, [7, 5]);
+    wireText("Vector: MessageSender's own 2nd XL port, permission mask 0", 950, 302, bk(lt, 8.8), C.redHi, 15);
+    packets(peak, lt, 9.0, C.redHi, 380, 2);
     // Callouts
-    note(lt, 10.0, 1306, 736, "can2pcap.exe owns the hardware handle, from CAN_Initialize to exit.", 534, 18);
+    note(lt, 10.0, 1306, 868, "The capture thread owns the hardware handle; tshark only ever reads a pipe. Nothing is installed into Wireshark.", 534, 18);
     const lk = bk(lt, 11.0);
     if (lk > 0) {
       ctx.save();
@@ -905,12 +910,69 @@ details strong { color: var(--fg); font-weight: 400; }
         ctx.strokeStyle = c;
         ctx.lineWidth = 2;
         ctx.setLineDash(d || []);
-        ctx.beginPath(); ctx.moveTo(x, 940); ctx.lineTo(x + 50, 940); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x, 944); ctx.lineTo(x + 50, 944); ctx.stroke();
         ctx.setLineDash([]);
-        txt(s, x + 62, 946, F.iso(19), C.fog);
+        txt(s, x + 62, 950, F.iso(19), C.fog);
       });
       ctx.restore();
     }
+  }
+
+  // ---------- Sheet 4: multi-bus ----------
+  const ALIGN = [
+    "double align(int bus, double frameSec, double sessionSec) {",
+    "    if (!haveOrigin_) {",
+    "        origin_ = sessionSec - frameSec;",
+    "        haveOrigin_ = true;",
+    "    }",
+    "    auto it = offsets_.find(bus);",
+    "    if (it == offsets_.end()) it = offsets_.emplace(bus, (sessionSec - origin_) - frameSec).first;",
+    "    return frameSec + it->second;",
+    "}",
+  ];
+  const LANES = [
+    ["PCAN-USB FD", "500k · classic", 1, 290, 1],
+    ["VN1640A Channel 1", "500k / 2M · FD", 2, 400, 1],
+    ["synthetic source", "no hardware", 16, 560, 0.6],
+  ];
+  function drawBuses(lt) {
+    heading(lt, "Multi-bus · 2.0", ["One lane per bus."], null, 96, 140, 1200, 54);
+    procBox(404, 262, 312, 400, "Threads · one per bus", bk(lt, 0.4), C.redHi);
+    LANES.forEach(([hw, cfg, bus, y, a], i) => {
+      const t0 = 0.6 + i * 0.5, yc = y + 38;
+      ctx.save();
+      ctx.globalAlpha *= a;
+      balloon(bus, 64, yc, bk(lt, t0));
+      block(96, y, 260, 76, hw, cfg, bk(lt, t0), { stroke: C.fog, px: 19, subMono: true });
+      block(420, y, 280, 76, "capture thread", `bus ${bus}`, bk(lt, t0 + 0.1), { stroke: C.redHi, mono: true, px: 18, subMono: true });
+      block(764, y, 220, 76, "tshark", `-i pipe ${bus}`, bk(lt, t0 + 0.2), { stroke: C.blueHi, mono: true, px: 18, subMono: true });
+      block(1048, y, 280, 76, "TsharkCapture", `bus = ${bus}`, bk(lt, t0 + 0.3), { stroke: C.blueHi, mono: true, px: 18, subMono: true });
+      wire([[356, yc], [420, yc]], wk(lt, t0 + 0.2, 0.3), C.fog, 2);
+      wire([[700, yc], [764, yc]], wk(lt, t0 + 0.3, 0.3), C.redHi, 2);
+      wire([[984, yc], [1048, yc]], wk(lt, t0 + 0.4, 0.3), C.blueHi, 2);
+      wire([[1328, yc], [1380, yc], [1380, 405], [1420, 405]], wk(lt, 2.4 + i * 0.15, 0.4), C.blueHi, 2, null, i === 0);
+      ctx.restore();
+    });
+    const dk = bk(lt, 1.9);
+    [226, 560, 874, 1188].forEach((x) => txt("⋮", x, 534, F.iso(34), C.dim, "center", dk));
+    block(1420, 360, 420, 90, "BusTimeAligner", "every bus onto one shared clock", bk(lt, 2.8), { stroke: C.blueHi, mono: true, px: 20 });
+    wire([[1630, 450], [1630, 510]], wk(lt, 3.2, 0.3), C.blueHi, 2);
+    block(1420, 510, 420, 80, "onFrameReceived()", "MainWindow, as before", bk(lt, 3.4), { stroke: C.paper, mono: true, px: 20, center: true, lw: 2 });
+    note(lt, 3.8, 1420, 640, "The shift is fixed per bus, so spacing within a bus is exactly what the adapter reported.", 420, 18);
+    LANES.forEach(([, , , y, a], i) => {
+      const yc = y + 38;
+      ctx.save();
+      ctx.globalAlpha *= a;
+      packets([[356, yc], [420, yc]], lt, 4.2 + i * 0.1, C.paper, 90, 1);
+      packets([[700, yc], [764, yc]], lt, 4.3 + i * 0.1, C.redHi, 110, 1);
+      packets([[984, yc], [1048, yc]], lt, 4.4 + i * 0.1, C.blueHi, 110, 1);
+      packets([[1328, yc], [1380, yc], [1380, 405], [1420, 405]], lt, 4.5 + i * 0.1, C.blueHi, 260, 2);
+      ctx.restore();
+    });
+    codePanel(lt, 5.0, 96, 700, 860, "app/BusTimeAligner.h · align()", ALIGN, { px: 13, hl: (i, t) => (i >= 5 && i <= 7 ? bk(t, 6.4) : 0) });
+    note(lt, 7.0, 1000, 762, "Up to 16 buses, each with its own channel, bitrate, classic or FD, and DBC files.", 840, 19);
+    note(lt, 7.8, 1000, 836, "A DBC file loads for one bus or for every bus. Signals beyond CAN 1 get a prefix: CAN2.EngineData.EngineSpeed.", 840, 19);
+    note(lt, 8.6, 1000, 914, "Logs keep every bus in one file; the bus is the ASC or CSV channel.", 840, 19);
   }
 
   // ---------- Sheet 4: the backend ----------
@@ -1008,32 +1070,33 @@ details strong { color: var(--fg); font-weight: 400; }
 
   // ---------- Sheet 5: can2pcap ----------
   const LOOP = [
-    "while (true) {",
+    "while (!stop) {",
     "    CanFrame frame;",
-    "    bool got = backend->readFrame(channelId, &frame, &err);",
+    "    const bool got = backend.readFrame(channelId, &frame, &err);",
     "    if (got) {",
-    "        writeRecord(fifo, frame);",
+    "        if (!writePcapRecord(out, frame)) break; // nothing is reading anymore",
+    "        if (gateway) gateway->route(bus, frame);",
     "    } else if (!err.empty()) {",
-    "        std::fprintf(stderr, \"can2pcap: read error: %s\\n\", err.c_str());",
+    "        report(\"read error: \" + err);",
     "        std::this_thread::sleep_for(std::chrono::milliseconds(50));",
+    "    } else if (gateway) {",
+    "        gateway->waitForWork(bus, std::chrono::milliseconds(1));",
     "    } else {",
     "        std::this_thread::sleep_for(std::chrono::milliseconds(1));",
     "    }",
+    "    serveGateway(gateway, bus, transmit); // what other buses queued here",
     "    CanFrame txFrame;",
-    "    if (tryReadTxPipe(txPipe, &txFrame)) {",
-    "        std::string txErr;",
-    "        if (!backend->writeFrame(channelId, txFrame, &txErr)) { /* ... */ }",
-    "    }",
+    "    if (tryReadTxPipe(txPipe, &txFrame)) { /* PEAK Send Message */ }",
     "}",
   ];
   function drawCan2pcap(lt) {
-    heading(lt, "can2pcap", ["Vendor struct in,", "pcap record out."], null, 96, 140, 600, 54);
+    heading(lt, "The capture loop", ["Vendor struct in,", "pcap record out."], null, 96, 140, 600, 54);
     const step = Math.floor((lt * 2.2) % 3);
-    const h = codePanel(lt, 0.5, 96, 290, 780, "extcap/can2pcap.cpp · runCapture()", LOOP, {
-      px: 14, hl: (i, t) => (t < 3 ? 0 : (step === 0 && i === 2) || (step === 1 && (i === 3 || i === 4)) || (step === 2 && (i === 11 || i === 12)) ? 1 : 0),
+    const h = codePanel(lt, 0.5, 96, 290, 780, "common/PcapCapture.cpp · runBackendCapture() (trimmed)", LOOP, {
+      px: 14, hl: (i, t) => (t < 3 ? 0 : (step === 0 && i === 2) || (step === 1 && (i === 4 || i === 5)) || (step === 2 && (i === 14 || i === 16)) ? 1 : 0),
     });
     incident(lt, 9.5, 96, 290 + h + 24, 780, "Incident", "CAN FD frames lost their tail",
-      "The raw DLC code went into the record's length byte. Wireshark read a 64-byte frame as 15 bytes and hid the rest in can_can_padding. Seen on a real, busy VN7640 FD bus; fdDlcCodeToLength() now converts at this one spot.");
+      "The raw DLC code went into the record's length byte. Wireshark read a 64-byte frame as 15 bytes and hid the rest in can_can_padding. Seen on a real, busy VN7640 FD bus; fdDlcCodeToLength() now converts at this one spot, in serializeFrame().");
     // Byte layouts
     const x = 940;
     const fieldRow = (lt0, y, title, fields) => {
@@ -1090,6 +1153,7 @@ details strong { color: var(--fg); font-weight: 400; }
     "const QJsonObject layers = root[\"layers\"].toObject();",
     "const bool fd = layers.contains(\"canfd\");",
     "const QJsonObject can = layers.value(fd ? \"canfd\" : \"can\").toObject();",
+    "frame.bus = bus_;  // this capture's bus, 1 to 16",
     "frame.id = can.value(\"can_can_id\").toString().toUInt();",
     "frame.dlc = static_cast<uint8_t>(can.value(\"can_can_len\").toString().toUInt());",
     "frame.extended = can.value(\"can_can_flags_xtd\").toBool();",
@@ -1098,11 +1162,11 @@ details strong { color: var(--fg); font-weight: 400; }
   ];
   function drawDissection(lt) {
     heading(lt, "Dissection", ["Wireshark does", "the parsing."], null, 96, 140, 600, 54);
-    const h1 = codePanel(lt, 0.5, 96, 290, 860, "tshark -T ek · stdout (one line per frame, shown wrapped)", EK, { px: 15, noNumbers: true, stagger: 0.12 });
-    codePanel(lt, 2.0, 96, 290 + h1 + 24, 860, "app/TsharkCapture.cpp · processLine() (trimmed)", PROCESS, { px: 13, hl: (i, t) => (i === 3 || i === 7 ? bk(t, 5.0, 0.4) : 0) });
+    const h1 = codePanel(lt, 0.5, 96, 290, 860, "tshark -i <pipe> -T ek · stdout (one line per frame, shown wrapped)", EK, { px: 15, noNumbers: true, stagger: 0.12 });
+    codePanel(lt, 2.0, 96, 290 + h1 + 24, 860, "app/TsharkCapture.cpp · processLine() (trimmed)", PROCESS, { px: 13, hl: (i, t) => (i === 3 || i === 4 || i === 8 ? bk(t, 5.0, 0.4) : 0) });
     // DecodedCanFrame
     const sx = 1040, sy = 290;
-    const fields = ["timestamp", "direction  Rx | Tx", "id", "extended · rtr", "fd · brs · esi", "dlc   (bytes, 0-64)", "data", "error · errorDescription"];
+    const fields = ["timestamp", "bus   1 to 16", "direction  Rx | Tx", "id", "extended · rtr", "fd · brs · esi", "dlc   (bytes, 0-64)", "data", "error · errorDescription"];
     const sk = bk(lt, 3.6);
     if (sk > 0) {
       ctx.save();
@@ -1111,7 +1175,7 @@ details strong { color: var(--fg); font-weight: 400; }
       ctx.fillStyle = rgba(C.blue, 0.3);
       ctx.fillRect(sx + 1, sy + 1, 518, 44);
       txt("struct DecodedCanFrame", sx + 18, sy + 30, F.mono(600, 18), C.paper);
-      fields.forEach((f, i) => txt(f, sx + 28, sy + 76 + i * 34, F.mono(400, 16), i === 5 ? C.blueHi : C.fog));
+      fields.forEach((f, i) => txt(f, sx + 28, sy + 76 + i * 34, F.mono(400, 16), i === 1 || i === 6 ? C.blueHi : C.fog));
       ctx.restore();
     }
     const out = [[sx + 260, sy + 60 + fields.length * 34], [sx + 260, 690]];
@@ -1125,50 +1189,51 @@ details strong { color: var(--fg); font-weight: 400; }
 
   // ---------- Sheet 7: one slot ----------
   const ONFRAME = [
-    "void MainWindow::onFrameReceived(const DecodedCanFrame& frame) {",
-    "    if (logging_) {",
-    "        logWriter_->writeFrame(1, frame);   // every frame, never throttled",
+    "void MainWindow::onFrameReceived(const DecodedCanFrame& received) {",
+    "    // ... several buses: Rx frames onto one clock (BusTimeAligner) ...",
+    "    const DecodedCanFrame& frame = align ? aligned : received;",
+    "    udsClient_.onFrame(frame);",
+    "    if (logging_) logWriter_->writeFrame(frame.bus, frame); // never throttled",
+    "    for (const DbcDecoder::DecodedSignal& sig : dbcDecoder_.decodeSignals(frame)) {",
+    "        signalHistory_.recordSample(name, sig.unit, timeSec, sig.physicalValue);",
     "    }",
-    "    // ... bus errors: shown at once ...",
-    "    if (displayMode_ == DisplayMode::Waterfall) {",
-    "        pendingWaterfallFrames_.push_back(frame);",
-    "    } else {",
-    "        pendingPeriodicFrames_[frameKey(frame)] = frame;",
-    "    }",
+    "    // ... bus errors at once, then the display throttle ...",
     "}",
   ];
   function drawSlot(lt) {
     heading(lt, "Inside cantrip.exe", ["Every frame takes", "the same path."], null, 96, 140, 600, 54);
-    const srcs = [["TsharkCapture", "live capture · Rx", 300], ["MessageSender", "your own frames · Tx", 410], ["LogReplaySource", "a saved .asc or .csv", 520]];
-    srcs.forEach(([a, b, y], i) => block(96, y, 300, 78, a, b, bk(lt, 0.5 + i * 0.15), { stroke: C.redHi, mono: true, px: 18 }));
-    block(520, 390, 330, 100, "onFrameReceived()", "MainWindow", bk(lt, 1.1), { stroke: C.paper, mono: true, px: 22, center: true, lw: 2 });
-    const ins = srcs.map(([, , y]) => [[396, y + 39], [460, y + 39], [460, 440], [520, 440]]);
+    const srcs = [["TsharkCapture × N", "live capture · Rx, per bus", 296], ["MessageSender", "your own frames · Tx", 380], ["LogReplaySource", "a saved .asc or .csv", 464], ["GatewayRouter", "forwarded frames · Tx", 548]];
+    srcs.forEach(([a, b, y], i) => block(96, y, 300, 70, a, b, bk(lt, 0.5 + i * 0.15), { stroke: C.redHi, mono: true, px: 18 }));
+    block(520, 390, 330, 100, "onFrameReceived()", "MainWindow · one clock first", bk(lt, 1.1), { stroke: C.paper, mono: true, px: 22, center: true, lw: 2 });
+    const ins = srcs.map(([, , y]) => [[396, y + 35], [460, y + 35], [460, 440], [520, 440]]);
     ins.forEach((p, i) => wire(p, wk(lt, 1.3 + i * 0.15), C.redHi, 2));
     // Outputs
     const outs = [
-      ["ILogWriter::writeFrame()", "every frame, before any throttle", 280, C.redHi],
-      ["Bus errors", "added to the trace at once", 370, C.redHi],
+      ["ILogWriter::writeFrame()", "every frame, bus as the channel", 280, C.redHi],
+      ["SignalHistoryStore", "every sample, before any throttle", 370, C.blueHi],
       ["Throttle: queue or latest-per-ID", "flushed every 33 ms at 30 Hz", 460, C.blueHi],
-      ["Stimulation pane", "only while it's on screen", 550, C.fog],
+      ["UdsClient::onFrame()", "only the ECU's answers", 550, C.fog],
     ];
     outs.forEach(([a, b, y, c], i) => {
       wire([[850, 440], [900, 440], [900, y + 34], [960, y + 34]], wk(lt, 2.0 + i * 0.2), c, 1.8);
-      block(960, y, 420, 68, a, b, bk(lt, 2.2 + i * 0.2), { stroke: c, mono: i !== 1 && i !== 3, px: 17 });
+      block(960, y, 420, 68, a, b, bk(lt, 2.2 + i * 0.2), { stroke: c, mono: true, px: 17 });
     });
-    wire([[1380, 494], [1450, 494]], wk(lt, 3.2, 0.4), C.blueHi, 1.8);
-    block(1450, 460, 390, 68, "Trace + Graph", "DbcDecoder::decodeSignals()", bk(lt, 3.4), { stroke: C.blueHi, px: 21, subMono: true });
     wire([[1380, 314], [1450, 314]], wk(lt, 3.0, 0.4), C.redHi, 1.8);
     block(1450, 280, 390, 68, "run.asc / run.csv", "MessageName via a resolver callback", bk(lt, 3.2), { stroke: C.redHi, mono: true, px: 18 });
-    // BusLoadTracker taps the sources directly
-    // Dashed taps run down the left margin, outside the source boxes.
-    wire([[96, 330], [70, 330], [70, 646], [520, 646]], wk(lt, 4.0), C.fog, 1.5, [6, 5]);
-    wire([[96, 440], [82, 440], [82, 646]], wk(lt, 4.1, 0.4), C.fog, 1.5, [6, 5], false);
-    block(520, 615, 330, 62, "BusLoadTracker", null, bk(lt, 4.3), { stroke: C.fog, mono: true, px: 18, center: true });
-    note(lt, 4.6, 880, 642, "Connected straight to capture and transmit. A replayed log never loads the bus.", 500, 18);
-    // Traffic: many in, all to the log, batched to the display.
+    wire([[1380, 404], [1450, 404]], wk(lt, 3.1, 0.4), C.blueHi, 1.8);
+    block(1450, 370, 390, 68, "Graph view", "decimate(): min/max per pixel", bk(lt, 3.3), { stroke: C.blueHi, px: 21, subMono: true });
+    wire([[1380, 494], [1450, 494]], wk(lt, 3.2, 0.4), C.blueHi, 1.8);
+    block(1450, 460, 390, 68, "Trace view", "TraceModel: newest 100,000 rows", bk(lt, 3.4), { stroke: C.blueHi, px: 21, subMono: true });
+    // BusLoadTracker taps the sources directly, down the left margin.
+    wire([[96, 331], [70, 331], [70, 661], [520, 661]], wk(lt, 4.0), C.fog, 1.5, [6, 5]);
+    wire([[96, 415], [82, 415], [82, 661]], wk(lt, 4.1, 0.4), C.fog, 1.5, [6, 5], false);
+    block(520, 630, 330, 62, "BusLoadTracker × N", null, bk(lt, 4.3), { stroke: C.fog, mono: true, px: 18, center: true });
+    note(lt, 4.6, 880, 660, "One per bus, fed by capture, transmit and the gateway. Replay never loads the bus.", 500, 18);
+    // Traffic: many in, all to the log and the history, batched to the Trace view.
     if (lt > 5.0) {
       packets(ins[0], lt, 5.0, C.redHi, 520, 6);
       packets([[850, 440], [900, 440], [900, 314], [960, 314]], lt, 5.2, C.redHi, 520, 6);
+      packets([[850, 440], [900, 440], [900, 404], [960, 404]], lt, 5.3, C.blueHi, 520, 6);
       const flush = Math.floor((lt - 5.0) * 2.5);
       const qk = frac2((lt - 5.0) * 2.5);
       const qn = Math.floor(qk * 9);
@@ -1179,7 +1244,7 @@ details strong { color: var(--fg); font-weight: 400; }
       }
       if (qk < 0.15 && flush > 0) glow(1450, 494, 50, C.blueHi, 0.6);
     }
-    codePanel(lt, 6.0, 96, 712, 860, "app/MainWindow.cpp (trimmed)", ONFRAME, { px: 13, hl: (i, t) => (i === 2 ? bk(t, 7.0) : i === 6 || i === 8 ? bk(t, 7.6) : 0) });
+    codePanel(lt, 6.0, 96, 712, 860, "app/MainWindow.cpp (trimmed)", ONFRAME, { px: 13, hl: (i, t) => (i === 4 ? bk(t, 7.0) : i === 3 || i === 6 ? bk(t, 7.6) : 0) });
     incident(lt, 9.0, 1000, 712, 840, "Incident", "The UI froze on a busy bus",
       "Decoding and repainting one row per frame couldn't keep up with a loaded real bus. Root-caused with ProcDump and WinDbg; the display-rate throttle fixed it in v1.1.0, and logging still sees every frame.");
   }
@@ -1231,7 +1296,7 @@ details strong { color: var(--fg); font-weight: 400; }
     label("Where the conversion happens", tx, 380, 15, C.fog, "left", bk(lt, 3.0));
     const rows = [
       ["TransmitMessage::dlc", "bytes", "MessageSender::transmitOne()", "CanFrame::dlc", "code"],
-      ["CanFrame::dlc", "code", "can2pcap fdDlcCodeToLength()", "SocketCAN len", "bytes"],
+      ["CanFrame::dlc", "code", "PcapCapture fdDlcCodeToLength()", "SocketCAN len", "bytes"],
       ["DecodedCanFrame::dlc", "bytes", "AscLogWriter dlcCodeFromByteLength()", "ASC DLC field", "code"],
     ];
     rows.forEach(([a, au, fn, b, bu], i) => {
@@ -1256,8 +1321,8 @@ details strong { color: var(--fg); font-weight: 400; }
       { from: 1, to: 2, label: "writeFrame(CanFrame)", color: C.redHi },
       { from: 2, to: 3, label: "xlCanTransmitEx", color: C.redHi },
     ], 0.55);
-    label("PEAK PCAN-Basic: through can2pcap", 984, 290, 16, C.redHi, "left", bk(lt, 4.0));
-    seq(lt, 4.1, 984, 310, 856, 420, [["MessageSender", "cantrip.exe", C.redHi], ["named pipe", "cantrip_tx_<id>"], ["can2pcap.exe", "capture loop", C.redHi], ["PEAK hardware"]], [
+    label("PEAK PCAN-Basic: through the capture thread", 984, 290, 16, C.redHi, "left", bk(lt, 4.0));
+    seq(lt, 4.1, 984, 310, 856, 420, [["MessageSender", "cantrip.exe", C.redHi], ["named pipe", "cantrip_tx_<id>"], ["capture thread", "capture loop", C.redHi], ["PEAK hardware"]], [
       { note: 2, text: "already holds the only handle" },
       { from: 0, to: 3, label: "2nd CAN_Initialize: PCAN_ERROR_INITIALIZE", fail: true, color: C.redHi, dash: true },
       { from: 2, to: 1, label: "CreateNamedPipeA (PIPE_NOWAIT)" },
@@ -1266,13 +1331,131 @@ details strong { color: var(--fg); font-weight: 400; }
       { from: 2, to: 3, label: "CAN_Write / CAN_WriteFD", color: C.redHi },
     ], 0.6);
     incident(lt, 9.5, 96, 760, 860, "Incident", "A second CAN_Initialize killed live captures",
-      "Opening the transmit port when a capture started raced can2pcap's own startup; on PEAK the second init reset the channel and the capture died. The port now opens on the first send, and the pipe client retries for about two seconds.");
+      "Opening the transmit port when a capture started raced the capture's own startup; on PEAK the second init reset the channel and the capture died. The port now opens on the first send, and the pipe client retries for about two seconds.");
     note(lt, 11.0, 984, 790, "SendMode is chosen once in openPort(): DirectBackend for Vector, NamedPipe for PEAK.", 856, 19);
-    note(lt, 12.0, 984, 860, "The pipe carries raw sizeof(CanFrame) bytes: same header, same compiler, no serialization.", 856, 19);
+    note(lt, 12.0, 984, 860, "That is bus 1. A message for any other bus goes to the gateway router, and that bus's capture thread sends it.", 856, 19);
     note(lt, 13.0, 984, 930, "PIPE_NOWAIT: polled inside the existing capture loop, no extra thread.", 856, 19);
   }
 
-  // ---------- Sheet 10: bus load ----------
+  // ---------- Sheet 11: gateway ----------
+  const RULE = [
+    "struct GatewayRule {",
+    "    int fromBus = 1;",
+    "    int toBus = 2;",
+    "    uint32_t idLow = 0;",
+    "    uint32_t idHigh = 0x1FFFFFFFu; // the whole range: every ID",
+    "    bool matches(int bus, const CanFrame& frame) const {",
+    "        return bus == fromBus && frame.id >= idLow && frame.id <= idHigh;",
+    "    }",
+    "};",
+  ];
+  // A red dashed tag, right-aligned at x: for what hasn't met real hardware yet.
+  function stamp(lt, at, x, y, text) {
+    const k = bk(lt, at);
+    if (k <= 0) return;
+    const w = label(text, 0, -100, 13, C.redHi, "left", 0, 0.2) + 36;
+    ctx.save();
+    ctx.globalAlpha *= k;
+    rect(x - w, y, w, 34, C.redHi, rgba(C.red, 0.08), 1.4, [6, 4]);
+    ctx.restore();
+    label(text, x - w + 18, y + 22, 13, C.redHi, "left", k, 0.2);
+  }
+  function drawGateway(lt) {
+    heading(lt, "Gateway · 2.0", ["The capture threads", "do the forwarding."], null, 96, 140, 900, 54);
+    stamp(lt, 0.8, 1840, 132, "Field-tested · PEAK and Vector");
+    // Bus 1 in, bus 2 out
+    block(96, 350, 250, 76, "CAN 1", "PCAN-USB FD", bk(lt, 0.6), { stroke: C.fog, px: 22, subMono: true });
+    block(410, 350, 296, 76, "capture thread · bus 1", "readFrame(), then route()", bk(lt, 0.8), { stroke: C.redHi, mono: true, px: 17 });
+    block(96, 560, 250, 76, "CAN 2", "VN1640A Channel 1", bk(lt, 1.0), { stroke: C.fog, px: 22, subMono: true });
+    block(410, 560, 296, 76, "capture thread · bus 2", "take(), then writeFrame()", bk(lt, 1.2), { stroke: C.redHi, mono: true, px: 17 });
+    // The router
+    const rk = bk(lt, 1.6);
+    if (rk > 0) {
+      ctx.save();
+      ctx.globalAlpha *= rk;
+      rect(830, 330, 560, 330, C.blueHi, rgba(C.panel, 0.92), 1.6);
+      ctx.fillStyle = rgba(C.blue, 0.3);
+      ctx.fillRect(831, 331, 558, 48);
+      txt("GatewayRouter", 852, 362, F.mono(600, 19), C.paper);
+      txt("one per session, safe from any thread", 1370, 361, F.iso(16), C.fog, "right");
+      label("Rules", 852, 410, 13, C.fog);
+      [["1 → 2", "all IDs"], ["2 → 1", "0x700-0x7FF"]].forEach(([a, b], i) => {
+        txt(a, 852, 444 + i * 32, F.mono(500, 17), C.paper);
+        txt(b, 960, 444 + i * 32, F.mono(400, 17), C.fog);
+      });
+      label("Queues, one per bus", 852, 530, 13, C.fog);
+      ["bus 2", "bus 1"].forEach((s, i) => {
+        const y = 546 + i * 50;
+        txt(s, 852, y + 24, F.mono(500, 15), C.fog);
+        rect(920, y, 450, 34, C.rule, rgba(C.ink, 0.6), 1.2);
+      });
+      txt("4096 deep", 1370, 650, F.mono(400, 13), C.dim, "right");
+      ctx.restore();
+    }
+    wire([[346, 388], [410, 388]], wk(lt, 2.2, 0.3), C.fog, 2);
+    wireText("Rx", 378, 378, bk(lt, 2.3), C.fog, 14);
+    wire([[706, 388], [830, 388]], wk(lt, 2.4, 0.3), C.redHi, 2);
+    wireText("route(1, f)", 768, 376, bk(lt, 2.5), C.redHi, 14);
+    wire([[830, 598], [706, 598]], wk(lt, 2.8, 0.3), C.redHi, 2);
+    wireText("take(2)", 768, 586, bk(lt, 2.9), C.redHi, 14);
+    wire([[410, 598], [346, 598]], wk(lt, 3.0, 0.3), C.redHi, 2);
+    wireText("Tx", 378, 588, bk(lt, 3.1), C.redHi, 14);
+    // What the window sees
+    wire([[1390, 388], [1460, 388]], wk(lt, 3.4, 0.3), C.blueHi, 2);
+    block(1460, 350, 380, 76, "drainSent()", "the window, every 20 ms", bk(lt, 3.6), { stroke: C.blueHi, mono: true, px: 19 });
+    wire([[1650, 426], [1650, 470]], wk(lt, 3.8, 0.3), C.blueHi, 2);
+    block(1460, 470, 380, 76, "onFrameReceived()", "a Tx row on CAN 2", bk(lt, 4.0), { stroke: C.paper, mono: true, px: 19 });
+    wire([[1650, 546], [1650, 590]], wk(lt, 4.2, 0.3), C.blueHi, 2);
+    block(1460, 590, 380, 76, "Trace · log · bus load", "like a frame you sent", bk(lt, 4.4), { stroke: C.blueHi, px: 21 });
+    // Traffic: in on bus 1, queued, out on bus 2.
+    if (lt > 4.8) {
+      packets([[346, 388], [410, 388]], lt, 4.8, C.paper, 90, 1);
+      packets([[706, 388], [830, 388]], lt, 4.9, C.redHi, 140, 1);
+      const qk = frac2((lt - 4.8) * 0.8), qn = Math.floor(qk * 30);
+      for (let i = 0; i < qn; i++) {
+        ctx.fillStyle = C.redHi;
+        ctx.fillRect(928 + i * 14, 556, 9, 14);
+      }
+      packets([[830, 598], [706, 598]], lt, 5.0, C.redHi, 140, 1);
+      packets([[410, 598], [346, 598]], lt, 5.1, C.redHi, 90, 1);
+      packets([[1390, 388], [1460, 388]], lt, 5.2, C.blueHi, 90, 1);
+    }
+    codePanel(lt, 6.0, 96, 700, 820, "common/GatewayRouter.h", RULE, { px: 14, hl: (i, t) => (i === 6 ? bk(t, 7.4) : 0) });
+    note(lt, 8.4, 980, 730, "A frame the gateway sends isn't read back on the bus it went out on, so 1 → 2 plus 2 → 1 never ping-pongs.", 860, 19);
+    note(lt, 9.6, 980, 810, "Each destination gets a frame once, however many rules match. Error frames are never forwarded; past 4096 queued, frames are dropped and counted.", 860, 19);
+    note(lt, 10.8, 980, 890, "Nothing waits on tshark or the window: about a millisecond or two. A test-bench tool, not a certified gateway.", 860, 19);
+  }
+
+  // ---------- Sheet 12: diagnostics ----------
+  function drawDiag(lt) {
+    heading(lt, "Diagnostics · 2.0", ["UDS over ISO-TP,", "on the same pipeline."], null, 96, 140, 900, 54);
+    stamp(lt, 0.8, 1840, 132, "Field-tested · PEAK and Vector");
+    seq(lt, 0.6, 96, 330, 1010, 440, [["Diagnostics tab"], ["UdsClient", "IsoTpChannel", C.redHi], ["GatewayRouter", "send(bus, f)"], ["capture thread", "synthetic bus", C.redHi], ["SimulatedEcu", "7E1 / 7E9", C.blueHi]], [
+      { from: 0, to: 1, label: "Read... F190" },
+      { from: 1, to: 2, label: "7E1  03 22 F1 90", color: C.redHi },
+      { from: 2, to: 3, label: "take()", color: C.redHi },
+      { from: 3, to: 4, label: "onFrame()", color: C.redHi },
+      { from: 4, to: 1, label: "7E9  10 14 62 F1 90 43 41 4E   first frame, via tshark", color: C.blueHi },
+      { from: 1, to: 4, label: "7E1  30 00 00   flow control: send the rest", color: C.redHi, dash: true },
+      { from: 4, to: 1, label: "7E9  21 ...  22 ...   consecutive frames", color: C.blueHi },
+      { from: 1, to: 0, label: "62 F1 90 + VIN" },
+    ], 0.55);
+    // The answer on the wire
+    const x = 1160, cw = 84;
+    label("The answer: 20 bytes in three frames", x, 344, 14, C.fog, "left", bk(lt, 5.4));
+    byteRow(lt, 5.6, x, 364, cw, ["10", "14", "62", "F1", "90", "43", "41", "4E"],
+      [{ from: 0, to: 1, name: "FF · 20 bytes", color: C.redHi }, { from: 2, to: 4, name: "62 F1 90", color: C.blueHi }, { from: 5, to: 7, name: "\"CAN\"", color: C.fog }]);
+    byteRow(lt, 6.4, x, 484, cw, ["21", "54", "52", "31", "50", "53", "59", "4E"],
+      [{ from: 0, to: 0, name: "CF 1", color: C.redHi }, { from: 1, to: 7, name: "\"TR1PSYN\"", color: C.fog }]);
+    byteRow(lt, 7.2, x, 604, cw, ["22", "54", "48", "30", "30", "30", "30", "31"],
+      [{ from: 0, to: 0, name: "CF 2", color: C.redHi }, { from: 1, to: 7, name: "\"TH00001\"", color: C.fog }]);
+    note(lt, 8.4, 1160, 746, "Waits 1 s for an answer, and 5 s after 0x78 \"response pending\": answers come through the capture pipeline, not straight off the adapter.", 680, 19);
+    note(lt, 9.4, 1160, 856, "Classic CAN, normal addressing. Not in headless mode yet.", 680, 19);
+    note(lt, 10.4, 96, 812, "IsoTpChannel owns no clock, no thread and no hardware: it is fed frames and the time. The tester, the simulated ECU and the unit tests all share it.", 1010, 19);
+    note(lt, 11.6, 96, 892, "Requests leave through the router, so the thread that holds the bus transmits them. Answers are ordinary received frames, in the Trace view and the log too.", 1010, 19);
+  }
+
+  // ---------- Sheet 13: bus load ----------
   const FRAMESEC = [
     "if (!frame.fd) {",
     "    const double overhead = frame.extended ? kClassicExtOverheadBits : kClassicStdOverheadBits;",
@@ -1318,7 +1501,7 @@ details strong { color: var(--fg); font-weight: 400; }
     });
     // Pipeline
     const px = 1080, steps = [
-      ["recordFrame()", "from capture and transmit"],
+      ["recordFrame()", "per bus: capture, transmit, gateway"],
       ["1 s rolling window", "of { time, bus seconds }"],
       ["250 ms tick", "instant %, max, min, mean, per ID"],
       ["1 sample per second", "into its own SignalHistoryStore"],
@@ -1342,25 +1525,24 @@ details strong { color: var(--fg); font-weight: 400; }
     "}",
   ];
   const LOADER = [
-    "config.listenOnly = root[\"listenOnly\"].toBool(false);",
-    "config.displayRateMs = root[\"displayRateMs\"].toInt(33);",
-    "if (graph.contains(\"windows\")) {",
-    "    // current shape: one \"axes\" array per window",
-    "} else if (graph.contains(\"axes\")) {",
-    "    // pre-multi-window: load the flat array as one window",
-    "}",
+    "config.dbcPath = root[\"dbcPath\"].toString();",
+    "for (const QJsonValue& v : root[\"dbcFiles\"].toArray()) { /* path, bus */ }",
+    "for (const QJsonValue& v : root[\"extraBuses\"].toArray()) { /* bus 2 to 16 */ }",
+    "// Absent in runes saved before the gateway existed: no rules, off.",
+    "config.gatewayEnabled = gateway[\"enabled\"].toBool(false);",
+    "config.diagBus = std::clamp(diagnostics[\"bus\"].toInt(1), 1, kMaxBuses);",
     "config.traceHeaderState = QByteArray::fromHex(root[\"traceHeaderState\"].toString().toLatin1());",
   ];
   function drawRunes(lt) {
     heading(lt, "Persistence", ["Runes: JSON that", "tolerates absence."], null, 96, 140, 700, 54);
     codePanel(lt, 0.5, 96, 300, 800, "bench.rune · saved by an older CANtrip", OLD_RUNE, { px: 15, noNumbers: true, stagger: 0.1 });
-    codePanel(lt, 1.6, 96, 560, 800, "app/RuneFile.cpp · loadRuneFile() (trimmed)", LOADER, { px: 13, hl: (i, t) => (i <= 1 ? bk(t, 4.6) * (1 - bk(t, 6.4)) : i >= 2 && i <= 6 ? bk(t, 6.6) * (1 - bk(t, 8.4)) : i === 7 ? bk(t, 8.6) : 0) });
+    codePanel(lt, 1.6, 96, 560, 800, "app/RuneFile.cpp · loadRuneFile() (trimmed)", LOADER, { px: 13, hl: (i, t) => (i <= 2 ? bk(t, 4.6) * (1 - bk(t, 6.4)) : i >= 3 && i <= 5 ? bk(t, 6.6) * (1 - bk(t, 8.4)) : i === 6 ? bk(t, 8.6) : 0) });
     const rx = 1080;
     block(rx, 300, 760, 70, "No version field", "every field handles its own absence", bk(lt, 3.0), { stroke: C.blueHi, px: 26 });
     const rows = [
-      ["listenOnly", "missing", "false: today's default", 4.6],
-      ["displayRateMs", "missing", "33 ms (30 Hz)", 5.0],
-      ["graph", "flat \"axes\"", "migrated to one window", 6.6],
+      ["extraBuses", "missing", "one bus, as before", 4.6],
+      ["dbcFiles", "only \"dbcPath\"", "loaded for every bus", 5.0],
+      ["gateway", "missing", "no rules, off", 6.6],
       ["traceHeaderState", "missing", "restoreState() on empty: a no-op", 8.6],
     ];
     rows.forEach(([key, was, now, t0], i) => {
@@ -1412,13 +1594,13 @@ details strong { color: var(--fg); font-weight: 400; }
       ctx.globalAlpha *= ck;
       rect(sx, 530, 800, 130, C.blueHi, rgba(C.panel, 0.9), 1.6);
       label("Shared core: plain QObjects", sx + 20, 560, 14, C.blueHi);
-      ["TsharkCapture", "DbcDecoder", "MessageSender", "ILogWriter"].forEach((s, i) => {
-        rect(sx + 20 + i * 192, 580, 180, 56, i === 1 ? C.redHi : C.rule, rgba(C.ink, 0.6), 1.3);
-        txt(s, sx + 110 + i * 192, 614, F.mono(500, 15), C.paper, "center");
+      ["TsharkCapture", "DbcDecoder", "MessageSender", "ILogWriter", "GatewayRouter"].forEach((s, i) => {
+        rect(sx + 20 + i * 154, 580, 144, 56, i === 1 || i === 4 ? C.redHi : C.rule, rgba(C.ink, 0.6), 1.3);
+        txt(s, sx + 92 + i * 154, 614, F.mono(500, 14), C.paper, "center");
       });
       ctx.restore();
     }
-    note(lt, 6.0, sx, 700, "DbcDecoder was pulled out of MainWindow so a headless run could decode without a window.", 800, 18);
+    note(lt, 6.0, sx, 694, "New in 2.0: --bus N, a --dbc per bus, and --gateway <from>:<to>[:<ids>]. Diagnostics stays in the window for now.", 800, 18);
     // Ctrl+C
     label("Ctrl+C, safely", 96, 770, 15, C.fog, "left", bk(lt, 7.6));
     const steps = [["console thread", "consoleCtrlHandler()", C.redHi], ["InterlockedExchange", "g_interrupted = 1", C.fog], ["main thread", "200 ms QTimer sees it", C.blueHi], ["stopAndFinish()", "close, stop, flush, exit", C.blueHi]];
@@ -1432,20 +1614,21 @@ details strong { color: var(--fg); font-weight: 400; }
 
   // ---------- Sheet 13: design rules and outro ----------
   const RULES = [
-    ["Reuse proven parts", "Wireshark captures and dissects; dbcppp reads DBC files."],
+    ["Reuse proven parts", "Wireshark dissects; dbcppp reads DBC files."],
     ["One interface per vendor", "IAvlabsCanBackend, with each DLL loaded at runtime."],
-    ["Plain non-GUI classes", "That's what made headless mode a small change."],
-    ["One path for every frame", "Capture, transmit and replay all meet in onFrameReceived()."],
+    ["Plain non-GUI classes", "That's what made headless mode, and now multi-bus, small changes."],
+    ["One path for every frame", "Every bus, transmit, replay and the gateway meet in onFrameReceived()."],
     ["Tolerate absence", "Runes have no version field; missing keys get defaults."],
+    ["The owner of a handle does its I/O", "Send Message, the gateway and UDS all transmit through the thread that holds the bus."],
   ];
   function drawRules(lt) {
     const out = bk(lt, 6.0, 0.6);
     if (out < 1) {
       ctx.save();
       ctx.globalAlpha *= 1 - out;
-      heading(lt, "Design rules", ["Five rules, kept on purpose."], null, 96, 140, 1200, 54);
+      heading(lt, "Design rules", ["Six rules, kept on purpose."], null, 96, 140, 1200, 54);
       RULES.forEach(([a, b], i) => {
-        const k = bk(lt, 0.6 + i * 0.5), y = 300 + i * 120;
+        const k = bk(lt, 0.6 + i * 0.5), y = 290 + i * 108;
         if (k <= 0) return;
         ctx.save();
         ctx.globalAlpha *= k;
@@ -1462,7 +1645,7 @@ details strong { color: var(--fg); font-weight: 400; }
       drawWave(200, 1720, 900, 30, easeInOutCubic(prog(lt2, 0.1, 5.0)), 0.5, false, 2);
       lockup(W / 2, 300, 170, 140, 38, prog(lt2, 0.2, 1.0), lt2);
       rise(["One bus to sniff them all."], W / 2, 500, 60, F.iso(54), C.paper, lt2, 0.8, 0, "center", 1.4);
-      rise(["Architecture docs: avmolaei.github.io/CANtrip"], W / 2, 580, 40, F.iso(30), C.fog, lt2, 1.3, 0, "center");
+      rise(["Architecture docs: avmolaei.com/CANtrip"], W / 2, 580, 40, F.iso(30), C.fog, lt2, 1.3, 0, "center");
       const uk = easeOutCubic(prog(lt2, 1.8, 2.3));
       if (uk > 0) {
         const f = F.mono(500, 34), s = "github.com/avmolaei/CANtrip", w = measure(s, f) + 64;
@@ -1479,17 +1662,20 @@ details strong { color: var(--fg); font-weight: 400; }
   const SCENES = [
     { title: "How CANtrip is built", start: 0, end: 6, color: C.redHi, draw: drawTitle },
     { title: "Windows has no SocketCAN", start: 6, end: 18, color: C.blueHi, draw: drawConstraint },
-    { title: "Three processes, three channels", start: 18, end: 34, color: C.redHi, draw: drawProcesses },
-    { title: "One interface, any vendor", start: 34, end: 50, color: C.blueHi, draw: drawBackend },
-    { title: "Vendor struct in, pcap record out", start: 50, end: 66, color: C.redHi, draw: drawCan2pcap },
-    { title: "Wireshark does the parsing", start: 66, end: 80, color: C.blueHi, draw: drawDissection },
-    { title: "Every frame takes the same path", start: 80, end: 96, color: C.redHi, draw: drawSlot },
-    { title: "DLC code or byte count?", start: 96, end: 108, color: C.blueHi, draw: drawDlc },
-    { title: "Sending while capturing", start: 108, end: 126, color: C.redHi, draw: drawTransmit },
-    { title: "Bus load, bit by bit", start: 126, end: 140, color: C.blueHi, draw: drawBusLoad },
-    { title: "Runes: JSON that tolerates absence", start: 140, end: 152, color: C.redHi, draw: drawRunes },
-    { title: "Same classes, no widgets", start: 152, end: 166, color: C.blueHi, draw: drawHeadless },
-    { title: "Design rules", start: 166, end: 178, color: C.redHi, draw: drawRules },
+    { title: "cantrip.exe captures, tshark dissects", start: 18, end: 34, color: C.redHi, draw: drawProcesses },
+    { title: "One lane per bus", start: 34, end: 50, color: C.blueHi, draw: drawBuses },
+    { title: "One interface, any vendor", start: 50, end: 66, color: C.redHi, draw: drawBackend },
+    { title: "Vendor struct in, pcap record out", start: 66, end: 82, color: C.blueHi, draw: drawCan2pcap },
+    { title: "Wireshark does the parsing", start: 82, end: 96, color: C.redHi, draw: drawDissection },
+    { title: "Every frame takes the same path", start: 96, end: 112, color: C.blueHi, draw: drawSlot },
+    { title: "DLC code or byte count?", start: 112, end: 124, color: C.redHi, draw: drawDlc },
+    { title: "Sending while capturing", start: 124, end: 142, color: C.blueHi, draw: drawTransmit },
+    { title: "The capture threads do the forwarding", start: 142, end: 158, color: C.redHi, draw: drawGateway },
+    { title: "UDS over ISO-TP", start: 158, end: 176, color: C.blueHi, draw: drawDiag },
+    { title: "Bus load, bit by bit", start: 176, end: 190, color: C.redHi, draw: drawBusLoad },
+    { title: "Runes: JSON that tolerates absence", start: 190, end: 202, color: C.blueHi, draw: drawRunes },
+    { title: "Same classes, no widgets", start: 202, end: 216, color: C.redHi, draw: drawHeadless },
+    { title: "Design rules", start: 216, end: 228, color: C.blueHi, draw: drawRules },
   ];
   const TR = 0.7;
 
@@ -1565,23 +1751,23 @@ details strong { color: var(--fg); font-weight: 400; }
   const EVENTS = (() => {
     const ev = [];
     const at = (t, kind, a = {}) => ev.push({ t, kind, a });
-    const NB = Math.ceil(DURATION / BAR);
+    const NB = Math.ceil(DURATION / BAR), OUT0 = NB - 6;
     for (let bar = 0; bar < NB; bar++) {
       const t0 = bar * BAR, ch = CHORDS[Math.floor(bar / 2) % 4];
-      const intro = bar < 3, outro = bar >= 83, main = !intro && !outro;
+      const intro = bar < 3, outro = bar >= OUT0, main = !intro && !outro;
       if (bar % 2 === 0) at(t0, "pad", { notes: ch.pad, dur: BAR * 2 + 0.2, vel: intro || outro ? 0.8 : 0.7, pump: main });
       for (let e = 0; e < 8; e++) {
         let cut = 1000 + 300 * Math.sin(bar * 0.45);
         if (intro) cut = 300 + (bar * 8 + e) * 24;
-        if (outro) cut = lerp(800, 300, (bar - 83) / 6);
-        at(t0 + (e * BEAT) / 2, "pulse", { m: ch.root + 12, cut, vel: (e % 2 ? 0.5 : 0.8) * (outro ? lerp(1, 0.4, (bar - 83) / 6) : 1) });
+        if (outro) cut = lerp(800, 300, (bar - OUT0) / 6);
+        at(t0 + (e * BEAT) / 2, "pulse", { m: ch.root + 12, cut, vel: (e % 2 ? 0.5 : 0.8) * (outro ? lerp(1, 0.4, (bar - OUT0) / 6) : 1) });
       }
       if (main) {
         for (let b = 0; b < 4; b++) {
           at(t0 + b * BEAT, "kick", { vel: 0.5 });
           at(t0 + b * BEAT, "sub", { m: ch.root - 12, vel: 0.5 });
           if (bar >= 9) at(t0 + b * BEAT + BEAT / 2, "hat", { vel: 0.07 });
-          if (bar >= 30 && bar < 70 && bar % 4 >= 2) at(t0 + b * BEAT + BEAT / 4, "hat", { vel: 0.03 });
+          if (bar >= 30 && bar < NB - 19 && bar % 4 >= 2) at(t0 + b * BEAT + BEAT / 4, "hat", { vel: 0.03 });
         }
       }
       if (bar >= 2 && !outro) {
@@ -1592,8 +1778,8 @@ details strong { color: var(--fg); font-weight: 400; }
       }
     }
     at(1.0, "impact", { vel: 0.6 });
-    at(172.2, "impact", { vel: 0.55 });
-    at(170.2, "riser", { dur: 2.0 });
+    at(SCENES[SCENES.length - 1].start + 6.2, "impact", { vel: 0.55 });
+    at(SCENES[SCENES.length - 1].start + 4.2, "riser", { dur: 2.0 });
     for (let i = 1; i < SCENES.length; i++) at(SCENES[i].start - TR / 2, "scan", {});
     at(DURATION - 1.4, "fade", { dur: 1.3 });
     ev.sort((a, b) => a.t - b.t);

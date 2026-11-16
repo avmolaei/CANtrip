@@ -1,10 +1,5 @@
 # Diagnostics Tab
 
-!!! warning "Experimental"
-    Diagnostics is new and has only been run against CANtrip's own
-    simulated ECU, not against a real one. Expect rough edges, and do not
-    point it at an ECU you cannot afford to upset.
-
 The Diagnostics tab talks UDS (ISO 14229) to one ECU: it sends a request,
 waits for the answer, and writes both in a log with a plain reading of what
 each one means. Requests and answers longer than one CAN frame are split
