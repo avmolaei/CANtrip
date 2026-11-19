@@ -1,0 +1,18 @@
+/* Embedded films (docs/media/*.html#embed): a 16:9 stage plus the player's
+   one-row transport bar, so the height is 9/16 of the width plus a fixed amount. */
+.cantrip-film {
+  container-type: inline-size;
+  margin: 1.2em 0 0.4em;
+}
+.cantrip-film iframe {
+  display: block;
+  width: 100%;
+  height: calc(56.25cqw + 74px);
+  border: 0;
+  border-radius: 4px;
+  background: #0a0c11;
+}
+.cantrip-film-caption {
+  font-size: 0.75rem;
+  color: var(--md-default-fg-color--light);
+}
