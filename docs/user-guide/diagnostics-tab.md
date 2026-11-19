@@ -55,7 +55,8 @@ view.
 ## Any other request
 
 The **Request** line under the log sends any request you type as hex
-bytes, for example `22 F1 90` or `31 01 FF 00`. Press Enter or **Send**.
+bytes, for example `10 03` or `22 F1 90`. Press Enter or **Send**. The line
+clears every time, and the log keeps what you typed.
 
 ## Reading the log
 

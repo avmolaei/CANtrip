@@ -70,7 +70,7 @@ DiagnosticsView::DiagnosticsView(UdsClient* client, QWidget* parent) : QWidget(p
     bottom->setContentsMargins(6, 0, 6, 6);
     bottom->addWidget(new QLabel("Request:", this));
     rawEdit_ = new QLineEdit(this);
-    rawEdit_->setPlaceholderText("e.g: 22 F1 90");
+    rawEdit_->setPlaceholderText("e.g: 10 03");
     bottom->addWidget(rawEdit_, /*stretch=*/1);
     auto* sendButton = new QPushButton("Send", this);
     bottom->addWidget(sendButton);
@@ -218,20 +218,26 @@ void DiagnosticsView::applyTarget() {
     setTarget(target);
 }
 
-void DiagnosticsView::send(const QByteArray& request) {
+bool DiagnosticsView::send(const QByteArray& request) {
     if (busSpin_) applyTarget();
     QString error;
     if (!client_->request(request, &error)) {
         waitingForSeed_ = false;
-        addRow("Problem", request, error, /*problem=*/true);
+        addRow(RowKind::Problem, request, error);
+        return false;
     }
+    return true;
 }
 
 void DiagnosticsView::sendRaw() {
+    const QString text = rawEdit_->text().trimmed();
+    if (text.isEmpty()) return;
+    // The line is cleared whatever happens: the log keeps what was typed.
+    rawEdit_->clear();
     bool ok = false;
-    const QByteArray request = parseHex(rawEdit_->text(), &ok);
+    const QByteArray request = parseHex(text, &ok);
     if (!ok) {
-        addRow("Problem", {}, QString("\"%1\" is not a list of hex bytes. Write it like 22 F1 90.").arg(rawEdit_->text()), true);
+        addRow(RowKind::Problem, {}, QString("\"%1\" is not a list of hex bytes. Write it like 10 03.").arg(text));
         return;
     }
     send(request);
@@ -302,27 +308,27 @@ void DiagnosticsView::unlock() {
     send(bytes({Uds::kSecurityAccess, 0x01}));
 }
 
-void DiagnosticsView::addRow(const QString& kind, const QByteArray& bytes, const QString& meaning, bool problem) {
+void DiagnosticsView::addRow(RowKind kind, const QByteArray& bytes, const QString& meaning) {
     auto* item = new QTreeWidgetItem(log_);
     item->setText(0, QTime::currentTime().toString("HH:mm:ss.zzz"));
-    item->setText(1, kind);
+    item->setText(1, kind == RowKind::Request ? "Request" : kind == RowKind::Response ? "Response" : "Problem");
     item->setText(2, hexText(bytes));
     item->setText(3, meaning);
     item->setToolTip(2, hexText(bytes));
     item->setToolTip(3, meaning);
-    if (problem) {
-        for (int col = 0; col < 4; ++col) item->setForeground(col, QColor(0xC6, 0x28, 0x28));
-    }
+    // Requests green, everything that comes back red.
+    const QColor colour = kind == RowKind::Request ? QColor(0x2E, 0x7D, 0x32) : QColor(0xC6, 0x28, 0x28);
+    for (int col = 0; col < 4; ++col) item->setForeground(col, colour);
     log_->scrollToItem(item);
 }
 
 void DiagnosticsView::onRequestSent(const QByteArray& request) {
-    addRow("Request", request, QString::fromStdString(udsDescribe(toVector(request))), false);
+    addRow(RowKind::Request, request, QString::fromStdString(udsDescribe(toVector(request))));
 }
 
 void DiagnosticsView::onResponsePending(const QByteArray& request) {
-    addRow("Response", bytes({Uds::kNegativeResponse, static_cast<uint8_t>(request[0]), Uds::kNrcResponsePending}),
-           "The ECU is working on it and will answer later", false);
+    addRow(RowKind::Response, bytes({Uds::kNegativeResponse, static_cast<uint8_t>(request[0]), Uds::kNrcResponsePending}),
+           "The ECU is working on it and will answer later");
 }
 
 void DiagnosticsView::onResponse(const QByteArray& request, const QByteArray& response) {
@@ -337,7 +343,7 @@ void DiagnosticsView::onResponse(const QByteArray& request, const QByteArray& re
         const QString hint = QString::fromStdString(udsNrcHint(message[2]));
         if (!hint.isEmpty()) meaning += ". " + hint;
     }
-    addRow("Response", response, meaning, negative);
+    addRow(RowKind::Response, response, meaning);
 
     // A seed came back for Unlock: ask for the key and send it.
     if (!seedExpected || negative || response.size() < 3 || static_cast<uint8_t>(request[0]) != Uds::kSecurityAccess) return;
@@ -350,7 +356,7 @@ void DiagnosticsView::onResponse(const QByteArray& request, const QByteArray& re
     bool ok = false;
     const QByteArray key = parseHex(text, &ok);
     if (!ok) {
-        addRow("Problem", {}, QString("\"%1\" is not a list of hex bytes, so no key was sent.").arg(text), true);
+        addRow(RowKind::Problem, {}, QString("\"%1\" is not a list of hex bytes, so no key was sent.").arg(text));
         return;
     }
     send(bytes({Uds::kSecurityAccess, 0x02}) + key);
@@ -366,7 +372,7 @@ void DiagnosticsView::onFailed(const QByteArray& request, const QString& reason)
         text += " Check the bus and the two IDs.";
         if (client_->target().responseId == 0x7E8) text += " The synthetic test source's ECU is on 0x7E1 / 0x7E9.";
     }
-    addRow("Problem", request, text, true);
+    addRow(RowKind::Problem, request, text);
 }
 
 void DiagnosticsView::onBusyChanged(bool busy) {

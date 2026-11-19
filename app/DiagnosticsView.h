@@ -46,12 +46,14 @@ private slots:
 
 private:
     void applyTarget();
-    void send(const QByteArray& request);
+    // False when the request could not go out; the reason is logged.
+    bool send(const QByteArray& request);
     void sendRaw();
     void readIdentifier();
     void writeIdentifier();
     void unlock();
-    void addRow(const QString& kind, const QByteArray& bytes, const QString& meaning, bool problem);
+    enum class RowKind { Request, Response, Problem };
+    void addRow(RowKind kind, const QByteArray& bytes, const QString& meaning);
 
     UdsClient* client_;
     QWidget* ribbonPage_ = nullptr;
